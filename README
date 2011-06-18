@@ -10,3 +10,6 @@ This code does not compile to a static executable! It includes a lot of loose ex
 Code is in SuperCollider. SC users are welcome to read the code to glean possibly useful tricks.
 
 James Harkins
+
+[1] http://en.wikipedia.org/wiki/Sheng_%28instrument%29
+[2] http://supercollider.sourceforge.net
