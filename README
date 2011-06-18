@@ -1,0 +1,12 @@
+sheng.git
+=========
+
+Code for a work in progress, for sheng[1] and computer running SuperCollider[2].
+
+Note: This github repository is being created without any actual code :)  I need to prepare a software environment for rehearsal, containing a clone from which the performer can pull.
+
+This code does not compile to a static executable! It includes a lot of loose experimentation that is probably not useful to anyone except the author. The project will not be extensively documented.
+
+Code is in SuperCollider. SC users are welcome to read the code to glean possibly useful tricks.
+
+James Harkins
