@@ -109,9 +109,10 @@ g = { |notes, cs(Post)|
 		var	cs = CollStream.new;
 		g.(("[" ++ view.string ++ "]").interpret, cs);
 		out.string = cs.collection;
-	}).
-	string_("59, 62, 68, 69, 73, 74, 76");
-	out = TextView(w, 590@450);
+	}).string_("59, 62, 68, 69, 73, 74, 76");
+	out = TextView(w, 590@450)
+		.hasVerticalScroller_(true)
+		.autohidesScrollers_(true);
 	w.recursiveResize.front;
 }.value;
 )
