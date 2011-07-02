@@ -7,7 +7,7 @@ BP.loadGui;
 
 (
 [m, n].free;
-m = MixerChannel(\test1, s, 1, 2);
+m = MixerChannel(\test1TryALongName, s, 1, 2);
 n = MixerChannel(\test2, s, 2, 2);
 m => MCG(0); n => MCG(1);
 )
@@ -246,7 +246,6 @@ p = Pbind(
 
 p.stop;
 
-ModalSpec(#[0, 2, 4, 5, 7, 9, 11], 12, 2) => Mode(\d);
 
 (
 PR(\abstractProcess).clone {
@@ -303,63 +302,3 @@ BP(\bc).quant = 0;
 
 BP(\bc) => MT(1);
 
-// can get stuck in a loop
-BP(\bc).top = Pfsm([
-		#[0, 1],
-		Pseq(#[7, 4], 1), #[0, 1].weight(#[1, 3]),
-		Pseq(#[7, 8], 1), #[0, 1, 2, 3].weight(#[3, 2, 1, 11]),
-		11, #[0, 1],
-		11, #[4],
-		nil, nil
-	]) + 35;
-
-// not sure of a good non-imperative way
-BP(\bc).bottoms = (39: 34, 42: 33, 43: 37, 46: 38);
-BP(\bc).degree = Prout({ |inval|
-	var	top, bottom, part;
-	loop {
-		top = inval[\top];
-		bottom = ~bottoms[top];
-		part = (top-bottom).partition(rrand(2, 3), 1).integrate;
-		// inval = [top, bottom].yield;
-		inval = (bottom + (#[0] ++ part)).yield;
-	}
-});
-
-BP(\bc).degree = Pn(
-	(Pfin(1, Pkey(\top)) -.x Paccum(
-		start: 0,
-		step: Pconst(
-			(Pkey(\top) - Pfunc({ |ev| ~bottoms[ev[\top]] })).asStream,
-			Pwhite(1, 3, inf)
-		),
-		length: inf)
-	).clump(100),
-	inf
-);
-
-BP(\bc).length = Pkey(\delta) * Pif(Pkey(\delta) < 1, 0.6, 1);
-BP(\bc).gate = Pfunc({ |ev| (0.2 ! ev[\freq].size).put(0, 0.5) });
-
-BP(\bc).reset;
-
-8.partition(3)
-(39-34).partition(2)
-
-34 + (#[0] ++ #[1, 4].integrate)
-
-~bottoms = (39: 34, 42: 33, 43: 37, 46: 38);
-
-x = Pn(
-	(Pfin(1, Pkey(\top)) -.x Paccum(
-		start: 0,
-		step: Pconst(
-			(Pkey(\top) - Pfunc({ |ev| ~bottoms[ev[\top]] })).asStream,
-			Pwrand(#[1, 2, 3], #[0.25, 0.4, 0.35], inf)
-		),
-		length: inf)
-	).clump(100),
-	inf
-).asStream;
-
-x.next((top: 46))
