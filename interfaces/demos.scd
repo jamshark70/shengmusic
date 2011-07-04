@@ -4,6 +4,21 @@
 var dir = thisProcess.nowExecutingPath.dirname,
 	win, buttons;
 
+
+Proto {
+	~name = "demo";
+
+	~play = {
+		~go.();
+		currentEnvironment.changed(\play);
+	};
+
+	~stop = {
+		~end.();
+		currentEnvironment.changed(\done);
+	};
+} => PR(\demoProto);
+
 (dir +/+ "../common/transports.scd").loadPath;
 
 ~demos = (dir +/+ "demos/*.scd").pathMatch.collect { |path|
@@ -20,20 +35,24 @@ var dir = thisProcess.nowExecutingPath.dirname,
 
 win = ResizeFlowWindow("demos", Rect(500, 50, 500, 700));
 StaticText(win, 220@40)
-.string_("Close this window to end program");
+	.string_("Close this window to end program");
 win.startRow;
 
-win.onClose = {
+win.onClose = e {
 	~updaters.do { |upd| upd.remove };
-	if(Platform.ideName == "none") { 0.exit };
+	~demos.do { |demo| demo.destroy };
+	~board.free;
+	if(Platform.ideName == "none") { s.quit; 0.exit };
 };
 
 buttons = ~demos.collect { |demo|
+	var	btn;
+
 	StaticText(win, 200@50)
 		.string_(demo.name)
 		.align_(\center);
 	
-	PR(\playPauseButton).copy.prep(win, 50@50)
+	btn = PR(\playPauseButton).copy.prep(win, 50@50)
 	.userAction_({ |view|
 		if(view.currentState == 1) {
 			demo.play;
@@ -41,6 +60,8 @@ buttons = ~demos.collect { |demo|
 			demo.stop;
 		};
 	});
+	win.startRow;
+	btn
 };
 
 win.recursiveResize.front;
@@ -49,12 +70,25 @@ win.recursiveResize.front;
 ~updaters = ~demos.collect { |demo, i|
 	SimpleController(demo)
 	.put(\done, {
-		buttons[i].currentState = 0;
+		{ buttons[i].currentState = 0 }.defer;
 	})
 	.put(\play, {
-		buttons[i].currentState = 1;
+		{ buttons[i].currentState = 1 }.defer;
 	})
 };
+
+
+~board = \makeEmptyMixer8.eval;
+
+{
+	var	bounds = ~board.w.bounds;
+	~board.w.bounds = bounds.moveTo(bounds.left, Window.screenBounds.height - 50 - bounds.height);
+	bounds = win.bounds;
+	win.bounds = bounds.moveTo(bounds.left, Window.screenBounds.height - 50 - bounds.height);
+}.defer(1.5);
+
+s.boot;
+s.makeGui;
 
 
 /*
