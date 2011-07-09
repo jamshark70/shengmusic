@@ -1,6 +1,6 @@
 (
 var f, g, w, in,
-ctl, socket,
+chan, ctl, socket, vsocket, vtranspose,
 enabled = false, white = Color.white, pink = Color(1.0, 0.8, 0.8), midistring;
 
 ~notes = [57, 59, 61, 62, 64, 66, 67, 68, 69, 71, 72, 73, 74, 76, 78, 79, 80, 81, 83, 85, 86, 88, 90];
@@ -122,10 +122,17 @@ g = { |notes, cs(Post)|
 }.value;
 
 if(MIDIClient.initialized) {
-	ctl = MIDIPort.at(\omni) ?? { MIDIChannel(\omni) };
-	if(ctl.notNil) {
-		ctl = ctl.ccAllocator.available.detect { |cc| cc.type == \encoder and: { cc.index == 0 } };
+	chan = MIDIPort.at(\omni) ?? { MIDIChannel(\omni) };
+	if(chan.notNil) {
+		ctl = chan.ccAllocator.available
+			.detect { |cc| cc.type == \encoder and: { cc.index == 0 } };
 		if(ctl.notNil) {
+			vsocket = chan.sockets.detect { |sk| sk.isKindOf(VoicerMIDISocket) };
+			if(vsocket.tryPerform(\active) ? false) {
+				vtranspose = vsocket.destination.globalControls[\transpose];
+			} {
+				vtranspose = 0;
+			};
 			ctl = BasicMIDIControl(\omni, ctl.buttonnum, {
 				enabled = enabled.not;
 				if(enabled) {
@@ -144,6 +151,7 @@ if(MIDIClient.initialized) {
 				};
 			});
 			socket = BasicMIDISocket(\omni, { |num, vel|
+				num = num + vtranspose;
 				if(midistring.size == 0) {
 					midistring = num.asString;
 				} {
