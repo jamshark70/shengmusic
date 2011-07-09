@@ -1,5 +1,7 @@
 (
-var f, g;
+var f, g, w, in,
+ctl, socket,
+enabled = false, white = Color.white, pink = Color(1.0, 0.8, 0.8), midistring;
 
 ~notes = [57, 59, 61, 62, 64, 66, 67, 68, 69, 71, 72, 73, 74, 76, 78, 79, 80, 81, 83, 85, 86, 88, 90];
 
@@ -103,7 +105,7 @@ g = { |notes, cs(Post)|
 };
 
 {
-	var w, in, out;
+	var out;
 	w = ResizeFlowWindow("fingerings", Rect(5, 50, 600, 600));
 	in = TextField(w, 590@20).action_({ |view|
 		var	cs = CollStream.new;
@@ -114,5 +116,53 @@ g = { |notes, cs(Post)|
 		.hasVerticalScroller_(true)
 		.autohidesScrollers_(true);
 	w.recursiveResize.front;
+	w.onClose = {
+		ctl.free; socket.free;
+	};
 }.value;
+
+if(MIDIClient.initialized) {
+	ctl = MIDIPort.at(\omni) ?? { MIDIChannel(\omni) };
+	if(ctl.notNil) {
+		ctl = ctl.ccAllocator.available.detect { |cc| cc.type == \encoder and: { cc.index == 0 } };
+		if(ctl.notNil) {
+			ctl = BasicMIDIControl(\omni, ctl.buttonnum, {
+				enabled = enabled.not;
+				if(enabled) {
+					socket.enable;
+					midistring = "";
+					defer {
+						w.front;
+						in.background = pink;
+						in.string = midistring;
+					};
+				} {
+					socket.disable;
+					defer {
+						in.background = white;
+					};
+				};
+			});
+			socket = BasicMIDISocket(\omni, { |num, vel|
+				if(midistring.size == 0) {
+					midistring = num.asString;
+				} {
+					midistring = midistring ++ ", " ++ num;
+				};
+				defer {
+					in.string = midistring;
+				};
+			}, { |num, vel|
+				if(midistring.size > 0) {
+					defer {
+						in.string;
+						in.doAction;
+					};
+				};
+				midistring = "";
+			});
+			socket.disable;
+		};
+	};
+};
 )
