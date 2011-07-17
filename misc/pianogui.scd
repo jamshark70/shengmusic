@@ -3,11 +3,12 @@ var	win, kbd, voicer;
 
 Proto {
 	~whiteKeyWidth = 35;
-	~blackKeyRatio = 0.27;
+	~blackKeyRatio = 0.32;
 	~numWhiteKeys = 21;
 	~height = 100;
 	~blackHeightRatio = 0.64;
 	~blackKeyIndices = #[0, 1, 3, 4, 5];
+	~blackKeyOffsets = [-1/8, 1/8, -1/8, 0, 1/8];
 
 	~prep = { |parent, bounds|
 		bounds = bounds.resizeTo(~whiteKeyWidth * ~numWhiteKeys, ~height);
@@ -24,7 +25,7 @@ Proto {
 			(~numWhiteKeys * 5 div: 7).do { |i|
 				var	oct = i div: 5, wstep = ~blackKeyIndices.wrapAt(i);
 				Pen.fillRect(Rect(
-					~whiteKeyWidth * (7 * oct + wstep + 1 - ~blackKeyRatio),
+					~whiteKeyWidth * (7 * oct + wstep + ~blackKeyOffsets.wrapAt(i) + 1 - ~blackKeyRatio),
 					0,
 					~whiteKeyWidth * ~blackKeyRatio * 2,
 					blackKeyHeight
@@ -41,15 +42,16 @@ Proto {
 
 PR(\pianoGui).clone {
 	~blackKeyIndices = #[0, 2, 3, 5, 6];
+	~blackKeyOffsets = PR(\pianoGui).blackKeyOffsets.rotate(1);
 	~whiteKeyPCs = #[0, 2, 3, 5, 7, 8, 10];
 	~blackKeyPCs = #[1, 4, 6, 9, 11];
 	~midibase = 57;
 	~notes = #[57, 59, 61, 62, 64, 66, 67, 68,
-		69, 71, 72, 73, 74, 76, 78, 79, 80,
+		69, 71, 72, 73, 74, 76, 78, 79, //80,
 		81, 83, 85, 86, 88, 90
 	];
 	~keys = #["z", "v", "w", "m", "b", "x", "k", "K",
-		"s", "n", "t", "T", "h", "d", "i", "u", "U",
+		"s", "n", "t", "T", "h", "d", "i", "u", //"U",
 		"l", "r", "c", "g", "f", "y"
 	];
 	~nodePlaying = nil ! ~notes.size;
@@ -108,7 +110,7 @@ PR(\pianoGui).clone {
 				Pen.stringAtPoint(
 					~keys[i],
 					Point(
-						~whiteKeyWidth * (7 * oct + ~blackKeyIndices.wrapAt(j) + 1) - (strBounds.width * 0.5),
+						(~whiteKeyWidth * (7 * oct + ~blackKeyIndices.wrapAt(j) + ~blackKeyOffsets.wrapAt(j) + 1)) - (strBounds.width * 0.5),
 						~height * ~blackHeightRatio - ~textElev
 					),
 					nil,
@@ -123,10 +125,10 @@ win = ResizeFlowWindow(\test, Rect(500, 50, 800, 150));
 kbd = PR(\tradShengKbd).copy.prep(win, (0@0).asRect);
 win.recursiveResize.front;
 
-voicer = MIDIPort.at(\omni).sockets.detect { |sock|
+voicer = MIDIPort.at(\omni).tryPerform(\sockets).tryPerform(\detect, { |sock|
 	sock.destination.tryPerform(\nodes).tryPerform(\first).tryPerform(\defname)
 	.asString == "pf"
-};
+});
 voicer !? {
 	voicer = voicer.destination;
 	kbd.voicer = voicer;
