@@ -7,7 +7,7 @@ BP.loadGui;
 
 (
 [m, n].free;
-m = MixerChannel(\test1TryALongName, s, 1, 2);
+m = MixerChannel(\test1, s, 1, 2);
 n = MixerChannel(\test2, s, 2, 2);
 m => MCG(0); n => MCG(1);
 )

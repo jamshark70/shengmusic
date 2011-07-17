@@ -18,10 +18,7 @@ m => MCG(0); n => MCG(1);
 
 // drones
 (
-// I should NOT have to change it this way
-WrapInstr(\highdrone, { |freq, detuneRatio = 1.003, width = 0.2,
-	bpDownRatio = 0.2, rq = 0.08, mix = 0.56, lpsrcfreq = 4000, lpfxfreq = 8000,
-	chorusFreq = 0.1, chorusDelay = 0.018, chorusWidth = 0.01,
+WrapInstr(\dronetone, { |freq, detuneRatio = 1.003, width = 0.2,
 	gate = 1, vsens = 0.8, env, envScaleUp = 1, envScaleDown = 1
 	bufbase = 0, numbufs = 8, basefreq = 440, topfreq = 12543|
 	var	amp = (Latch.kr(gate, gate) - 1) * vsens + 1,
@@ -37,9 +34,6 @@ WrapInstr(\highdrone, { |freq, detuneRatio = 1.003, width = 0.2,
 		saw1 = Osc.ar(bufbase + freqmap, freqs, 0, amp),
 		saw2 = DelayL.ar(saw1, maxdelaytime: 0.1, delaytime: width / freqs),
 		sig = (saw1 - saw2).sum,
-		ffreqs = LFDNoise1.kr(LFNoise1.kr(0.1 ! 7).range(0.25, 4).reciprocal)
-			.exprange(lpfxfreq * bpDownRatio, lpfxfreq),
-		filts,
 		initTrig = Impulse.kr(0),
 		eg_fb = Select.kr(initTrig, [LocalIn.kr(1), 0]),
 		// switch timescale when env starts going down
@@ -48,19 +42,58 @@ WrapInstr(\highdrone, { |freq, detuneRatio = 1.003, width = 0.2,
 		scale = Select.kr(goingDown, [envScaleUp, envScaleDown]),
 		eg = EnvGen.kr(env, gate, timeScale: scale, doneAction: 2);
 	LocalOut.kr(eg);
-	// scale.poll(HPZ1.kr(scale).abs > 0);
-	sig = sig + DelayL.ar(sig, 0.1, SinOsc.kr(chorusFreq, 0, chorusWidth, chorusDelay));
-	filts = BPF.ar(sig, ffreqs, rq);
-	filts = Splay.ar(filts, spread: 1, level: 1, center: 0, levelComp: false);
-	sig = XFade2.ar(LPF.ar(sig, lpsrcfreq), LPF.ar(filts, lpfxfreq), mix);
 	sig * eg;
-}, [\freq, \mydetune, \unipolar, #[0.1, 1.0, \exp], \myrq, \bipolar, \freq, \freq,
-	#[0.05, 0.5, \exp], #[0.003, 0.05, \exp], #[0.001, 0.04, \exp],
+}, [\freq, \mydetune, \unipolar,
 	\amp, \unipolar, EnvSpec(Env.adsr), #[0.1, 10, \exp], #[0.1, 10, \exp],
 	\mybuf, #[1, 16, \lin, 1], \freq, \freq
 ]);
 
+WrapInstr(\highdrone, { |bpDownRatio = 0.2, rq = 0.08, mix = 0.56,
+	lpsrcfreq = 4000, lpfxfreq = 8000,
+	chorusFreq = 0.1, chorusDelay = 0.018, chorusWidth = 0.01|
+	var	sig = WrapInstr.wrap(\dronetone),
+		ffreqs = LFDNoise1.kr(LFNoise1.kr(0.1 ! 7).range(0.25, 4).reciprocal)
+			.exprange(lpfxfreq * bpDownRatio, lpfxfreq),
+		filts;
+	sig = sig + DelayL.ar(sig, 0.1, SinOsc.kr(chorusFreq, 0, chorusWidth, chorusDelay));
+	filts = BPF.ar(sig, ffreqs, rq);
+	filts = Splay.ar(filts, spread: 1, level: 1, center: 0, levelComp: false);
+	XFade2.ar(LPF.ar(sig, lpsrcfreq), LPF.ar(filts, lpfxfreq), mix);
+}, [#[0.1, 1.0, \exp], \myrq, \bipolar, \freq, \freq,
+	#[0.05, 0.5, \exp], #[0.003, 0.05, \exp], #[0.001, 0.04, \exp]
+]);
+
+WrapInstr(\droneFiltEnv, { |bpDownRatio = 0.2, rq = 0.08, mix = 0.56,
+	lpsrcfreq = 4000, lpfxfreq = 8000,
+	chorusFreq = 0.1, chorusDelay = 0.018, chorusWidth = 0.01,
+	fenv, gate = 1|
+	var	sig = WrapInstr.wrap(\dronetone, [nil, nil, nil, gate]),
+	filtenv = fenv.dereference.value,
+	feg = EnvGen.kr(filtenv, gate),
+		ffreqs = LFDNoise1.kr(LFNoise1.kr(0.1 ! 7).range(0.25, 4).reciprocal)
+			.exprange(lpfxfreq * feg * bpDownRatio, lpfxfreq),
+		filts;
+	sig = sig + DelayL.ar(sig, 0.1, SinOsc.kr(chorusFreq, 0, chorusWidth, chorusDelay));
+	filts = BPF.ar(sig, ffreqs, rq);
+	filts = Splay.ar(filts, spread: 1, level: 1, center: 0, levelComp: false);
+	XFade2.ar(LPF.ar(sig, lpsrcfreq * feg), LPF.ar(filts, lpfxfreq), mix);
+}, [#[0.1, 1.0, \exp], \myrq, \bipolar, \freq, \freq,
+	#[0.05, 0.5, \exp], #[0.003, 0.05, \exp], #[0.001, 0.04, \exp],
+	EnvSpec(Env.one), #[0, 1]
+]);
+
 (
+wrapinstr: \highdrone,
+voicerargs: {
+	[
+		env: Env.adsr(0.9, 1.2, 0.8, 1.8), chorusFreq: `0.1, chorusDelay: `0.018,
+		chorusWidth: `0.01, vsens: 0.8, lpsrcfreq: 2800, lpfxfreq: 7000,
+		bufbase: `(~bufs[0].bufnum), numbufs: `(~bufs.size),
+		basefreq: `(48.midicps), topfreq: `16744,
+		mix: 0.3
+	] ++ ~extraArgs.()
+},
+extraArgs: nil,
 make: { |name|
 	var	out;
 	~target = MixerChannel(name, s, 2, 2, level: -20.dbamp);
@@ -73,16 +106,10 @@ make: { |name|
 //	fork {
 		\modWavetables.eval(~bufs, 48, { |numharm|
 //			0.1.wait;
-			Array.sawtoothAmps(numharm.debug)
+			Array.sawtoothAmps(numharm)
 		});
 //	};
-	out = Voicer(20, WrapInstr(\highdrone), [
-		env: Env.adsr(0.9, 1.2, 0.8, 1.8), chorusFreq: `0.1, chorusDelay: `0.018,
-		chorusWidth: `0.01, vsens: 0.8, lpsrcfreq: 2800, lpfxfreq: 7000,
-		bufbase: `(~bufs[0].bufnum), numbufs: `(~bufs.size),
-		basefreq: `(48.midicps), topfreq: 16744,
-		mix: 0.3
-	], target: ~target);
+	out = Voicer(20, WrapInstr(~wrapinstr), ~voicerargs.value, target: ~target);
 	// out.mapGlobal(\width, nil, 0.2, #[0.02, 0.98]);
 	out.mapGlobal(\rq, nil, 0.08, \myrq);
 	// out.mapGlobal(\mix, nil, 0.3, \bipolar);
@@ -182,6 +209,22 @@ VC(\pd).env.widthCtl => VP(0);
 
 VC(\pd).env.widthCtl.stopWatching;
 VP(0).v.controlProxies[1].gc = nil;
+
+VC(\pdswp).free;
+Fact(\pulseDrone).chuck(VC(\pdswp), nil, (
+	wrapinstr: \droneFiltEnv,
+	extraArgs: [fenv: `{
+		var	fAtk = NamedControl.kr(\fAtk, 0.1),
+		fDcy = NamedControl.kr(\fDcy, 0.2),
+		fSus = NamedControl.kr(\fSus, 0.3),
+		fRel = NamedControl.kr(\fRel, 5.0),
+		fSens = max(0.01, NamedControl.kr(\fSens, 0.01));
+		Env.adsr(fAtk, fDcy, fSus, fRel, peakLevel: fSens, bias: 1 - fSens, curve: \exp)
+	}]
+));
+VC(\pdswp) => VP(0);
+VC(\pdswp) => MCG(1);
+
 
 k.noteOnArgsPat = Pbind(\width, VC(\pd).env.widthCtl.asMap);
 
@@ -446,3 +489,31 @@ BP(\bc).free; VC(\pd).free;
 s.quit;
 \supernova.eval;
 s.boot;
+
+
+// drones
+
+k.free;
+k = VoicerMIDISocket(0, VP(0).v);
+
+k.noteOnArgsPat = Pbind(\envScaleUp, 0.6, \fAtk, 0.3, \fDcy, 0.8, \fSus, 0.0, \fSens, 0.74);
+
+VC(\pdswp).trace;
+
+p = Pbind(
+	\type, \voicerNote,
+	\voicer, VP(0).v,
+	\degree, Prand(#[1, 2, 8, 9], inf),
+	\dur, Pwhite(0.8, 3.5, inf),
+	\sustain, Pkey(\dur) * Pwhite(1.8, 3.8, inf),
+	\envScaleUp, 0.6,
+	\fAtk, 0.3,
+	\fDcy, Pkey(\sustain) * Pwhite(0.5, 0.75, inf),
+	\fSus, 0.0,
+	\fSens, 0.74,
+	\gate, Pexprand(0.2, 0.7, inf),
+	\lpsrcfreq, Pexprand(1800, 3200, inf),
+	\lpfxfreq, Pexprand(5000, 10000, inf)
+).play;
+
+p.stop;
