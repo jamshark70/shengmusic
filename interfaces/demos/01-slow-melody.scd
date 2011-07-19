@@ -1,8 +1,9 @@
 // demo code for 02-slow-opening-fixed.ly
 
-WrapInstr(\highdrone, { |freq, detuneRatio = 1.003, width = 0.2,
-	bpDownRatio = 0.2, rq = 0.08, mix = 0.56, lpsrcfreq = 4000, lpfxfreq = 8000,
-	chorusFreq = 0.1, chorusDelay = 0.018, chorusWidth = 0.01,
+// bass note, bar 19
+// focus gesture after that
+
+WrapInstr(\dronetone, { |freq, detuneRatio = 1.003, width = 0.2,
 	gate = 1, vsens = 0.8, env, envScaleUp = 1, envScaleDown = 1
 	bufbase = 0, numbufs = 8, basefreq = 440, topfreq = 12543|
 	var	amp = (Latch.kr(gate, gate) - 1) * vsens + 1,
@@ -18,9 +19,6 @@ WrapInstr(\highdrone, { |freq, detuneRatio = 1.003, width = 0.2,
 		saw1 = Osc.ar(bufbase + freqmap, freqs, 0, amp),
 		saw2 = DelayL.ar(saw1, maxdelaytime: 0.1, delaytime: width / freqs),
 		sig = (saw1 - saw2).sum,
-		ffreqs = LFDNoise1.kr(LFNoise1.kr(0.1 ! 7).range(0.25, 4).reciprocal)
-			.exprange(lpfxfreq * bpDownRatio, lpfxfreq),
-		filts,
 		initTrig = Impulse.kr(0),
 		eg_fb = Select.kr(initTrig, [LocalIn.kr(1), 0]),
 		// switch timescale when env starts going down
@@ -29,42 +27,82 @@ WrapInstr(\highdrone, { |freq, detuneRatio = 1.003, width = 0.2,
 		scale = Select.kr(goingDown, [envScaleUp, envScaleDown]),
 		eg = EnvGen.kr(env, gate, timeScale: scale, doneAction: 2);
 	LocalOut.kr(eg);
-	// scale.poll(HPZ1.kr(scale).abs > 0);
-	sig = sig + DelayL.ar(sig, 0.1, SinOsc.kr(chorusFreq, 0, chorusWidth, chorusDelay));
-	filts = BPF.ar(sig, ffreqs, rq);
-	filts = Splay.ar(filts, spread: 1, level: 1, center: 0, levelComp: false);
-	sig = XFade2.ar(LPF.ar(sig, lpsrcfreq), LPF.ar(filts, lpfxfreq), mix);
 	sig * eg;
-}, [\freq, \mydetune, \unipolar, #[0.1, 1.0, \exp], \myrq, \bipolar, \freq, \freq,
-	#[0.05, 0.5, \exp], #[0.003, 0.05, \exp], #[0.001, 0.04, \exp],
+}, [\freq, \mydetune, \unipolar,
 	\amp, \unipolar, EnvSpec(Env.adsr), #[0.1, 10, \exp], #[0.1, 10, \exp],
 	\mybuf, #[1, 16, \lin, 1], \freq, \freq
 ]);
 
-(
-make: { |name|
-	var	out;
-	~target = MixerChannel(name, s, 2, 2, level: -20.dbamp);
-	// // supernova: KABOOM
-	// ~bufs = \makeWavetables.eval(8, s, 1024, 48, { |numharm|
-	// 	Array.sawtoothAmps(numharm)
-	// });
-	~bufs = Buffer.allocConsecutive(8, s, 1024, 1);
-	\modWavetables.eval(~bufs, 48, { |numharm|
-		Array.sawtoothAmps(numharm)
-	});
+WrapInstr(\highdrone, { |bpDownRatio = 0.2, rq = 0.08, mix = 0.56,
+	lpsrcfreq = 4000, lpfxfreq = 8000,
+	chorusFreq = 0.1, chorusDelay = 0.018, chorusWidth = 0.01|
+	var	sig = WrapInstr.wrap(\dronetone),
+		ffreqs = LFDNoise1.kr(LFNoise1.kr(0.1 ! 7).range(0.25, 4).reciprocal)
+			.exprange(lpfxfreq * bpDownRatio, lpfxfreq),
+		filts;
+	sig = sig + DelayL.ar(sig, 0.1, SinOsc.kr(chorusFreq, 0, chorusWidth, chorusDelay));
+	filts = BPF.ar(sig, ffreqs, rq);
+	filts = Splay.ar(filts, spread: 1, level: 1, center: 0, levelComp: false);
+	XFade2.ar(LPF.ar(sig, lpsrcfreq), LPF.ar(filts, lpfxfreq), mix);
+}, [#[0.1, 1.0, \exp], \myrq, \bipolar, \freq, \freq,
+	#[0.05, 0.5, \exp], #[0.003, 0.05, \exp], #[0.001, 0.04, \exp]
+]);
 
-	out = Voicer(20, WrapInstr(\highdrone), [
+WrapInstr(\droneFiltEnv, { |bpDownRatio = 0.2, rq = 0.08, mix = 0.56,
+	lpsrcfreq = 4000, lpfxfreq = 8000,
+	chorusFreq = 0.1, chorusDelay = 0.018, chorusWidth = 0.01,
+	fenv, gate = 1|
+	var	sig = WrapInstr.wrap(\dronetone, [nil, nil, nil, gate]),
+	filtenv = fenv.dereference.value,
+	feg = EnvGen.kr(filtenv, gate),
+		ffreqs = LFDNoise1.kr(LFNoise1.kr(0.1 ! 7).range(0.25, 4).reciprocal)
+			.exprange(lpfxfreq * feg * bpDownRatio, lpfxfreq),
+		filts;
+	sig = sig + DelayL.ar(sig, 0.1, SinOsc.kr(chorusFreq, 0, chorusWidth, chorusDelay));
+	filts = BPF.ar(sig, ffreqs, rq);
+	filts = Splay.ar(filts, spread: 1, level: 1, center: 0, levelComp: false);
+	XFade2.ar(LPF.ar(sig, lpsrcfreq * feg), LPF.ar(filts, lpfxfreq), mix);
+}, [#[0.1, 1.0, \exp], \myrq, \bipolar, \freq, \freq,
+	#[0.05, 0.5, \exp], #[0.003, 0.05, \exp], #[0.001, 0.04, \exp],
+	EnvSpec(Env.one), #[0, 1]
+]);
+
+(
+keys: #[master],
+wrapinstr: \highdrone,
+voicerargs: {
+	[
 		env: Env.adsr(0.9, 1.2, 0.8, 1.8), chorusFreq: `0.1, chorusDelay: `0.018,
 		chorusWidth: `0.01, vsens: 0.8, lpsrcfreq: 2800, lpfxfreq: 7000,
 		bufbase: `(~bufs[0].bufnum), numbufs: `(~bufs.size),
-		basefreq: `(48.midicps), topfreq: 16744,
+		basefreq: `(48.midicps), topfreq: `16744,
 		mix: 0.3
-	], target: ~target);
+	] ++ ~extraArgs.()
+},
+extraArgs: nil,
+make: { |name|
+	var	out;
+	~target = MixerChannel(name, s, 2, 2, level: -20.dbamp, outbus: ~master);
+	// // KABOOM
+	// ~bufs = \makeWavetables.eval(8, s, 1024, 48, { |numharm|
+	// 	Array.sawtoothAmps(numharm)
+	// });
+
+	~bufs = Buffer.allocConsecutive(8, s, 1024, 1);
+//	fork {
+		\modWavetables.eval(~bufs, 48, { |numharm|
+//			0.1.wait;
+			Array.sawtoothAmps(numharm)
+		});
+//	};
+	out = Voicer(20, WrapInstr(~wrapinstr), ~voicerargs.value, target: ~target);
+	// out.mapGlobal(\width, nil, 0.2, #[0.02, 0.98]);
 	out.mapGlobal(\rq, nil, 0.08, \myrq);
+	// out.mapGlobal(\mix, nil, 0.3, \bipolar);
 	~widthCtl = GenericGlobalControl(\width, nil, 0.2, #[0.02, 0.98]);
 	out
 }, free: { [~target, ~widthCtl, ~bufs].free }, type: \voicer) => Fact(\pulseDrone);
+
 
 PR(\abstractProcess).clone {
 	// nextDelta needs to be false by default for use in Pgate
@@ -169,21 +207,104 @@ make: { |name|
 	0 => BP(name);
 }, type: \bp) => Fact(\rptChords);
 
+PR(\abstractProcess).clone {
+	~event = (eventKey: \default, type: \voicerNote);
+
+	~root = 2;
+	~notes = #[0];
+	~degree = Plazy({
+		Pindex(
+			~notes,
+			if(~notes.size > 1) {
+				Pseq([0, Pshuf((1 .. ~notes.size-1), 1), Pshuf((0 .. ~notes.size-1), inf)], 1)
+			} {
+				Pn(0, inf)
+			}
+		)
+	});
+	~dur = Pseq([
+		Pwhite(1.8, 3.5, { rrand(3, 7) }),
+		Pwhite(0.4, 0.9, { rrand(3, 9) })
+	], inf);
+	~sustain = Pwhite(7.0, 14.0, inf);
+	~envScaleUp = 0.6;
+	~fAtk = Pif(Pkey(\dur) >= 1.8, 0.3, 0.1);
+	~fDcy = Pkey(\dur) * Pwhite(0.5, 0.75, inf);
+	~fSus = 0.0;
+	~fSens = 0.9;
+	~gate = Pexprand(0.2, 0.7, inf);
+	~lpsrcfreq = Pexprand(1800, 3200, inf);
+	~lpfxfreq = Pexprand(5000, 10000, inf);
+
+	~asPattern = {
+		Pbind(
+			\root, BPStream(\root),
+			\degree, BPStream(\degree),
+			\dur, BPStream(\dur),
+			\sustain, BPStream(\sustain),
+			\envScaleUp, BPStream(\envScaleUp),
+			\fAtk, BPStream(\fAtk),
+			\fDcy, BPStream(\fDcy),
+			\fSus, BPStream(\fSus),
+			\fSens, BPStream(\fSens),
+			\gate, BPStream(\gate),
+			\lpsrcfreq, BPStream(\lpsrcfreq),
+			\lpfxfreq, BPStream(\lpfxfreq) //,
+			// \width, BPStream(\width)
+		)
+	};
+
+	~setNotes = { |noteArray(#[0]), quant|
+		~notes = noteArray;
+		~makeStreamForKey.(\degree);
+		if(~isPlaying and: { quant.notNil }) {
+			~eventStreamPlayer.stop;
+			~eventStreamPlayer = EventStreamPlayer(~eventStream, ~event);
+			~eventStreamPlayer.play(~clock, quant: quant);
+		};
+	};
+
+	~bindVoicer = { |vc|
+		~vcKey = VC.keys.detect { |key| VC(key).value === vc };
+		~event.put(\width, VC(~vcKey).env.widthCtl.asMap);
+		currentEnvironment
+	};
+} => PR(\dedrone);
+
 \chuckIf.eval(ModalSpec(#[0, 2, 4, 5, 7, 9, 11], 12, 2), Mode, \d);
+\chuckIf.eval(ModalSpec(#[0, 2, 4, 6, 7, 9, 11], 12, 2), Mode, \dlyd);
 
 PR(\demoProto).copy.putAll((
 	name: "1. Slow melody",
 
 	prepare: {
+		~master = topEnvironment[\master];  // needed for VC's
 		\chuckIf.eval(Fact(\pulseDrone), VC, \pd);
+		\chuckIf.eval(Fact(\pulseDrone), VC, \pdswp, nil, (
+			wrapinstr: \droneFiltEnv,
+			extraArgs: [fenv: `{
+				var	fAtk = NamedControl.kr(\fAtk, 0.1),
+				fDcy = NamedControl.kr(\fDcy, 0.2),
+				fSus = NamedControl.kr(\fSus, 0.3),
+				fRel = NamedControl.kr(\fRel, 5.0),
+				fSens = max(0.01, NamedControl.kr(\fSens, 0.01));
+				Env.adsr(fAtk, fDcy, fSus, fRel, peakLevel: fSens, bias: 1 - fSens, curve: \exp)
+			}]
+		));
 
-		MixingBoard.at(0).mixers.do { |mcg| mcg.mixer = nil };
+		VC(\pd).env.target.level = -18.dbamp;
+		VC(\pdswp).env.target.level = -24.dbamp;
+
+		MixingBoard.at(0).mixers.do { |mcg, i|
+			if(i < 7) { mcg.mixer = nil };
+		};
 		VC(\pd) => MCG(0);
+		VC(\pdswp) => MCG(1);
 
-		VC(\pd).env.target.doWhenReady {
-			VC(\pd).env.widthCtl.watch.automate({
+		VC(\pdswp).env.target.doWhenReady {
+			VC(\pdswp).env.widthCtl.watch.automate({
 				LFDNoise1.kr(LFNoise1.kr(0.2).exprange(0.1, 3.0)).range(0.1, 0.8)
-			}, target: VC(\pd).env.target.synthgroup, addAction: \addToHead);
+			}, target: VC(\pdswp).env.target.synthgroup, addAction: \addToHead);
 			NotificationCenter.notify(\pdAuto, \ready);
 		};
 
@@ -191,11 +312,15 @@ PR(\demoProto).copy.putAll((
 		VC(\pd) => BP(\bc);
 		BP(\bc).quant = 0;
 
+		\chuckIf.eval(PR(\dedrone), BP, \dd);
+		VC(\pdswp) => BP(\dd);
+		BP(\dd).quant = 1;
+
 		\chuckIf.eval(Fact(\rptChords), BP, \rpt);
 		VC(\pd) => BP(\rpt);
 	},
 	destroy: {
-		VC(\pd).free; BP(#[bc, rpt]).free;
+		VC(#[pd, pdswp]).free; BP(#[bc, rpt, dd]).free;
 	},
 
 	go: {
@@ -224,41 +349,22 @@ PR(\demoProto).copy.putAll((
 
 	makeSeq: {
 		TLSequenceIterator([
-			Quant(1),
-			funcCmd: (
-				id: \drone,
-				setDoneSignal: { ~doneSignal = true },
-				func: {
-					VC(\pd).v.setArgDefaults([\vsens, 0.95]);
-					VC(\pd).v.trigger([62, 74].midicps, 0.02, [envScaleUp: 2.4, envScaleDown: 2.4, width: VC(\pd).env.widthCtl.asMap]);
-				},
-				clearDoneSignal: {
-					VC(\pd).v.release([62, 74].midicps);
-				}
-			),
+			Quant(1, -0.25),
+			bpCmd: (name: \dd, quant: 1, id: \drone, prepareBP: { |bp|
+				bp.setNotes(#[0, 7]);
+				bp.makeStreamForKey(\dur);
+				bp.override(\dur, Pn(0, 1));
+			}),
 			9,
-			funcCmd: (
-				id: \drone,
-				setDoneSignal: { ~doneSignal = true },
-				func: {
-					VC(\pd).v.trigger(64.midicps, 0.02, [envScaleUp: 2.4, envScaleDown: 2.4, width: VC(\pd).env.widthCtl.asMap]);
-				},
-				clearDoneSignal: {
-					VC(\pd).v.release(64.midicps);
-				}
-			),
-			4,
-			funcCmd: (
-				id: \drone,
-				setDoneSignal: { ~doneSignal = true },
-				func: {
-					VC(\pd).v.trigger(76.midicps, 0.02, [envScaleUp: 2.4, envScaleDown: 2.4, width: VC(\pd).env.widthCtl.asMap]);
-				},
-				clearDoneSignal: {
-					VC(\pd).v.release(76.midicps);
-				}
-			),
-			{ BP(\bc).topGate = 0.25; 5 },
+			{
+				BP(\dd).setNotes(#[1, 7, 0], 1);
+				4
+			},
+			{
+				BP(\dd).setNotes(#[8, 1, 7, 0], 1);
+				BP(\bc).topGate = 0.25;
+				5
+			},
 			loopCmd: (
 				id: \chords,
 				bpStream: \bc,
@@ -267,7 +373,11 @@ PR(\demoProto).copy.putAll((
 					{ ~waitStream.next },
 					{
 						var next = ~bpStream.next;
-						if(next.notNil) { PR(\bpCmd).copy.put(\name, next) }
+						if(next.notNil) {
+							PR(\bpCmd).copy
+								.put(\name, next)
+								.put(\quant, 1)
+						}
 						// else, returns nil and loopCmd will stop
 					},
 					\cmdSync
@@ -278,25 +388,50 @@ PR(\demoProto).copy.putAll((
 			funcCmd: (func: {
 				~iterator.findActive(\chords).bpStream = Pseq([\rpt, Prand(#[bc, rpt], inf)]).asStream;
 			}),
-			30,
-			funcCmd: (func: {
-				~iterator.findActive(\chords).putAll((bpStream: nil, repeats: 0));
-			}),
+			15,  // takes us to m.15, bt.2 of slow-melody score
 			funcCmd: (
-				doneSignal: true,
+				dur: 5,
 				func: {
-					NotificationCenter.registerOneShot(
-						~iterator.findActive(\chords), \done, currentEnvironment, e {
-							~stop.();
-						}
-					)
+					BP(#[bc, rpt]).do { |bp| bp.mode = \dlyd };
 				},
 				clearDoneSignal: {
+					BP(#[bc, rpt]).do { |bp| bp.mode = \d };
+				}
+			),
+			13,
+			// bass note here
+			9,
+			funcCmd: (func: {
+				~iterator.findActive(\chords).putAll((bpStream: nil, repeats: 0));
+				BP(\dd).setNotes(#[0], 1);
+			}),
+			4 + 9,
+			// {
+			// 	BP(\dd).setNotes(#[0], 1);
+			// 	9
+			// },
+			funcCmd: (
+				func: {
 					~iterator.activeCmds.copy.do { |cmd|
 						if(cmd.id == \drone) { cmd.stop };
 					};
 				}
-			)	
+			)
+			// funcCmd: (
+			// 	doneSignal: true,
+			// 	func: {
+			// 		NotificationCenter.registerOneShot(
+			// 			~iterator.findActive(\chords), \done, currentEnvironment, e {
+			// 				~stop.();
+			// 			}
+			// 		)
+			// 	},
+			// 	clearDoneSignal: {
+			// 		~iterator.activeCmds.copy.do { |cmd|
+			// 			if(cmd.id == \drone) { cmd.stop };
+			// 		};
+			// 	}
+			// )	
 		])
 	}
 ));

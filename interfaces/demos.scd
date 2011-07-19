@@ -42,6 +42,7 @@ win.onClose = e {
 	~updaters.do { |upd| upd.remove };
 	~demos.do { |demo| demo.destroy };
 	~board.free;
+	~master.free;
 	if(Platform.ideName == "none") { s.quit; 0.exit };
 };
 
@@ -89,6 +90,10 @@ win.recursiveResize.front;
 
 s.boot;
 s.makeGui;
+s.doWhenBooted({
+	~master = MixerChannel(\master, s, 2, 2, level: 1);
+	~master => MCG(7);
+});
 
 
 /*

@@ -8,6 +8,10 @@ TempoClock.default.tempo = 63/60;
 
 BP.loadGui;
 
+~master = MixerChannel(\master, s, 2, 2, level: 1);
+~master => MCG(7);
+MixingBoard.at(0).refresh;
+
 (
 [m, n].free;
 m = MixerChannel(\test1, s, 1, 2);
@@ -83,6 +87,7 @@ WrapInstr(\droneFiltEnv, { |bpDownRatio = 0.2, rq = 0.08, mix = 0.56,
 ]);
 
 (
+keys: #[master],
 wrapinstr: \highdrone,
 voicerargs: {
 	[
@@ -96,7 +101,7 @@ voicerargs: {
 extraArgs: nil,
 make: { |name|
 	var	out;
-	~target = MixerChannel(name, s, 2, 2, level: -20.dbamp);
+	~target = MixerChannel(name, s, 2, 2, level: -20.dbamp, outbus: ~master);
 	// // KABOOM
 	// ~bufs = \makeWavetables.eval(8, s, 1024, 48, { |numharm|
 	// 	Array.sawtoothAmps(numharm)
@@ -471,7 +476,7 @@ t = TLSequenceIterator([
 				if(cmd.id == \drone) { cmd.stop };
 			};
 		}
-	)	
+	)
 ]).play;
 
 NotificationCenter.registerOneShot(t, \done, \toplevel, { "seq stopped".debug });
@@ -500,20 +505,133 @@ k.noteOnArgsPat = Pbind(\envScaleUp, 0.6, \fAtk, 0.3, \fDcy, 0.8, \fSus, 0.0, \f
 
 VC(\pdswp).trace;
 
+VC(\pdswp).env.widthCtl.automate({
+	LFDNoise1.kr(LFNoise1.kr(0.2).exprange(0.1, 3.0)).range(0.1, 0.8)
+}, target: VC(\pdswp).env.target.synthgroup, addAction: \addToHead);
+
+VC(\pdswp).env.widthCtl => VP(0);
+
+VC(\pdswp).env.widthCtl.stopWatching;
+VP(0).v.controlProxies[1].gc = nil;
+
+
 p = Pbind(
 	\type, \voicerNote,
 	\voicer, VP(0).v,
-	\degree, Prand(#[1, 2, 8, 9], inf),
-	\dur, Pwhite(0.8, 3.5, inf),
-	\sustain, Pkey(\dur) * Pwhite(1.8, 3.8, inf),
+	\degree, Pn(Pshuf(#[1, 2, 8, 9], 1), inf),
+	\dur, Pseq([
+		Pwhite(1.8, 3.5, { rrand(3, 7) }),
+		Pwhite(0.4, 0.9, { rrand(3, 9) })
+	], inf),
+	\sustain, Pwhite(7.0, 14.0, inf),  // Pkey(\dur) * Pwhite(1.8, 3.8, inf),
 	\envScaleUp, 0.6,
-	\fAtk, 0.3,
-	\fDcy, Pkey(\sustain) * Pwhite(0.5, 0.75, inf),
+	\fAtk, Pif(Pkey(\dur) >= 1.8, 0.3, 0.1),
+	\fDcy, Pkey(\dur) * Pwhite(0.5, 0.75, inf),
 	\fSus, 0.0,
-	\fSens, 0.74,
+	\fSens, 0.9,
 	\gate, Pexprand(0.2, 0.7, inf),
 	\lpsrcfreq, Pexprand(1800, 3200, inf),
-	\lpfxfreq, Pexprand(5000, 10000, inf)
+	\lpfxfreq, Pexprand(5000, 10000, inf),
+	\width, VC(\pdswp).env.widthCtl.asMap
 ).play;
 
 p.stop;
+
+(
+PR(\abstractProcess).clone {
+	~event = (eventKey: \default, type: \voicerNote);
+
+	~root = 2;
+	~notes = #[0];
+	~degree = Plazy({
+		Pindex(
+			~notes,
+			if(~notes.size > 1) {
+				Pseq([0, Pshuf((1 .. ~notes.size-1), 1), Pshuf((0 .. ~notes.size-1), inf)], 1)
+			} {
+				Pn(0, inf)
+			}
+		)
+	});
+	~dur = Pseq([
+		Pwhite(1.8, 3.5, { rrand(3, 7) }),
+		Pwhite(0.4, 0.9, { rrand(3, 9) })
+	], inf);
+	~sustain = Pwhite(7.0, 14.0, inf);
+	~envScaleUp = 0.6;
+	~fAtk = Pif(Pkey(\dur) >= 1.8, 0.3, 0.1);
+	~fDcy = Pkey(\dur) * Pwhite(0.5, 0.75, inf);
+	~fSus = 0.0;
+	~fSens = 0.9;
+	~gate = Pexprand(0.2, 0.7, inf);
+	~lpsrcfreq = Pexprand(1800, 3200, inf);
+	~lpfxfreq = Pexprand(5000, 10000, inf);
+
+	~asPattern = {
+		Pbind(
+			\root, BPStream(\root),
+			\degree, BPStream(\degree),
+			\dur, BPStream(\dur),
+			\sustain, BPStream(\sustain),
+			\envScaleUp, BPStream(\envScaleUp),
+			\fAtk, BPStream(\fAtk),
+			\fDcy, BPStream(\fDcy),
+			\fSus, BPStream(\fSus),
+			\fSens, BPStream(\fSens),
+			\gate, BPStream(\gate),
+			\lpsrcfreq, BPStream(\lpsrcfreq),
+			\lpfxfreq, BPStream(\lpfxfreq) //,
+			// \width, BPStream(\width)
+		)
+	};
+
+	~setNotes = { |noteArray(#[0]), quant|
+		~notes = noteArray;
+		~makeStreamForKey.(\degree);
+		if(~isPlaying and: { quant.notNil }) {
+			~eventStreamPlayer.stop;
+			~eventStreamPlayer = EventStreamPlayer(~eventStream, ~event);
+			~eventStreamPlayer.play(~clock, quant: quant);
+		};
+	};
+
+	~bindVoicer = { |vc|
+		~vcKey = VC.keys.detect { |key| VC(key).value === vc };
+		~event.put(\width, VC(~vcKey).env.widthCtl.asMap);
+		currentEnvironment
+	};
+} => PR(\dedrone);
+)
+
+ BP(\dd).free;
+ PR(\dedrone) => BP(\dd);
+ VC(\pdswp) => BP(\dd);
+ 1 => BP(\dd);
+
+ Pn(Pshuf(#[0, 1, 7, 8], 1), inf);
+
+ BP(\dd).put('setNotes', { |noteArray(#[0]), quant|
+	 ~notes = noteArray;
+	 ~makeStreamForKey.(\degree);
+	 if(~isPlaying and: { quant.notNil }) {
+		 ~eventStreamPlayer.stop;
+		 ~eventStreamPlayer = EventStreamPlayer(~eventStream, ~event);
+		 ~eventStreamPlayer.play(~clock, quant: quant);
+	 };
+ });
+ BP(\dd).degree = Plazy({
+	 Pindex(
+		 ~notes,
+		 if(~notes.size > 1) {
+			 Pseq([0, Pshuf((1 .. ~notes.size-1), 1), Pshuf((0 .. ~notes.size-1), inf)], 1)
+		 } {
+			 Pn(0, inf)
+		 }
+	 )
+ });
+
+ BP(\dd).setNotes(#[0]);
+
+ BP(\dd).setNotes(#[1, 0], 1);
+ BP(\dd).setNotes(#[7, 1, 0], 1);
+ BP(\dd).setNotes(#[8, 7, 1, 0], 1);
