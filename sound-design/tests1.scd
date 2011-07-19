@@ -5,10 +5,13 @@ s.addr = ~saveAddr;
 
 BP.loadGui;
 
+~master = MixerChannel(\master, s, 2, 2, level: -20.dbamp);
+~master => MCG(7);
+
 (
 [m, n].free;
-m = MixerChannel(\test1, s, 1, 2);
-n = MixerChannel(\test2, s, 2, 2);
+m = MixerChannel(\test1, s, 1, 2, outbus: ~master);
+n = MixerChannel(\test2, s, 2, 2, outbus: ~master);
 m => MCG(0); n => MCG(1);
 )
 
@@ -302,3 +305,60 @@ BP(\bc).quant = 0;
 
 BP(\bc) => MT(1);
 
+
+
+// bass
+
+~cb = Buffer.alloc(s, 2048, 1);
+~mb = Buffer.alloc(s, 2048, 1);
+
+~cb.sine1(#[1]);
+~cb.sine1((1..3).reciprocal);
+
+~mb.sine1(#[1]);
+~mb.sine1(#[1, 0.5, 0.25]);
+
+WrapInstr("osc2.fm1").listArgs
+
+v = WrapInstr("osc2.fm1").miditest(0, [car_buf: `~cb, mod_buf: `~mb, mod_lev: 0.302, mod_ratio: 0.5, mod_env: Env.adsr(0.01, 0.14, 1/3, 3, 3)], target: m);
+
+Instr("busfx.chorus2").openFile
+
+p = m.playfx(Instr("busfx.chorus2band2"), [0, 1, 3]); p.gui;
+
+p.run(false);
+p.run(true);
+
+(
+(
+keys: #[master],
+make: { |name|
+	var out;
+	~target = MixerChannel(name, s, 1, 2, /*level: ,*/ outbus: ~master, completionFunc: { |chan|
+		~chorus = chan.playfx(Instr("busfx.chorus2band2"), [0, 1, 3, 0.019929544097472, 0.10529309760794, 0.010555364844924, 0.84697339184144, 189.85848040307, 0.5]);
+	});
+	~cb = Buffer.alloc(s, 2048, 1, completionMessage: { |buf|
+		buf.sine1Msg(#[1]);
+	});
+	~mb = Buffer.alloc(s, 2048, 1, completionMessage: { |buf|
+		buf.sine1Msg(#[1, 0.5, 0.25]);
+	});
+	out = MonoPortaVoicer(1, WrapInstr("osc2.fm1porta"), [
+		car_buf: `~cb, mod_buf: `~mb, /*mod_lev: 0.302,*/ mod_ratio: 0.5,
+		mod_env: Env.adsr(0.01, 0.14, 1/3, 3, 3),
+		car_vs: 0.4, mod_vs: 0.7
+	], target: ~target);
+	out.mapGlobal(\mod_lev, nil, 1.8, #[0.01, 8, \exponential]);
+	out.portaTime = 0.3;
+	out
+},
+free: { [~target, ~cb, ~mb].free },
+type: \voicer) => Fact(\fmbass);
+)
+
+VC(\fmb).free;
+Fact(\fmbass) => VC(\fmb);
+
+k = VoicerMIDISocket(0, VP(0).v);
+
+VC(\fmb).v.portaTime = 0.3;
