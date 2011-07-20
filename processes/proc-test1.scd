@@ -603,35 +603,41 @@ PR(\abstractProcess).clone {
 } => PR(\dedrone);
 )
 
- BP(\dd).free;
- PR(\dedrone) => BP(\dd);
- VC(\pdswp) => BP(\dd);
- 1 => BP(\dd);
+BP(\dd).free;
+PR(\dedrone) => BP(\dd);
+VC(\pdswp) => BP(\dd);
+1 => BP(\dd);
 
- Pn(Pshuf(#[0, 1, 7, 8], 1), inf);
+Pn(Pshuf(#[0, 1, 7, 8], 1), inf);
 
- BP(\dd).put('setNotes', { |noteArray(#[0]), quant|
-	 ~notes = noteArray;
-	 ~makeStreamForKey.(\degree);
-	 if(~isPlaying and: { quant.notNil }) {
-		 ~eventStreamPlayer.stop;
-		 ~eventStreamPlayer = EventStreamPlayer(~eventStream, ~event);
-		 ~eventStreamPlayer.play(~clock, quant: quant);
-	 };
- });
- BP(\dd).degree = Plazy({
-	 Pindex(
-		 ~notes,
-		 if(~notes.size > 1) {
-			 Pseq([0, Pshuf((1 .. ~notes.size-1), 1), Pshuf((0 .. ~notes.size-1), inf)], 1)
-		 } {
-			 Pn(0, inf)
-		 }
-	 )
- });
+BP(\dd).put('setNotes', { |noteArray(#[0]), quant|
+	~notes = noteArray;
+	~makeStreamForKey.(\degree);
+	if(~isPlaying and: { quant.notNil }) {
+		~eventStreamPlayer.stop;
+		~eventStreamPlayer = EventStreamPlayer(~eventStream, ~event);
+		~eventStreamPlayer.play(~clock, quant: quant);
+	};
+});
+BP(\dd).degree = Plazy({
+	Pindex(
+		~notes,
+		if(~notes.size > 1) {
+			Pseq([0, Pshuf((1 .. ~notes.size-1), 1), Pshuf((0 .. ~notes.size-1), inf)], 1)
+		} {
+			Pn(0, inf)
+		}
+	)
+});
 
- BP(\dd).setNotes(#[0]);
+BP(\dd).setNotes(#[0]);
 
- BP(\dd).setNotes(#[1, 0], 1);
- BP(\dd).setNotes(#[7, 1, 0], 1);
- BP(\dd).setNotes(#[8, 7, 1, 0], 1);
+BP(\dd).setNotes(#[1, 0], 1);
+BP(\dd).setNotes(#[7, 1, 0], 1);
+BP(\dd).setNotes(#[8, 7, 1, 0], 1);
+
+
+// bass
+VC(\fmb).free;
+Fact(\fmbass) => VC(\fmb);
+

@@ -91,7 +91,7 @@ win.recursiveResize.front;
 s.boot;
 s.makeGui;
 s.doWhenBooted({
-	~master = MixerChannel(\master, s, 2, 2, level: 1);
+	~master ?? { ~master = MixerChannel(\master, s, 2, 2, level: 1) };
 	~master => MCG(7);
 });
 

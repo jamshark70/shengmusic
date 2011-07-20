@@ -3,6 +3,8 @@
 s.addr = ~debugAddr;
 s.addr = ~saveAddr;
 
+\supernova.eval;
+
 BP.loadGui;
 
 ~master = MixerChannel(\master, s, 2, 2, level: -20.dbamp);
