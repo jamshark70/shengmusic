@@ -97,7 +97,9 @@ f = { |notes|
 	recurse.(notes);
 	results = results.sort({ |a, b| a[1] > b[1] });
 };
-g = { |notes, cs(Post)|
+// doAction may be called from inside a different environment
+// so I need to bind 'g' to the real current environment (topEnvironment)
+g = e { |notes, cs(Post)|
 	f.(notes).do { |result|
 		cs << "%: %\n".format(result[1],
 			result[0].collect { |item| item[0].asMIDINote -> item[1] });
@@ -121,6 +123,46 @@ g = { |notes, cs(Post)|
 	};
 }.value;
 
+{
+	socket.enable;
+	midistring = "";
+	defer {
+		w.front;
+		in.background = pink;
+		in.string = midistring;
+	};
+	topEnvironment[\fingEnabled] = true;
+} => Func(\enableFinger);
+
+{
+	socket.disable;
+	defer {
+		in.background = white;
+	};
+	topEnvironment[\fingEnabled] = false;
+} => Func(\disableFinger);
+
+{ |num|
+	num = num + vtranspose;
+	if(midistring.size == 0) {
+		midistring = num.asString;
+	} {
+		midistring = midistring ++ ", " ++ num;
+	};
+	defer {
+		in.string = midistring;
+	};
+} => Func(\addToNoteList);
+
+{ |num, vel|
+	if(midistring.size > 0) {
+		defer {
+			in.doAction;
+		};
+	};
+	midistring = "";
+} => Func(\calcFingers);
+
 if(MIDIClient.initialized) {
 	chan = MIDIPort.at(\omni) ?? { MIDIChannel(\omni) };
 	if(chan.notNil) {
@@ -135,41 +177,14 @@ if(MIDIClient.initialized) {
 			};
 			~fingerctl = BasicMIDIControl(\omni, ctl.buttonnum, {
 				enabled = enabled.not;
-				topEnvironment[\fingEnabled] = enabled;
 				if(enabled) {
-					socket.enable;
-					midistring = "";
-					defer {
-						w.front;
-						in.background = pink;
-						in.string = midistring;
-					};
+					\enableFinger.eval
 				} {
-					socket.disable;
-					defer {
-						in.background = white;
-					};
+					\disableFinger.eval
 				};
 			});
-			~fingersocket = socket = BasicMIDISocket(\omni, { |num, vel|
-				num = num + vtranspose;
-				if(midistring.size == 0) {
-					midistring = num.asString;
-				} {
-					midistring = midistring ++ ", " ++ num;
-				};
-				defer {
-					in.string = midistring;
-				};
-			}, { |num, vel|
-				if(midistring.size > 0) {
-					defer {
-						in.string;
-						in.doAction;
-					};
-				};
-				midistring = "";
-			});
+			~fingersocket = socket = BasicMIDISocket(\omni, Func(\addToNoteList),
+				Func(\calcFingers));
 			socket.disable;
 		};
 	};

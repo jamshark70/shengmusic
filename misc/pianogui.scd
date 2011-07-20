@@ -65,15 +65,15 @@ PR(\pianoGui).clone {
 			case
 			{ cs == " " } {
 				if(topEnvironment[\fingEnabled]) {
-					topEnvironment[\fingersocket].noteOff(60, 0);
+					\calcFingers.eval;
+					\disableFinger.eval;
 				} {
-					topEnvironment[\fingerctl].set(64, 127, 0);
+					\enableFinger.eval;
 				};
 			}
 			{ (i = ~keys.detectIndex({ |key| key.compare(cs, false) == 0 })).notNil } {
 				if(~nodePlaying[i].notNil) {
 					~nodePlaying[i].release;
-					// ~voicer !? { ~voicer.release(~notes[i].midicps) };
 				};
 				~voicer !? {
 					vnode = ~voicer.trigger(~notes[i].midicps, gate: 0.5);
@@ -90,7 +90,7 @@ PR(\pianoGui).clone {
 				// ~notePlaying[i] = ~notePlaying[i].not;
 				view.refresh;
 				if(topEnvironment[\fingEnabled]) {
-					topEnvironment[\fingersocket].dump.noteOn(~notes[i], 64);
+					\addToNoteList.eval(~notes[i]);
 				};
 			};
 		};
