@@ -133,8 +133,9 @@ if(MIDIClient.initialized) {
 			} {
 				vtranspose = 0;
 			};
-			ctl = BasicMIDIControl(\omni, ctl.buttonnum, {
+			~fingerctl = BasicMIDIControl(\omni, ctl.buttonnum, {
 				enabled = enabled.not;
+				topEnvironment[\fingEnabled] = enabled;
 				if(enabled) {
 					socket.enable;
 					midistring = "";
@@ -150,7 +151,7 @@ if(MIDIClient.initialized) {
 					};
 				};
 			});
-			socket = BasicMIDISocket(\omni, { |num, vel|
+			~fingersocket = socket = BasicMIDISocket(\omni, { |num, vel|
 				num = num + vtranspose;
 				if(midistring.size == 0) {
 					midistring = num.asString;
@@ -173,4 +174,7 @@ if(MIDIClient.initialized) {
 		};
 	};
 };
+
+~fingEnabled = enabled;
 )
+

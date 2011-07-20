@@ -60,9 +60,17 @@ PR(\pianoGui).clone {
 	~userprep = {
 		~view.keyDownAction = e { |view, char ...rest|
 			var cs = char.asString,
-				i = ~keys.detectIndex({ |key| key.compare(cs, false) == 0 }), vnode, upd,
+				i, vnode, upd,
 				killed = false;
-			if(i.notNil) {
+			case
+			{ cs == " " } {
+				if(topEnvironment[\fingEnabled]) {
+					topEnvironment[\fingersocket].noteOff(60, 0);
+				} {
+					topEnvironment[\fingerctl].set(64, 127, 0);
+				};
+			}
+			{ (i = ~keys.detectIndex({ |key| key.compare(cs, false) == 0 })).notNil } {
 				if(~nodePlaying[i].notNil) {
 					~nodePlaying[i].release;
 					// ~voicer !? { ~voicer.release(~notes[i].midicps) };
@@ -81,6 +89,9 @@ PR(\pianoGui).clone {
 				};
 				// ~notePlaying[i] = ~notePlaying[i].not;
 				view.refresh;
+				if(topEnvironment[\fingEnabled]) {
+					topEnvironment[\fingersocket].dump.noteOn(~notes[i], 64);
+				};
 			};
 		};
 	};
