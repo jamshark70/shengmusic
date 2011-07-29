@@ -364,3 +364,86 @@ Fact(\fmbass) => VC(\fmb);
 k = VoicerMIDISocket(0, VP(0).v);
 
 VC(\fmb).v.portaTime = 0.3;
+
+
+();  // emacs.....
+// bell for accents
+~cb = Buffer.alloc(s, 2048, 1);
+~mb = Buffer.alloc(s, 2048, 1);
+
+~cb.sine1(#[1]);
+~cb.sine1(#[1, 0, 0, 0, 0, 0, 0.3]);
+
+~mb.sine1(#[1]);
+~mb.sine1(#[1, 0, 0, 0, 1]);
+
+Library.at(WrapInstr, \osc2).keys
+WrapInstr("osc2.fm2car").listArgs
+
+v = WrapInstr("osc2.fm2car").miditest(0, [car_buf: `~cb, mod_buf: `~mb, mod_lev: 4.13, detune: 1.63, mod_ratio: 5, car_env: UGenFunc({ Env.perc(0.01, NamedControl(\sustain, 1)) }), mod_env: UGenFunc({ var sus = NamedControl(\sustain, 1); Env(#[0, 1, 0.2], [0.01, sus], -4) })], target: m);
+
+Pdefn(\gate, 0.2);
+Pdefn(\gate, 1.0);
+Pdefn(\gate, Pwhite(0.2, 1.0, inf));
+
+p = Pbind(
+	\type, \voicerNote,
+	\voicer, v,
+	\root, 2,
+	\octave, 6,
+	\degree, Pxrand(#[0, 1, 3, 4, 6], inf),
+	\dur, 2,
+	\sustain, 6,
+	\gate, Pdefn(\gate)
+).play;
+
+p.stop;
+
+(
+keys: #[master],
+make: { |name|
+	var	out;
+
+//	VC(name).free;  // this breaks stuff
+	~target = MixerChannel(name, s, 2, 2, level: -12.dbamp, outbus: ~master/*, completionFunc: {  }*/);
+
+	~cb = Buffer(s, 2048, 1);
+	~mb = Buffer(s, 2048, 1);
+	// just being EXTRA careful about possible supernova crash
+	fork {
+		~cb.alloc;
+		~mb.alloc;
+		s.sync;
+		~cb.sine1(#[1, 0, 0, 0, 0, 0, 0.3]);
+		~mb.sine1(#[1]);
+	};
+
+	WrapInstr("osc2.fm2carpan", { |pan|
+		Pan2.ar(WrapInstr.wrap("osc2.fm2car"), pan)
+	}, [\bipolar]);
+
+	out = Voicer(8, WrapInstr("osc2.fm2carpan"), [mod_lev: 4.13, mod_ratio: 5, car_detune: `1.00288, car_vs: `0.2697, mod_vs: `0.8, basefreq: `440, keyscale: `0.337, car_buf: `~cb, mod_buf: `~mb, car_env: UGenFunc({ Env.perc(0.01, NamedControl(\sustain, 1)) }), mod_env: UGenFunc({ var sus = NamedControl(\sustain, 1); Env(#[0, 1, 0.2], [0.01, sus], -4) })], target: ~target);
+	out.mapGlobal(\detune, nil, 1.63, #[-5, 5]);
+	out
+},
+free: { [~target, ~cb, ~mb].free },
+type: \voicer) => Fact(\fmbell);
+
+VC(\fmbell).free;
+Fact(\fmbell) => VC(\fmbell);
+
+
+p = Pbind(
+	\type, \voicerNote,
+	\voicer, VP(0).v,
+	\root, 2,
+	\octave, 6,
+	\degree, Pxrand(#[0, 1, 3, 4, 6], inf),
+	\dur, 2,
+	\sustain, 6,
+	\gate, 0.3
+).play;
+
+p.stop;
+
+

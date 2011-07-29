@@ -641,3 +641,143 @@ BP(\dd).setNotes(#[8, 7, 1, 0], 1);
 VC(\fmb).free;
 Fact(\fmbass) => VC(\fmb);
 
+MIDIRecBuf(\ebass, [
+	#[40, 45, 35, 40, 38, 43, 42],
+	#[3, 1, 3, 1, 1.5, 3, 3.5],
+	#[2.9, 1.1, 2.9, 1.1, 1.4, 3.1, 3.5],
+	0.5
+].asNotes) => MBM(0);
+
+BP(\bass).free;
+PR(\mel1) => BP(\bass);
+MBM(0)[\ebass] => BP(\bass);
+VC(\fmb) => BP(\bass);
+
+PR(\mel1).openFile
+
+BP(\bass).repeats = 1;
+BP(\bass).asNotePattern = { 
+	// Pfunc is roughly 6.7 times SLOWER than Prout
+	Prout({ |inval|
+		~repeats.do {
+			~index = 0;
+			while { ~index < ~sequence.size } {
+				inval = ~sequence[~index].postln.embedInStream(inval);  // output
+				~index = ~index + 1;
+			};
+		};
+	});
+};
+
+0 => BP(\bass);
+
+BP(\bass).sequence.size
+.dumpSeq
+
+(
+make: { |name|
+	BP(name).free;
+	PR(\mel1).chuck(BP(name), nil, (
+		repeats: 1,
+		printStopMsg: false
+	));
+	1 => BP(name);
+	try {
+		MBM(0).v[\ebass] => BP(name);
+	} { |err|
+		if(err.class == DoesNotUnderstandError and: { err.selector == \v }) {
+			"MBM(0) doesn't exist; couldn't set melody for BP(%)."
+			.format(name.asCompileString).warn;
+		} {
+			err.throw
+		}
+	};
+	BP(name)
+}, type: \bp) => Fact(\ebassBP);
+
+BP(\bass).free;
+Fact(\ebassBP) => BP(\bass);
+VC(\fmb) => BP(\bass);
+
+
+ProtoEvent(\voicerNote).copy.make {
+	~droneQuant = 1;
+	~superPlay = ~play;
+	~play = { |server|
+		var	notes;
+		~superPlay.(server);
+		if(~droneBP.notNil) {
+			if(~addNotes ? false) {
+				notes = BP(~droneBP).notes;
+				BP(~droneBP).setNotes(( ++ ~freq).debug("notes"), nil);
+			};
+			BP(~droneBP).override(\degree, Pn(~freq, 1));
+			BP(~droneBP).resetTime(~droneQuant);
+		};
+	};
+} => ProtoEvent(\bellAccent);
+
+(
+PR(\abstractProcess).clone {
+	~event = (eventKey: \bellAccent, droneBP: \dd);
+	~alwaysReset = true;
+	~mode = \d;
+	~degree = 35;
+	~dur = 8;
+	~sustain = Pwhite(5.0, 8.0, inf);
+	~gate = Pexprand(0.2, 0.7, inf);
+	~pan = Pwhite(-0.9, 0.9, inf);
+	~mod_lev = 4.13;
+	~mod_ratio = 5;
+	~addNotes = false;
+	~asPattern = {
+		Pbind(
+			\mode, BPStream(\mode),
+			\freq, BPStream(\degree, resetSource: true),
+			\dur, BPStream(\dur, resetSource: true),
+			\length, BPStream(\sustain),
+			\sustain, Pkey(\length),
+			\gate, BPStream(\gate),
+			\pan, BPStream(\pan),
+			\mod_lev, BPStream(\mod_lev), 
+			\mod_ratio, BPStream(\mod_ratio),
+			\addNotes, BPStream(\addNotes)
+		)
+	};
+} => PR(\bellAccent);
+)
+
+BP(\ba).free;
+PR(\bellAccent) => BP(\ba);
+VC(\fmbell) => BP(\ba);
+
+p = BP(\ba);
+p.degree = Pseq(#[[35, 42], 36, 43], 1);
+p.dur = Pseq(#[9, 4, 4], 1);
+p.leadTime = 0.02;
+p.addNotes = true;
+
+(
+if(t.isRunning) { t.stop };
+t = TLSequenceIterator([
+	{
+		BP(\dd).setNotes(#[], nil);
+		BP(\dd).reset;
+		BP(\ba).reset;
+		0
+	},
+	Quant(1, -0.1),
+	bpCmd: (name: \ba, quant: 1),
+	0.1,
+	bpCmd: (name: \dd, quant: 1)
+]).play;
+)
+
+BP(\dd).notes
+
+(
+var upd = Updater(BP(\dd), { |obj, what, more|
+	if(what == \free) { upd.remove };
+	thisThread.beats.debug(what);
+});
+)
