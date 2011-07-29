@@ -42,7 +42,7 @@ win.onClose = e {
 	~updaters.do { |upd| upd.remove };
 	~demos.do { |demo| demo.destroy };
 	~board.free;
-	~master.free;
+	~master.free; ~master = nil;
 	if(Platform.ideName == "none") { s.quit; 0.exit };
 };
 

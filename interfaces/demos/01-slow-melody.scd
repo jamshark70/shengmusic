@@ -103,6 +103,61 @@ make: { |name|
 	out
 }, free: { [~target, ~widthCtl, ~bufs].free }, type: \voicer) => Fact(\pulseDrone);
 
+(
+keys: #[master],
+make: { |name|
+	var out;
+	~target = MixerChannel(name, s, 1, 2, /*level: ,*/ outbus: ~master, completionFunc: { |chan|
+		~chorus = chan.playfx(Instr("busfx.chorus2band2"), [0, 1, 3, 0.019929544097472, 0.10529309760794, 0.010555364844924, 0.84697339184144, 189.85848040307, 0.5]);
+	});
+	~cb = Buffer.alloc(s, 2048, 1, completionMessage: { |buf|
+		buf.sine1Msg(#[1]);
+	});
+	~mb = Buffer.alloc(s, 2048, 1, completionMessage: { |buf|
+		buf.sine1Msg(#[1, 0.5, 0.25]);
+	});
+	out = MonoPortaVoicer(1, WrapInstr("osc2.fm1porta"), [
+		car_buf: `~cb, mod_buf: `~mb, /*mod_lev: 0.302,*/ mod_ratio: 0.5,
+		mod_env: Env.adsr(0.01, 0.14, 1/3, 3, 3),
+		car_vs: 0.4, mod_vs: 0.7
+	], target: ~target);
+	out.mapGlobal(\mod_lev, nil, 1.8, #[0.01, 8, \exponential]);
+	out.portaTime = 0.3;
+	out
+},
+free: { [~target, ~cb, ~mb].free },
+type: \voicer) => Fact(\fmbass);
+
+(
+keys: #[master],
+make: { |name|
+	var	out;
+
+//	VC(name).free;  // this breaks stuff
+	~target = MixerChannel(name, s, 2, 2, level: -12.dbamp, outbus: ~master/*, completionFunc: {  }*/);
+
+	~cb = Buffer(s, 2048, 1);
+	~mb = Buffer(s, 2048, 1);
+	// just being EXTRA careful about possible supernova crash
+	fork {
+		~cb.alloc;
+		~mb.alloc;
+		s.sync;
+		~cb.sine1(#[1, 0, 0, 0, 0, 0, 0.3]);
+		~mb.sine1(#[1]);
+	};
+
+	WrapInstr("osc2.fm2carpan", { |pan|
+		Pan2.ar(WrapInstr.wrap("osc2.fm2car"), pan)
+	}, [\bipolar]);
+
+	out = Voicer(8, WrapInstr("osc2.fm2carpan"), [mod_lev: 4.13, mod_ratio: 5, car_detune: `1.00288, car_vs: `0.2697, mod_vs: `0.8, basefreq: `440, keyscale: `0.337, car_buf: `~cb, mod_buf: `~mb, car_env: UGenFunc({ Env.perc(0.01, NamedControl(\sustain, 1)) }), mod_env: UGenFunc({ var sus = NamedControl(\sustain, 1); Env(#[0, 1, 0.2], [0.01, sus], -4) })], target: ~target);
+	out.mapGlobal(\detune, nil, 1.63, #[-5, 5]);
+	out
+},
+free: { [~target, ~cb, ~mb].free },
+type: \voicer) => Fact(\fmbell);
+
 
 PR(\abstractProcess).clone {
 	// nextDelta needs to be false by default for use in Pgate
@@ -208,15 +263,16 @@ make: { |name|
 }, type: \bp) => Fact(\rptChords);
 
 PR(\abstractProcess).clone {
-	~event = (eventKey: \default, type: \voicerNote);
+	~event = (eventKey: \voicerNote);
 
-	~root = 2;
-	~notes = #[0];
+	~mode = \d;
+	~notes = #[35];
 	~degree = Plazy({
 		Pindex(
 			~notes,
 			if(~notes.size > 1) {
-				Pseq([0, Pshuf((1 .. ~notes.size-1), 1), Pshuf((0 .. ~notes.size-1), inf)], 1)
+				// Pseq([0, Pshuf((1 .. ~notes.size-1), 1), Pshuf((0 .. ~notes.size-1), inf)], 1)
+				PnNilSafe(Plazy({ Pshuf((0 .. ~notes.size-1), 1) }), inf)
 			} {
 				Pn(0, inf)
 			}
@@ -238,10 +294,10 @@ PR(\abstractProcess).clone {
 
 	~asPattern = {
 		Pbind(
-			\root, BPStream(\root),
-			\degree, BPStream(\degree),
+			\mode, BPStream(\mode),
+			\freq, BPStream(\degree),
 			\dur, BPStream(\dur),
-			\sustain, BPStream(\sustain),
+			\length, BPStream(\sustain),
 			\envScaleUp, BPStream(\envScaleUp),
 			\fAtk, BPStream(\fAtk),
 			\fDcy, BPStream(\fDcy),
@@ -257,6 +313,10 @@ PR(\abstractProcess).clone {
 	~setNotes = { |noteArray(#[0]), quant|
 		~notes = noteArray;
 		~makeStreamForKey.(\degree);
+		~resetTime.(quant);
+	};
+
+	~resetTime = { |quant|
 		if(~isPlaying and: { quant.notNil }) {
 			~eventStreamPlayer.stop;
 			~eventStreamPlayer = EventStreamPlayer(~eventStream, ~event);
@@ -270,6 +330,80 @@ PR(\abstractProcess).clone {
 		currentEnvironment
 	};
 } => PR(\dedrone);
+
+(
+make: { |name|
+	BP(name).free;
+	PR(\mel1).chuck(BP(name), nil, (
+		repeats: 1,
+		printStopMsg: false
+	));
+	1 => BP(name);
+	try {
+		MBM(0).v[\ebass] => BP(name);
+	} { |err|
+		if(err.class == DoesNotUnderstandError and: { err.selector == \v }) {
+			"MBM(0) doesn't exist; couldn't set melody for BP(%)."
+			.format(name.asCompileString).warn;
+		} {
+			err.throw
+		}
+	};
+	BP(name)
+}, type: \bp) => Fact(\ebassBP);
+
+ProtoEvent(\voicerNote).copy.make {
+	~droneQuant = 1;
+	~superPlay = ~play;
+	~play = { |server|
+		~superPlay.(server);
+		if(~droneBP.notNil) {
+			if(~addNotes ? false) {
+				BP(~droneBP).setNotes((BP(~droneBP).notes ++ ~freq), nil);
+			};
+			BP(~droneBP).override(\degree, Pn(~freq, 1));
+			BP(~droneBP).resetTime(~droneQuant);
+		};
+	};
+} => ProtoEvent(\bellAccent);
+
+PR(\abstractProcess).clone {
+	~event = (eventKey: \bellAccent, droneBP: \dd);
+	~alwaysReset = true;
+	~mode = \d;
+	~degree = 35;
+	~dur = 8;
+	~sustain = Pwhite(5.0, 8.0, inf);
+	~gate = Pexprand(0.2, 0.7, inf);
+	~pan = Pwhite(-0.9, 0.9, inf);
+	~mod_lev = 4.13;
+	~mod_ratio = 5;
+	~addNotes = false;
+	~asPattern = {
+		Pbind(
+			\mode, BPStream(\mode),
+			\freq, BPStream(\degree, resetSource: true),
+			\dur, BPStream(\dur, resetSource: true),
+			\length, BPStream(\sustain),
+			\sustain, Pkey(\length),
+			\gate, BPStream(\gate),
+			\pan, BPStream(\pan),
+			\mod_lev, BPStream(\mod_lev), 
+			\mod_ratio, BPStream(\mod_ratio),
+			\addNotes, BPStream(\addNotes)
+		)
+	};
+} => PR(\bellAccent);
+
+
+if(MBM.exists(0).not) { MIDIBufManager(chan: nil) => MBM.prNew(0) };
+
+MIDIRecBuf(\ebass, [
+	#[40, 45, 35, 40, 38, 43, 42],
+	#[3, 1, 3, 1, 1.5, 3, 3.5],
+	#[2.9, 1.1, 2.9, 1.1, 1.4, 3.1, 3.5],
+	0.5
+].asNotes) => MBM(0);
 
 \chuckIf.eval(ModalSpec(#[0, 2, 4, 5, 7, 9, 11], 12, 2), Mode, \d);
 \chuckIf.eval(ModalSpec(#[0, 2, 4, 6, 7, 9, 11], 12, 2), Mode, \dlyd);
@@ -292,14 +426,20 @@ PR(\demoProto).copy.putAll((
 			}]
 		));
 
+		\chuckIf.eval(Fact(\fmbass), VC, \fmb);
+		\chuckIf.eval(Fact(\fmbell), VC, \fmbell);
+
 		VC(\pd).env.target.level = -18.dbamp;
 		VC(\pdswp).env.target.level = -24.dbamp;
+		VC(\fmb).env.target.level = -15.85.dbamp;
+		VC(\fmbell).env.target.level = -20.dbamp;
 
 		MixingBoard.at(0).mixers.do { |mcg, i|
 			if(i < 7) { mcg.mixer = nil };
 		};
 		VC(\pd) => MCG(0);
 		VC(\pdswp) => MCG(1);
+		VC(\fmb) => MCG(2);
 
 		VC(\pdswp).env.target.doWhenReady {
 			VC(\pdswp).env.widthCtl.watch.automate({
@@ -318,9 +458,15 @@ PR(\demoProto).copy.putAll((
 
 		\chuckIf.eval(Fact(\rptChords), BP, \rpt);
 		VC(\pd) => BP(\rpt);
+
+		\chuckIf.eval(Fact(\ebassBP), BP, \bass);
+		VC(\fmb) => BP(\bass);
+
+		\chuckIf.eval(PR(\bellAccent), BP, \ba);
+		VC(\fmbell) => BP(\ba);
 	},
 	destroy: {
-		VC(#[pd, pdswp]).free; BP(#[bc, rpt, dd]).free;
+		VC(#[pd, pdswp, fmb, fmbell]).free; BP(#[bc, rpt, dd, bass, ba]).free;
 	},
 
 	go: {
@@ -332,6 +478,7 @@ PR(\demoProto).copy.putAll((
 				cond.unhang;
 			});
 			cond.hang;
+			TempoClock.default.tempo = 72/60;
 			~tlseq = ~makeSeq.();
 			~tlseq.play;
 			~stopper = NotificationCenter.register(~tlseq, \done, \demo1, e {
@@ -350,18 +497,24 @@ PR(\demoProto).copy.putAll((
 	makeSeq: {
 		TLSequenceIterator([
 			Quant(1, -0.25),
-			bpCmd: (name: \dd, quant: 1, id: \drone, prepareBP: { |bp|
-				bp.setNotes(#[0, 7]);
+			bpCmd: (name: \ba, quant: 1, prepareBP: { |bp|
+				bp.degree = Pseq([#[35, 42], 36, 43, Pxrand((35..45), inf) + #[0, 7]], 1);
+				bp.dur = Pseq(#[9, 4, 7, 16, 8, 8, 10, 6.5, 1.5], 1);
+				bp.leadTime = 0.02;
+				bp.addNotes = Pn(true, 3) ++ Pn(false, inf);
+				BP(\dd).setNotes(#[], nil);
+			}),
+			bpCmd: (name: \dd, quant: 1, id: \drone/*, prepareBP: { |bp|
 				bp.makeStreamForKey(\dur);
 				bp.override(\dur, Pn(0, 1));
-			}),
+			}*/),
 			9,
 			{
-				BP(\dd).setNotes(#[1, 7, 0], 1);
+				// BP(\dd).setNotes(#[36, 42, 35], 1);
 				4
 			},
 			{
-				BP(\dd).setNotes(#[8, 1, 7, 0], 1);
+				// BP(\dd).setNotes(#[43, 36, 42, 35], 1);
 				BP(\bc).topGate = 0.25;
 				5
 			},
@@ -399,17 +552,13 @@ PR(\demoProto).copy.putAll((
 				}
 			),
 			13,
+			bpCmd: (name: \bass, quant: 1, prepareBP: _.reset),
 			// bass note here
 			9,
 			funcCmd: (func: {
 				~iterator.findActive(\chords).putAll((bpStream: nil, repeats: 0));
-				BP(\dd).setNotes(#[0], 1);
 			}),
 			4 + 9,
-			// {
-			// 	BP(\dd).setNotes(#[0], 1);
-			// 	9
-			// },
 			funcCmd: (
 				func: {
 					~iterator.activeCmds.copy.do { |cmd|
@@ -417,21 +566,6 @@ PR(\demoProto).copy.putAll((
 					};
 				}
 			)
-			// funcCmd: (
-			// 	doneSignal: true,
-			// 	func: {
-			// 		NotificationCenter.registerOneShot(
-			// 			~iterator.findActive(\chords), \done, currentEnvironment, e {
-			// 				~stop.();
-			// 			}
-			// 		)
-			// 	},
-			// 	clearDoneSignal: {
-			// 		~iterator.activeCmds.copy.do { |cmd|
-			// 			if(cmd.id == \drone) { cmd.stop };
-			// 		};
-			// 	}
-			// )	
 		])
 	}
 ));
