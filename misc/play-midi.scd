@@ -35,7 +35,23 @@ Proto {
 
 a = Pchain(
 	(type: \voicerNote, voicer: MIDIPort.at(\omni).sockets[0].destination),
-	PR(\dropdur).copy.prep(60 * 60 / 108, p)
+	PR(\dropdur).copy.prep(60 * 60 / 104, p)
+).play;
+
+a = Pchain(
+	(type: \voicerNote, voicer: MIDIPort.at(\omni).sockets[0].destination),
+	PR(\dropdur).copy.prep(60 * 60 / 104, Pbindf(p, \delta, Pkey(\delta) * 96/104))
+).play;
+
+a.stop;
+
+p.list[0].patternpairs
+
+p.asStream.nextN(, inval )
+
+a = Pchain(
+	(type: \voicerNote, voicer: MIDIPort.at(\omni).sockets[0].destination),
+	Pbindf(p, \delta, Pkey(\delta) * 96/104)
 ).play;
 
 a.stop;
