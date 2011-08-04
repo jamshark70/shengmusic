@@ -1,8 +1,11 @@
+v = MIDIPort.at(\omni).sockets[0].destination;
+
 m = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/fast-sketch1.midi");
-p = m.p;
+p = Pbindf(m.p, \midinote, Pkey(\midinote) - v.globalControls[\transpose]);
 
 a = (Pbind(\type, \voicerNote, \voicer, MIDIPort.at(\omni).sockets[0].destination) <> p).play;
 
+p.list[0].patternpairs
 
 m.noteOnEvents;
 576 / 3
@@ -38,6 +41,7 @@ a = Pchain(
 	PR(\dropdur).copy.prep(60 * 60 / 104, p)
 ).play;
 
+// converting tempo
 a = Pchain(
 	(type: \voicerNote, voicer: MIDIPort.at(\omni).sockets[0].destination),
 	PR(\dropdur).copy.prep(60 * 60 / 104, Pbindf(p, \delta, Pkey(\delta) * 96/104))
@@ -45,9 +49,6 @@ a = Pchain(
 
 a.stop;
 
-p.list[0].patternpairs
-
-p.asStream.nextN(, inval )
 
 a = Pchain(
 	(type: \voicerNote, voicer: MIDIPort.at(\omni).sockets[0].destination),
