@@ -35,15 +35,18 @@ PR(\abstractProcess).clone {
 	~rwidth = Pwhite(1.01, 3.5, inf);
 	~preamp = 3;
 	~amp = 0.1;
+	~pan = 0;
 
 	~prep = {
-		~chan = MixerChannel(~collIndex, s, 2, 2, level: ~mixerLevel, outbus: ~master);
-		if(Server.program = "supernova") {
-			~targ = ParGroup(~chan.synthgroup);
-		} {
-			~targ = ~chan.synthgroup;
-		};
-		~event.putAll((target: ~targ, bus: ~chan.inbus));
+		~chan = MixerChannel(~collIndex, s, 2, 2, level: ~mixerLevel, outbus: ~master,
+			completionFunc: { |chan|
+				if(Server.program == "supernova") {
+					~targ = ParGroup(chan.synthgroup);
+				} {
+					~targ = chan.synthgroup;
+				};
+				~event.putAll((target: ~targ, bus: chan.inbus));
+			});
 		~makeSynthDef.();
 		~makeBuffer.();
 	};
@@ -52,7 +55,7 @@ PR(\abstractProcess).clone {
 	};
 
 	~makeSynthDef = {
-		~def = SynthDef(\plink, { |cfreq = 440, width = 0.1, fdecay = 0.7, fwobblefreq = 20, excratio = 0.25, excdecay = 0.1, sustain = 3, fattack = 1, preamp = 3, amp = 0.1, rwidth = 1, out, bufnum|
+		~def = SynthDef(\plink, { |cfreq = 440, width = 0.1, fdecay = 0.7, fwobblefreq = 20, excratio = 0.25, excdecay = 0.1, sustain = 3, fattack = 1, preamp = 3, amp = 0.1, rwidth = 1, pan = 0, out, bufnum|
 			var	initTrig = Impulse.kr(0),
 				oneOverRw = rwidth.reciprocal,
 				ratios = { ExpRand(oneOverRw, rwidth) } ! 6,
@@ -61,7 +64,7 @@ PR(\abstractProcess).clone {
 				sig = Formlet.ar(exc, freq * ratios, fattack, sustain).sum;
 			sig = (sig * preamp).distort * amp;
 			DetectSilence.ar(sig, doneAction: 2);
-			Out.ar(out, sig)
+			Out.ar(out, Pan2.ar(sig, pan))
 		}).add;
 	};
 
@@ -83,8 +86,25 @@ PR(\abstractProcess).clone {
 			\sustain, BPStream(\sustain),
 			\rwidth, BPStream(\rwidth),
 			\preamp, BPStream(\preamp),
-			\amp, BPStream(\amp)
+			\amp, BPStream(\amp),
+			\pan, BPStream(\pan)
 		);
 	};
 } => PR(\plinks);
 )
+
+BP(\pl).free;
+PR(\plinks).chuck(BP(\pl), nil, (master: ~master));
+1 => BP(\pl);
+
+TempoClock.tempo = 104/60;
+
+p = BP(\pl);
+p.sustain = 0.9 / Ptempo();
+
+p.delta = Pn(
+	Pconst({ rrand(2, 3) }, Pwrand(#[0.25, 0.5, 0.75, 1], #[0.05, 0.4, 0.35, 0.2], inf)),
+	inf
+);
+
+// basic flow works; needs more rhythmic control
