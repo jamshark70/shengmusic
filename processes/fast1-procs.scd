@@ -55,14 +55,18 @@ PR(\abstractProcess).clone {
 	};
 
 	~makeSynthDef = {
-		~def = SynthDef(\plink, { |freq = 440, width = 0.1, fdecay = 0.7, fwobblefreq = 20, excratio = 0.25, excdecay = 0.1, sustain = 3, fattack = 1, preamp = 3, amp = 0.1, rwidth = 1, pan = 0, out, bufnum|
+		~def = SynthDef(\plink, { |freq = 440, width = 0.1, fdecay = 0.7, fwobblefreq = 20, excratio = 0.25, excdecay = 0.1, excbeats = 0, sustain = 3, fattack = 1, preamp = 3, amp = 0.1, rwidth = 1, pan = 0, chfreq = 0.1, delaywidth = 0.02, delayctr = 0.02, apdecay = 0.4, out, bufnum|
 			var	initTrig = Impulse.kr(0),
 				oneOverRw = rwidth.reciprocal,
-				ratios = { ExpRand(oneOverRw, rwidth) } ! 6,
+				num = 6,
+				ratios = { ExpRand(oneOverRw, rwidth) } ! num,
+				// ratios = (rwidth-1) * (0.0, 1/(num-1) .. 1.0) + 1,
 				realfreq = Decay.kr(initTrig, fdecay, LFNoise1.kr(fwobblefreq, width), 1) * freq,
-				exc = Osc.ar(bufnum, realfreq * excratio) * Decay2.kr(initTrig, 0.01, excdecay),
+				exc = COsc.ar(bufnum, realfreq * excratio, excbeats)
+					* Decay2.kr(initTrig, 0.01, excdecay),
 				sig = Formlet.ar(exc, realfreq * ratios, fattack, sustain).sum;
 			sig = (sig * preamp).distort * amp;
+			sig = sig + AllpassL.ar(sig, 0.05, SinOsc.kr(chfreq, Rand(0, pi), delaywidth, delayctr), apdecay);
 			DetectSilence.ar(sig, doneAction: 2);
 			Out.ar(out, Pan2.ar(sig, pan))
 		}).add;
@@ -118,13 +122,14 @@ d.allControlNames.collect(_.name)
 d.metadata
 
 d.metadata = (
-	midiControls: #[width, fdecay, excdecay, /*excratio, sustain, fattack,*/ preamp, rwidth],
+	midiControls: #[width, /*fdecay,*/ excdecay, /*excbeats, excratio, sustain, fattack,*/ preamp, rwidth, chfreq, delaywidth, delayctr, apdecay],
 	specs: (
 		width: \unipolar,
 		fdecay: #[0.01, 2.0, \exp, 0, 0.7],
 		fwobblefreq: #[1, 50, \lin, 0, 20],
 		excratio: #[0.01, 1.0, \exp, 0, 0.25],
 		excdecay: #[0.01, 5.0, \exp, 0, 0.1],
+		excbeats: #[0, 8],
 		sustain: #[0.005, 10, \exp, 0, 3],
 		fattack: #[0.005, 10, \exp, 0, 1],
 		preamp: #[0.05, 20, \exp, 0, 3],
@@ -132,7 +137,11 @@ d.metadata = (
 		rwidth: [4/5, 5/4, \exp, 0, 1],
 		pan: \bipolar,
 //		out: BP(\pl).chan.inbus.index,
-		bufnum: BP(\pl).buf
+		bufnum: BP(\pl).buf,
+		chfreq: #[0.01, 10, \exp, 0, 0.1],
+		delaywidth: #[0.001, 0.025, \exp, 0, 0.02],
+		delayctr: #[0.001, 0.025, \exp, 0, 0.02],
+		apdecay: #[0.01, 2.0, \exp, 0, 0.1]
 	)
 );
 
@@ -141,7 +150,9 @@ v.playingNodes.do(_.free);
 
 v = d.miditest(0, target: BP(\pl).targ, bus: BP(\pl).chan.inbus);
 k = MIDIPort.search(v);
-k.noteOnArgsPat = Pbind(\amp, Pkey(\velocity).linlin(0, 127, 0.1, 0.5), \fwobblefreq, Pexprand(20, 45, inf), \excratio, Pwhite(2, 15, inf).reciprocal + rrand(0.002, 0.008), #[fattack, sustain], (Pkey(\midinote).linlin(38, 84, 0.08, 0.02) * #[1, 1.1]).trace);
+k.noteOnArgsPat = Pbind(\amp, Pkey(\velocity).linlin(0, 127, 0.1, 0.5), \fwobblefreq, Pexprand(20, 45, inf), \excratio, Pwhite(2, 15, inf).reciprocal + rrand(0.002, 0.008), #[fattack, sustain], (Pkey(\midinote).linlin(38, 84, 0.08, 0.02) * #[1, 1.1]));
+
+k.noteOnArgsPat = Pbind(\amp, Pkey(\velocity).linlin(0, 127, 0.1, 0.5), \fwobblefreq, Pexprand(20, 45, inf), \excratio, Pwhite(2, 15, inf).reciprocal/* + rrand(0.002, 0.008)*/, #[fattack, sustain], (Pkey(\midinote).linlin(38, 84, 0.08, 0.02) * #[1, 1.1]));
 
 // excratio off-integer denominators is interesting ^^ if noise osc sustains thru
 // fatk/sustain needs some tuning but getting close
