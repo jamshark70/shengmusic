@@ -17,25 +17,39 @@ n = MixerChannel(\test2, s, 2, 2, outbus: ~master);
 m => MCG(0); n => MCG(1);
 )
 
+\chuckIf.eval(ModalSpec(#[0, 2, 4, 5, 7, 9, 11], 12, 2), Mode, \d);
+
 
 
 // bleepy filters
 
 (
 PR(\abstractProcess).clone {
-	~event = (eventKey: \singleSynthPlayer);
+	~event = (eventKey: \polySynthPlayer);
+	~alwaysReset = true;
+	~printStopMsg = false;
 
 	~delta = Pwhite(1, 4, inf) * 0.25;
-	~freq = Pexprand(200, 800, inf);
+	~mode = \d;
+	~degree = Pwhite(28, 42, inf);
+	~freq = Pfunc({ |ev| ev[\mode].asMode.cps(ev[\degree]) });
 	~fwobblefreq = Pwhite(18, 45, inf);
-	~fdecay = 3;
-	~excratio = 0.01;
-	~fattack = 0.1;
+	~fdecay = 0.7;
+	~excratio = 0.25;
 	~sustain = 0.9;
 	~rwidth = Pwhite(1.01, 3.5, inf);
 	~preamp = 3;
 	~amp = 0.1;
 	~pan = 0;
+
+	// don't flop
+	~fltenv = Pfunc({ |ev|
+		ev[\degree].unmapMode(ev[\mode]).linlin(38, 84, 0.08, 0.02) *.t #[1, 1.1];
+	});
+	~excbeats = 0.65;
+	~apdecay = 0.1;
+	~trailRq = 0.02;
+	~trailAmp = 8;
 
 	~prep = {
 		~chan = MixerChannel(~collIndex, s, 2, 2, level: ~mixerLevel, outbus: ~master,
@@ -55,20 +69,24 @@ PR(\abstractProcess).clone {
 	};
 
 	~makeSynthDef = {
-		~def = SynthDef(\plink, { |freq = 440, width = 0.1, fdecay = 0.7, fwobblefreq = 20, excratio = 0.25, excdecay = 0.1, excbeats = 0, sustain = 3, fattack = 1, preamp = 3, amp = 0.1, rwidth = 1, pan = 0, chfreq = 0.1, delaywidth = 0.02, delayctr = 0.02, apdecay = 0.4, out, bufnum|
+		~def = SynthDef(\plink, { |freq = 440, width = 0.1, fdecay = 0.7, fwobblefreq = 20, excratio = 0.25, sustain = 1, excbeats = 0, fltdecay = 0.1, fattack = 0.05, preamp = 3, amp = 0.1, pan = 0, chfreq = 0.1, delaywidth = 0.02, delayctr = 0.02, apdecay = 0.4, trailRq = 0.02, trailAmp = 1, out, bufnum|
 			var	initTrig = Impulse.kr(0),
-				oneOverRw = rwidth.reciprocal,
-				num = 6,
-				ratios = { ExpRand(oneOverRw, rwidth) } ! num,
-				// ratios = (rwidth-1) * (0.0, 1/(num-1) .. 1.0) + 1,
 				realfreq = Decay.kr(initTrig, fdecay, LFNoise1.kr(fwobblefreq, width), 1) * freq,
 				exc = COsc.ar(bufnum, realfreq * excratio, excbeats)
-					* Decay2.kr(initTrig, 0.01, excdecay),
-				sig = Formlet.ar(exc, realfreq * ratios, fattack, sustain).sum;
+					* Decay2.kr(initTrig, 0.01, sustain),
+				sig = (exc * 0.12) + Formlet.ar(exc, realfreq, fattack, fltdecay),
+				trails, trailSweep;
 			sig = (sig * preamp).distort * amp;
+			// little phase messiness, slightly reverb-y
 			sig = sig + AllpassL.ar(sig, 0.05, SinOsc.kr(chfreq, Rand(0, pi), delaywidth, delayctr), apdecay);
-			DetectSilence.ar(sig, doneAction: 2);
-			Out.ar(out, Pan2.ar(sig, pan))
+			trailSweep = XLine.kr(freq * Rand(2.0, 5.0), min(15000, freq * Rand(7.0, 12.0)),
+				max(sustain, fltdecay));
+			// a little bizarro upper-frequency nonsense, stereo-spread
+			trails = BPF.ar(sig, trailSweep * (0.8, 0.9 .. 1.2), trailRq);
+			DetectSilence.ar(sig + trails[0], 0.001, doneAction: 2);
+			trails = Pan2.ar(trails, { Rand(-1.0, 1.0) } ! (trails.size)).sum;
+			trails = Limiter.ar(trails) * trailAmp;
+			Out.ar(out, Pan2.ar(sig, pan) + trails)
 		}).add;
 	};
 
@@ -82,100 +100,62 @@ PR(\abstractProcess).clone {
 			\instrument, ~def.name,
 			\bufnum, ~buf,
 			\delta, BPStream(\delta),
+			\mode, BPStream(\mode),
+			\degree, BPStream(\degree),
 			\freq, BPStream(\freq),
 			\fwobblefreq, BPStream(\fwobblefreq),
 			\excratio, BPStream(\excratio),
 			\fdecay, BPStream(\fdecay),
-			\fattack, BPStream(\fattack),
-			\sustain, BPStream(\sustain),
-			\rwidth, BPStream(\rwidth),
+			\sustain, BPStream(\sustain) / Ptempo(),
 			\preamp, BPStream(\preamp),
 			\amp, BPStream(\amp),
-			\pan, BPStream(\pan)
+			\pan, BPStream(\pan),
+			#[fattack, fltdecay], BPStream(\fltenv),
+			\excbeats, BPStream(\excbeats),
+			\apdecay, BPStream(\apdecay),
+			\trailRq, BPStream(\trailRq),
+			\trailAmp, BPStream(\trailAmp)
 		);
 	};
+
+	~reset = Func(\resetBPStreams).v;
 } => PR(\plinks);
 )
+
+TempoClock.tempo = 104/60;
 
 BP(\pl).free;
 PR(\plinks).chuck(BP(\pl), nil, (master: ~master));
 1 => BP(\pl);
 
-TempoClock.tempo = 104/60;
-
 p = BP(\pl);
-p.sustain = 0.9 / Ptempo();
 
-p.delta = Pn(
-	Pconst({ rrand(2, 3) }, Pwrand(#[0.25, 0.5, 0.75, 1], #[0.05, 0.4, 0.35, 0.2], inf)),
-	inf
-);
+p => MCG(2);
+p =>.60 MT(1);
 
-// basic flow works; needs more rhythmic control
+// why doesn't the frakkin' Func fire here? - ah, isFunction == false
+p.reset = Func(\resetBPStreams).v;
 
-p.event.parent  // is nil, can change
-p.event.eventKey = \polySynthPlayer;
+p.delta = Pseq([1.5, 2.5], 1);
 
-// check by midi
-d = SynthDescLib.at(\plink).def;
-d.allControlNames.collect(_.name)
-d.metadata
+p.alwaysReset = true;
 
-d.metadata = (
-	midiControls: #[width, /*fdecay,*/ excdecay, /*excbeats, excratio, sustain, fattack,*/ preamp, rwidth, chfreq, delaywidth, delayctr, apdecay],
-	specs: (
-		width: \unipolar,
-		fdecay: #[0.01, 2.0, \exp, 0, 0.7],
-		fwobblefreq: #[1, 50, \lin, 0, 20],
-		excratio: #[0.01, 1.0, \exp, 0, 0.25],
-		excdecay: #[0.01, 5.0, \exp, 0, 0.1],
-		excbeats: #[0, 8],
-		sustain: #[0.005, 10, \exp, 0, 3],
-		fattack: #[0.005, 10, \exp, 0, 1],
-		preamp: #[0.05, 20, \exp, 0, 3],
-//		amp: \amp,
-		rwidth: [4/5, 5/4, \exp, 0, 1],
-		pan: \bipolar,
-//		out: BP(\pl).chan.inbus.index,
-		bufnum: BP(\pl).buf,
-		chfreq: #[0.01, 10, \exp, 0, 0.1],
-		delaywidth: #[0.001, 0.025, \exp, 0, 0.02],
-		delayctr: #[0.001, 0.025, \exp, 0, 0.02],
-		apdecay: #[0.01, 2.0, \exp, 0, 0.1]
-	)
-);
+// don't get bass from here!
+p.degree = #[/*19,*/ 26, 33, 42, 46];
 
-v.trace;
-v.playingNodes.do(_.free);
+// 'k, i'll buy that
+p.degree = Ptuple([
+	Pseq(#[
+		26, 26, 27, 28, 29, 30,
+		26, 26, 27, 28, 29, 30, 31.5
+	], 1) + #[0, 7],
+	42, 46
+], 1).collect(_.flat);
+p.delta = Pseq(#[
+	1.5, 2.5, 1.5, 1.5, 1, 4,
+	2, 1, 1.5, 1.5, 2, 0.5, 0.5
+], 1);
 
-v = d.miditest(0, target: BP(\pl).targ, bus: BP(\pl).chan.inbus);
-k = MIDIPort.search(v);
-k.noteOnArgsPat = Pbind(\amp, Pkey(\velocity).linlin(0, 127, 0.1, 0.5), \fwobblefreq, Pexprand(20, 45, inf), \excratio, Pwhite(2, 15, inf).reciprocal + rrand(0.002, 0.008), #[fattack, sustain], (Pkey(\midinote).linlin(38, 84, 0.08, 0.02) * #[1, 1.1]));
-
-k.noteOnArgsPat = Pbind(\amp, Pkey(\velocity).linlin(0, 127, 0.1, 0.5), \fwobblefreq, Pexprand(20, 45, inf), \excratio, Pwhite(2, 15, inf).reciprocal/* + rrand(0.002, 0.008)*/, #[fattack, sustain], (Pkey(\midinote).linlin(38, 84, 0.08, 0.02) * #[1, 1.1]));
-
-// excratio off-integer denominators is interesting ^^ if noise osc sustains thru
-// fatk/sustain needs some tuning but getting close
-
-\width, 0.50393700787402, 
-\fdecay, 0.7, 
-\sustain, 0.4755162406834, 
-\fattack, 0.1, 
-\preamp, 3.6596384941205, 
-\rwidth, 1.0231043297477, 
-
-v.set([\width, 0, 
-\fdecay, 0.7, 
-\excdecay, 1.7893019105926, 
-\sustain, 0.11560912813836, 
-\fattack, 0.1, 
-\preamp, 3, 
-\rwidth, 1]);
-
-\width, 0, 
-\fdecay, 0.7, 
-\excdecay, 1.8790371130712, 
-\sustain, 0.01558923793285, 
-\fattack, 0.0080706572110651, 
-\preamp, 3, 
-\rwidth, 1, 
+// has potential... hit accent points?
+p.degree = Prand(#[42, [40, 43]], inf);
+p.delta = Pwrand(#[0.5, 0.75], #[0.35, 0.65], inf);
