@@ -56,3 +56,30 @@ a = Pchain(
 ).play;
 
 a.stop;
+
+
+
+// how to get just 1 of the tracks?
+z = m.noteEvents(track: 4);
+m.p.inspect
+p = m.p.list[3];
+p.patternpairs[5].list
+
+a = Pchain(
+	(type: \voicerNote, voicer: VC(\pf).v),
+	Pbindf(p, \dur, Pkey(\dur) * 104/60)
+).play(quant: 1);
+
+a.stop;
+
+Proto {
+	~alwaysReset = true;
+	~asPattern = {
+		Pchain(
+			(type: \voicerNote, voicer: VC(\pf).v),
+			Pbindf(p, \dur, Pkey(\dur) * 104/60)
+		)
+	};
+} => BP(\temppf);
+
+1 => BP(\temppf);
