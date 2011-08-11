@@ -156,6 +156,108 @@ p.delta = Pseq(#[
 	2, 1, 1.5, 1.5, 2, 0.5, 0.5
 ], 1);
 
+p.amp = 0.3
+
 // has potential... hit accent points?
 p.degree = Prand(#[42, [40, 43]], inf);
 p.delta = Pwrand(#[0.5, 0.75], #[0.35, 0.65], inf);
+
+
+SynthDescLib.at(\plink).controls.do { |cn| cn.name.postln }; ""
+
+// try sweeping down in 16ths - quite useful, esp. modulating sustain
+b = Buffer.sendCollection(s, Signal.fill(1024, { 1.0.rand2 }).asWavetable, wait: -1);
+
+(
+p = n.play(Pbind(
+	\instrument, \plink,
+	\freq, Env(#[900, 400], #[4], 2).asStream * (0.8, 0.9 .. 1.2),
+	\width, 0,
+	\excratio, Pkey(\freq) * (2.sqrt / 500),
+	\sustain, Env(#[0.1, 1.2, 0.1], #[3, 1], #[4, -4]).asStream / Ptempo(),
+	\excbeats, 0.65,
+	\fltdecay, 0.02,
+	\fattack, 0.01,
+	\preamp, 4,
+	\amp, 0.1,
+	\pan, 0,
+	// \chfreq
+	// \delaywidth
+	// \delayctr
+	\apdecay, 0.1,
+	\trailRq, 0.004,
+	\trailAmp, 1,
+	\bufnum, b,
+	\delta, Pn(0.25, 16)
+), (quant: 1));
+// u.remove;
+// u = Updater(p, { |... args| args.postln });
+)
+
+
+
+// bass
+
+WrapInstr("osc2.fm1ramp", { |freq, freqlag|
+	WrapInstr.wrap("osc2.fm1", [Ramp.kr(freq, freqlag)])
+}, [\freq, \unipolar]);
+
+(
+VC(\qb).free;
+Fact(\fmbass).chuck(VC(\qb), nil, (
+	// car_env: Env()
+	instr: "osc2.fm1ramp"
+));
+)
+
+TempoClock.default.tempo = 104/60;
+
+p = Pbind(
+	\type, \voicerNote,
+	\voicer, VC(\qb).v,
+	\degree, Pseq(#[-2, -9], inf),
+	\freqlag, 0.6 / Ptempo(),
+	\dur, Pseq(#[0.5, 1], inf),
+	\sustain, Pseq(#[0.7, 0.55], inf),
+	\gate, 0.5
+).play(quant:1);
+
+p.stop;
+
+VC(\qb).v.gate(47.midicps, 1, 0.5);
+
+MIDIRecBuf(\fastbs1, [
+	[	47, 35, 47, 49, 50, 40, 42,
+		47, 35, 47, 49, 50, 52, 40, 42, 44
+	],
+	// perceived rhythm is 1, 0.5 but I have to start the slide early
+	[	0.5, 1, 2.5, 1.5, 1.5, 1, 4,
+		// same here: 1.5, 0.5
+		1, 1, 1, 1.5, 1.5, 1, 1, 0.5, 3.5
+	],
+	[	0.6, 0.7, 0.2, 0.2, 0.2, 0.2, 0.2,
+		1.1, 0.7, 0.2, 0.2, 0.2, 1.1, 0.7, 0.2, 0.2
+	],
+	0.5
+].asNotes, (type: \mel)) => MBM(0);
+
+BP(\qb).free;
+PR(\mel1).chuck(BP(\qb), nil, (repeats: 1, printStopMsg: false, alwaysReset: true));
+VC(\qb) => BP(\qb);
+1 => BP(\qb);
+//BP(\qb).alwaysReset = true;
+
+MBM(0)[\fastbs1] => BP(\qb);
+
+// I wish I knew why I had to fudge it like this...
+VC(\qb).v.portaTime = 0.4 / (104/60);
+
+Instr("osc2.fm1porta").openFile
+
+b.free;
+
+Voicer(30, \pf, target: n) => VC(\pf);
+VC(\pf).mapGlobal(\amp, nil, 0.1, \amp);
+VC(\pf).mapGlobal(\transpose, nil, 0, #[-12, 12, \lin, 1, 0]);
+
+socket.noteOnArgsPat = Pbind(\vel, Pkey(\velocity).linlin(0, 127, 30, 127));

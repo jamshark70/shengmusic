@@ -17,6 +17,13 @@ n = MixerChannel(\test2, s, 2, 2, outbus: ~master);
 m => MCG(0); n => MCG(1);
 )
 
+(
+var d = thisProcess.nowExecutingPath.dirname.dirname;
+["common/common-defs.scd"].do { |file|
+	(d +/+ file).loadPath;
+};
+)
+
 
 // try some squirrelly filters
 b = Buffer.sendCollection(s, Signal.fill(1024, { 1.0.rand2 }).asWavetable, wait: -1);
@@ -105,23 +112,21 @@ x.next;
 
 
 (
-SynthDef(\plink, { |freq = 440, width = 0.1, fdecay = 0.7, fwobblefreq = 20, excratio = 0.25, excdecay = 0.1, excbeats = 0, sustain = 3, fattack = 1, preamp = 3, amp = 0.1, /*rwidth = 1,*/ pan = 0, chfreq = 0.1, delaywidth = 0.02, delayctr = 0.02, apdecay = 0.4, trailRq = 0.02, trailAmp = 1, out, bufnum|
+~def = SynthDef(\plink, { |freq = 440, width = 0.1, fdecay = 0.7, fwobblefreq = 20, excratio = 0.25, sustain = 1, excbeats = 0, fltdecay = 0.1, fattack = 0.05, preamp = 3, amp = 0.1, pan = 0, chfreq = 0.1, delaywidth = 0.02, delayctr = 0.02, apdecay = 0.4, trailRq = 0.02, trailAmp = 1, out, bufnum|
 	var	initTrig = Impulse.kr(0),
-		// oneOverRw = rwidth.reciprocal,
-		// num = 6,
-		// ratios = { ExpRand(oneOverRw, rwidth) } ! num,
-		// ratios = (rwidth-1) * (0.0, 1/(num-1) .. 1.0) + 1,
 		realfreq = Decay.kr(initTrig, fdecay, LFNoise1.kr(fwobblefreq, width), 1) * freq,
 		exc = COsc.ar(bufnum, realfreq * excratio, excbeats)
-			* Decay2.kr(initTrig, 0.01, excdecay),
-		sig = Formlet.ar(exc, realfreq /** ratios*/, fattack, sustain), //.sum,
+			* Decay2.kr(initTrig, 0.01, sustain),
+		sig = (exc * 0.12) + Formlet.ar(exc, realfreq, fattack, fltdecay),
 		trails, trailSweep;
 	sig = (sig * preamp).distort * amp;
+	// little phase messiness, slightly reverb-y
 	sig = sig + AllpassL.ar(sig, 0.05, SinOsc.kr(chfreq, Rand(0, pi), delaywidth, delayctr), apdecay);
 	trailSweep = XLine.kr(freq * Rand(2.0, 5.0), min(15000, freq * Rand(7.0, 12.0)),
-		max(sustain, excdecay));
+		max(sustain, fltdecay));
+	// a little bizarro upper-frequency nonsense, stereo-spread
 	trails = BPF.ar(sig, trailSweep * (0.8, 0.9 .. 1.2), trailRq);
-	DetectSilence.ar(sig + trails[0], doneAction: 2);
+	DetectSilence.ar(sig + trails[0], 0.001, doneAction: 2);
 	trails = Pan2.ar(trails, { Rand(-1.0, 1.0) } ! (trails.size)).sum;
 	trails = Limiter.ar(trails) * trailAmp;
 	Out.ar(out, Pan2.ar(sig, pan) + trails)
@@ -146,8 +151,8 @@ SynthDef(\plink, { |freq = 440, width = 0.1, fdecay = 0.7, fwobblefreq = 20, exc
 		delaywidth: #[0.001, 0.025, \exp, 0, 0.02],
 		delayctr: #[0.001, 0.025, \exp, 0, 0.02],
 		apdecay: #[0.01, 2.0, \exp, 0, 0.1],
-		trailDecay: #[0.1, 10, \exp, 0, 0.5],
-		trailAmp: \amp
+		trailRq: #[0.001, 1, \exp, 0, 0.02],
+		trailAmp: #[0, 1, \amp, 0, 8]
 	)
 )).add;
 )
@@ -181,3 +186,5 @@ v.set([\width, 0,
 \fattack, 0.0080706572110651, 
 \preamp, 3, 
 \rwidth, 1, 
+
+
