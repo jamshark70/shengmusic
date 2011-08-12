@@ -1,28 +1,9 @@
-~saveAddr = s.addr;
-~debugAddr = DebugNetAddr("127.0.0.1", 57110);
-s.addr = ~debugAddr;
-s.addr = ~saveAddr;
-
 \supernova.eval;
 
-BP.loadGui;
+(thisProcess.nowExecutingPath.dirname +/+ "../common/dev-setup.scd").loadPath;
 
-~master = MixerChannel(\master, s, 2, 2, level: -20.dbamp);
-~master => MCG(7);
-
-(
-[m, n].free;
-m = MixerChannel(\test1, s, 1, 2, outbus: ~master);
-n = MixerChannel(\test2, s, 2, 2, outbus: ~master);
-m => MCG(0); n => MCG(1);
-)
-
-(
-var d = thisProcess.nowExecutingPath.dirname.dirname;
-["common/common-defs.scd"].do { |file|
-	(d +/+ file).loadPath;
-};
-)
+s.addr = ~debugAddr;
+s.addr = ~saveAddr;
 
 
 // try some squirrelly filters
@@ -188,3 +169,5 @@ v.set([\width, 0,
 \rwidth, 1, 
 
 
+
+// 

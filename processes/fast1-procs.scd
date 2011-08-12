@@ -1,24 +1,9 @@
-~saveAddr = s.addr;
-~debugAddr = DebugNetAddr("127.0.0.1", 57110);
-s.addr = ~debugAddr;
-s.addr = ~saveAddr;
-
 \supernova.eval;
 
-BP.loadGui;
+(thisProcess.nowExecutingPath.dirname +/+ "../common/dev-setup.scd").loadPath;
 
-~master = MixerChannel(\master, s, 2, 2, level: -20.dbamp);
-~master => MCG(7);
-
-(
-[m, n].free;
-m = MixerChannel(\test1, s, 1, 2, outbus: ~master);
-n = MixerChannel(\test2, s, 2, 2, outbus: ~master);
-m => MCG(0); n => MCG(1);
-)
-
-\chuckIf.eval(ModalSpec(#[0, 2, 4, 5, 7, 9, 11], 12, 2), Mode, \d);
-
+s.addr = ~debugAddr;
+s.addr = ~saveAddr;
 
 
 // bleepy filters
@@ -261,3 +246,22 @@ VC(\pf).mapGlobal(\amp, nil, 0.1, \amp);
 VC(\pf).mapGlobal(\transpose, nil, 0, #[-12, 12, \lin, 1, 0]);
 
 socket.noteOnArgsPat = Pbind(\vel, Pkey(\velocity).linlin(0, 127, 30, 127));
+
+f = 
+
+Proto {
+	~alwaysReset = true;
+	~tracks = 3;
+	~prep = {
+		~midi = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/fast-sketch1.midi");
+		~midipat = ~midi.p;
+	};
+	~asPattern = {
+		Pchain(
+			(type: \voicerNote, voicer: VC(\pf).v),
+			Pbindf(Ppar(~midipat.list[~tracks.asArray]), \delta, Pkey(\delta) * 104/60)
+		)
+	};
+} => BP(\temppf);
+
+1 => BP(\temppf);
