@@ -95,6 +95,28 @@ a.set(\start, 356384);
 
 a.free;
 
+SynthDef(\buzzz, { |bufnum, tfmod = 0, tfLo = 5, tfHi = 5, gdur = 0.1, rate = 1, start = 0, envbuf = -1, gate = 1, dratio = 0.25, resolution = 0.01, lpfreq = 19000, amp = 1, out|
+	var	bufFr = BufFrames.kr(bufnum),
+		tfreq = SinOsc.kr(tfmod).range(tfLo, tfHi),
+		trig = Impulse.ar(tfreq),
+		sig = GrainBuf.ar(1, trig, gdur, bufnum, rate,
+			start / bufFr, // SinOsc.kr(0.1, 0, 441, start) / bufFr,
+			envbufnum: envbuf
+		),
+		sr = SampleRate.ir;
+	sig = Latch.ar(sig, Impulse.ar(sr * dratio));
+	sig = LPF.ar(sig.round(resolution), lpfreq, amp);
+	Out.ar(out, sig * Linen.kr(gate, 0.01, 1, 0.01, doneAction: 2));
+}).add;
+
+// SinOsc thing doesn't work
+m.play((
+	instrument: \buzzz, 
+	bufnum: b[0], tfLo: 22, tfHi: 8, tfmod: 6,
+	gdur: 0.2, rate: 1, start: rrand(0, (b[0].numFrames * 0.8).asInteger),
+	envbuf: ~eb, sustain: 2, dratio: 0.25, resolution: 0.01, lpfreq: 19000, amp: 4
+));
+
 
 // got some low frequencies, make it grittier
 a = m.play({ |dratio = 0.25, bufnum, rate = 1, start = 0, sustain = 1|
@@ -253,3 +275,5 @@ z.set(\gdur, 0.2);
 z.set(\fdur, 2.0);
 
 e.stop;
+
+
