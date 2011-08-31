@@ -1,11 +1,18 @@
-// try making klunks less percussive -- Klank - Klank
-
-\supernova.eval;
+// not until the s-nova readChannel bug is fixed...
+// \supernova.eval;
 
 (thisProcess.nowExecutingPath.dirname +/+ "../common/dev-setup.scd").loadPath;
 
+~saveAddr = s.addr;
+~debugAddr = DebugNetAddr("127.0.0.1", 57110);
+
 s.addr = ~debugAddr;
 s.addr = ~saveAddr;
+
+#[c, db, d, eb, e, f, gb, g, ab, a, bb, b].do { |key, i|
+	Mode(\default).v.copy.root_(i) => Mode(key);
+	Mode(key).v.transposeRoot(0) => Mode((key ++ "0").asSymbol);
+};
 
 
 // brainstorm: really wacko, disjointed sounds -- don't fight the mood
@@ -178,11 +185,8 @@ SynthDef(\klunk2, { |bufnum, rate = 1, start = 0, gdur = 0.1,
 		fenv = NamedControl.kr(\fenv, (0 ! 20).overWrite(Env.one.asArray)),
 		totalDur = gdur + fdur,
 		feg = EnvGen.ar(fenv, timeScale: totalDur);
-	// sig = DynKlank.ar(`[
-	// 	ffreqs * feg, // { Rand(flo, fhi) } ! 3,
-	// 	nil,
-	// 	fdur ! ffreqs.size
-	// ], sig);
+	// Klank-Klank is more efficient for fixed frequencies;
+	// bank of Formlets is more efficient for modulatable
 	sig = Formlet.ar(sig, ffreqs * feg, fatk, fdur).sum;
 	sig = (sig * preamp).distort;
 	Out.ar(out, Pan2.ar(sig, pan, amp));
@@ -355,10 +359,21 @@ x.set(\delta, Pexprand(0.01, 0.08, inf));
 p.stop;
 
 
-Mode(\default).v.copy.root_(2) => Mode(\d);
+// Mode(\default).v.copy.root_(2) => Mode(\d);
+
+var x = 18, scale;
+while { x < 53 } {
+	x = (x+1).nextPrime;
+	scale = Mode(\default).v.scale.linlin(0, 12, 0, x).round.asInteger;
+	scale = scale + Array.fill(scale.size, { 1.rand2 }).put(0, 0);
+	ModalSpec(scale, x, scale[2], cpsFunc: EqualTemperament(x, 2.midicps, scale[2])) => Mode(("x" ++ x).asSymbol);
+}; ""
+
 
 // now THAT'S pretty - maybe too diatonic
 (
+// \chuckIf.eval(Mode(\default).v.copy.root_(2), Mode, \d);
+
 p = n.play(
 	x = PbindProxy(
 		\instrument, \klunk,
@@ -371,10 +386,10 @@ p = n.play(
 			Pwhite(3.0, 6.0, inf),
 			\sin
 		),
-		\mode, \d,
 		\degree, Pstutter(Pwhite(50, 90, inf),
 			(Pwhite(42, 49, inf) -.x Pseries(0, Pwhite(1, 3, inf), 3)).clump(3).trace
 		),
+		\mode, \d,
 		\ff, Pfunc({ |ev| ev[\mode].asMode.cps(ev[\degree]) })
 			* Pexprand(Pkey(\ffrbound).reciprocal, Pkey(\ffrbound), inf),
 		\delta, 0.1,
@@ -386,17 +401,42 @@ p = n.play(
 		\amp, 1
 	)
 );
-)
 
 x.set(\fdur, 0.4).set(\fatk, 0.2);
-x.set(\delta, 0.03);
 x.set(\delta, Pexprand(0.01, 0.08, inf));  // this adds NICE chorusing fx
+)
 
-x.set(\degree, Pstutter(Pwhite(50, 90, inf),
-	(Pwhite(42, 49, inf) -.x Pseries(0, Pwrand((1..3), #[3, 1, 3].normalizeSum, inf), 3)).clump(3).trace
+x.set(\degree, Pstutter(Pwhite(20, 40, inf),
+	(Pwhite(42, 49, inf) -.x Pseries(0, Pwrand((1..3), #[2, 1, 3].normalizeSum, inf), 3)).clump(3)
+));
+
+x.set(\mode, Pstutter(Pwhite(10, 20, inf), Pxrand(Mode.keys.select({ |key| key.asString.first == $x }).asArray, inf)));
+
+x.set(\mode, Pclutch(Pxrand(Mode.keys.select({ |key| key.asString.first == $x }).asArray, inf).trace, Pdiff(Pkey(\degree)).collect(_.any(_ != 0))));
+
+
+// no
+x.set(\mode, Pstutter(Pwhite(10, 20, inf),
+	Pscratch(
+		Pxrand(Mode.keys.select({ |key| key.asString.last == $0 }).asArray, inf),
+		Pwrand(#[-1, 1], #[0.2, 0.8], inf)
+	)
+));
+
+x.set(\mode, Pstutter(Pwhite(10, 20, inf),
+	Pscratch(
+		Pxrand(Mode.keys.select({ |key| key.asString.last == $0 }).asArray, inf),
+		Pseq([Pn(1, { rrand(1, 5) }), -1], inf)
+	).trace
 ));
 
 
 p.stop;
 
-(Pwhite(42, 49, inf) -.x Pseries(0, Pwhite(1, 3, inf), 3)).clump(3).asStream.nextN(5).do(_.postln);
+// ^^ would need to play with density more
+
+e = x.asStream.next(());
+n.play(e);
+
+
+Pdiff(Pwhite(10, 20, 6).clump(3).trace).asStream.next
