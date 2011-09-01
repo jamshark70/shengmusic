@@ -85,22 +85,37 @@ OSCFunc({ |msg| s.sendMsg(\n_trace, msg[1]) }, '/n_go', s.addr).oneShot;
 
 
 // not aggressive but this is doing REALLY neat stuff
-a = m.play({ |dratio = 0.25, bufnum, rate = 1, start = 0, sustain = 1|
+a = n.play({ |dratio = 0.25, bufnum, rate = 1, start = 0, sustain = 1, dust = 8|
 	var	bufFr = BufFrames.kr(bufnum),
 		freq = SinOsc.kr(0.09, 0).range(6, 18),
 		trig = Impulse.ar(freq),
 		dur = freq.reciprocal * 20,
-		sig = GrainBuf.ar(1, trig, dur, bufnum, rate,
-			start / bufFr, // SinOsc.kr(0.1, 0, 441, start) / bufFr,
-			envbufnum: ~eb
+		sig = GrainBuf.ar(2, trig, dur, bufnum, rate,
+			// start / bufFr,
+			SinOsc.kr(0.1, 0, 441, start) / bufFr,
+			pan: TRand.kr(-1, 1, trig),
+			envbufnum: -1 // ~eb
 		),
 		sr = SampleRate.ir;
+	dratio = Lag.kr(TExpRand.kr(0.5, 2.0, Dust.kr(dust)), 0.05) * dratio;
 	sig = Latch.ar(sig, Impulse.ar(sr * dratio));
 	LPF.ar(sig.round(0.01), sr * 0.45);
-}, [bufnum: b[0], start: 948088, dratio: 0.05, rate: 1]);
+}, [bufnum: b[0], start: 948088, dratio: 0.2, rate: 1]);
 
 a.set(\start, 309696);
 a.set(\start, 356384);
+
+a.set(\dust, 8);  // NOW we're talking!
+a.set(\dratio, 0.4);
+
+w = ResizeFlowWindow(\x, Rect(100, 100, 600, 100));
+EZSlider(w, 590@20, "pos", [0.01, 0.99] * b[0].numFrames, { |view| a.set(\start, view.value) }, 948088);
+w.recursiveResize.front;
+
+q = n.playfx(Instr("busfx.freeverb2"), [0]); q.gui;
+
+q.run(false);
+q.run(true);
 
 a.free;
 
@@ -440,3 +455,122 @@ n.play(e);
 
 
 Pdiff(Pwhite(10, 20, 6).clump(3).trace).asStream.next
+
+
+// atmosphere
+// a.set(\start, 309696);
+// a.set(\start, 356384);
+
+// a.set(\dust, 8);  // NOW we're talking!
+// a.set(\dratio, 0.4);
+
+(
+WrapInstr(\fuzzy, { |numChannels, bufnum, tfreq = 10, overlap = 20, rate = 1,
+	start = 0, startWidth = 0, startModFreq = 0.1,
+	panWidth = 1, panCtr = 0, envbuf = -1,
+	dratio = 0.4, dratioWidth = 1.2, dust = 8, decimate = 0.01, lpfreq = 19000,
+	env, amp = 1, gate = 1|
+	var	// bufFr = BufFrames.kr(bufnum),
+		// freq = tfreq.value,  // ok to pass UGenFunc
+		trig = Impulse.ar(tfreq),
+		dur = tfreq.reciprocal * overlap,
+		sig = GrainBuf.ar(2, trig, dur, bufnum, rate,
+			SinOsc.kr(startModFreq, 0, startWidth.value, start.value).clip(0, 1),
+			pan: TRand.kr(panCtr - panWidth, panCtr + panWidth, trig).clip(-1, 1),
+			envbufnum: envbuf
+		),
+		sr = SampleRate.ir;
+	dratioWidth = dratioWidth;
+	dust = dust;
+	dratio = Lag.kr(TExpRand.kr(dratioWidth.reciprocal, dratioWidth, Dust.kr(dust)), 0.05) * dratio;
+	sig = Latch.ar(sig, Impulse.ar(sr * dratio));
+	LPF.ar(sig.round(decimate), lpfreq) * EnvGen.kr(env.value, gate, doneAction: 2);
+}, [
+	StaticSpec(1, 8, \lin, 1, 2), \mybuf, #[1, 50, \exp, 0, 10], #[0.5, 50, \exp, 0, 20], #[0.1, 10, \exp, 0, 1],
+	#[0, 1], #[0, 0.1, 4], #[0.02, 5, \exp, 0, 0.1],
+	nil, \bipolar, #[-1, 1000, \lin, 1, -1],
+	#[0.01, 0.5, \exp, 0, 0.4], #[1, 5, \exp], #[1, 25, \exp, 0, 8], #[0.0001, 1.0, \exp], \freq,
+	EnvSpec(Env.asr), \amp, #[0, 1]
+]);
+)
+
+
+p = n.play(WrapInstr("fuzzy"), [2, b[0], UGenFunc({ SinOsc.kr(0.09).range(6, 18) }), nil, nil, `0.5, `0.01, `0.11, nil, nil, -1, nil, 1.01, nil, `0.01, nil, nil, 1]);
+
+p.synth.trace
+
+p.free;
+
+WrapInstr("fuzzy").listArgs
+
+(
+f = { |instr, inputs|
+	var	argAssn = instr.getWrappedArgs, names, specs,
+		newInputs = Array.newClear(argAssn.size),
+		index = 0, indexSearch, failed = false;
+
+	names = argAssn.collect({ |assn| assn.key.asSymbol });
+	specs = argAssn.collect(_.value);
+
+	inputs.do { |input|
+		if((indexSearch = names.indexOf(input)).notNil) {
+			index = indexSearch;
+		} {
+			case
+				{ newInputs[index].notNil } {
+					"Arg collision: '%' already received %\n"
+					.format(names[index], newInputs[index])
+					.warn;
+					failed = true;
+					index = index + 1;
+				}
+				{ index >= newInputs.size } {
+					Error("Inputs went past argument list bounds").throw;
+				}
+				{
+					newInputs[index] = input;
+					index = index + 1;
+				}
+		};
+	};
+	if(failed) { Error("Argument list conversion failed.").throw } {
+		newInputs
+	};
+};
+)
+
+p = n.play(WrapInstr("fuzzy"), [2, b[0], UGenFunc({ SinOsc.kr(0.09).range(6, 18) }), nil, nil, `0.5, `0.01, `0.11, nil, nil, -1, nil, 1.01, nil, `0.01, nil, nil, 1]);
+
+f.(WrapInstr("fuzzy"), [2, b[0], UGenFunc({ SinOsc.kr(0.09).range(6, 18) }), start: `0.5, `0.01, `0.11, envbuf: -1, nil, start: 1.01, nil, `0.01, nil, nil, 1]);
+
+// coordinate so that short overlaps happen when start is moving more rapidly
+p = n.play(WrapInstr("fuzzy"), f.(WrapInstr("fuzzy"), [
+	2, b[0], UGenFunc({ SinOsc.kr(0.09).range(6, 18) }),
+	overlap: UGenFunc({
+		DemandEnvGen.kr(
+			Dseq([
+				Dwhite(15, 25, Dwhite(2, 5, inf)),
+				Dwhite(2.0, 3.6, Dwhite(2, 3, inf))
+			], inf),
+			Dwhite(3.0, 7.0, inf),
+			Env.shapeNumber(\exp)
+		)
+	}),
+	start: UGenFunc({
+		Lag.kr(LFNoise0.kr(0.0723712, 0.4, 0.5), 12)
+	}), `0.01, `0.11,
+	dratioWidth: UGenFunc({
+		DemandEnvGen.kr(
+			Dseq([1, Dwhite(1.1, 1.8, inf)], inf),
+			Dwhite(3.0, 6.0, inf),
+			shape: Env.shapeNumber(\sin)
+		)
+	}),
+	dust: UGenFunc({
+		LFNoise1.kr(0.12).range(4, 12)
+	})
+]));
+
+p.synth.trace
+
+p.free;
