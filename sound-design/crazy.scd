@@ -484,7 +484,7 @@ WrapInstr(\fuzzy, { |numChannels, bufnum, tfreq = 10, overlap = 20, rate = 1,
 	dust = dust;
 	dratio = Lag.kr(TExpRand.kr(dratioWidth.reciprocal, dratioWidth, Dust.kr(dust)), 0.05) * dratio;
 	sig = Latch.ar(sig, Impulse.ar(sr * dratio));
-	LPF.ar(sig.round(decimate), lpfreq) * EnvGen.kr(env.value, gate, doneAction: 2);
+	LPF.ar(sig.round(decimate), lpfreq) * EnvGen.kr(env.value, gate, doneAction: 2) * amp;
 }, [
 	StaticSpec(1, 8, \lin, 1, 2), \mybuf, #[1, 50, \exp, 0, 10], #[0.5, 50, \exp, 0, 20], #[0.1, 10, \exp, 0, 1],
 	#[0, 1], #[0, 0.1, 4], #[0.02, 5, \exp, 0, 0.1],
@@ -544,20 +544,34 @@ p = n.play(WrapInstr("fuzzy"), [2, b[0], UGenFunc({ SinOsc.kr(0.09).range(6, 18)
 f.(WrapInstr("fuzzy"), [2, b[0], UGenFunc({ SinOsc.kr(0.09).range(6, 18) }), start: `0.5, `0.01, `0.11, envbuf: -1, nil, start: 1.01, nil, `0.01, nil, nil, 1]);
 
 // coordinate so that short overlaps happen when start is moving more rapidly
+// probably kr bus is the only way...
+// ok, this works, more or less... clean up so that rate of change can be controlled externally
+c = Bus.control(s, 1);
+
+(
+var inc = UGenFunc({ In.kr(c, 1) });
+
 p = n.play(WrapInstr("fuzzy"), f.(WrapInstr("fuzzy"), [
 	2, b[0], UGenFunc({ SinOsc.kr(0.09).range(6, 18) }),
 	overlap: UGenFunc({
-		DemandEnvGen.kr(
+		var out = DemandEnvGen.kr(
 			Dseq([
 				Dwhite(15, 25, Dwhite(2, 5, inf)),
-				Dwhite(2.0, 3.6, Dwhite(2, 3, inf))
+				Dwhite(1.2, 2.5, Dwhite(2, 3, inf))
 			], inf),
 			Dwhite(3.0, 7.0, inf),
 			Env.shapeNumber(\exp)
-		)
+		);
+		Out.kr(c, out);
+		out
 	}),
 	start: UGenFunc({
-		Lag.kr(LFNoise0.kr(0.0723712, 0.4, 0.5), 12)
+		// Lag.kr(LFNoise0.kr(0.0723712, 0.4, 0.5), 12)
+		var ov = LinLin.kr(inc, 1.2, 25, 0.2, 0);
+		DemandEnvGen.kr(
+			Dseries(Rand(0.2, 0.8), Drand(#[-1, 1], inf) * ov, inf),
+			0.5
+		).fold(0.1, 0.9)
 	}), `0.01, `0.11,
 	dratioWidth: UGenFunc({
 		DemandEnvGen.kr(
@@ -568,8 +582,12 @@ p = n.play(WrapInstr("fuzzy"), f.(WrapInstr("fuzzy"), [
 	}),
 	dust: UGenFunc({
 		LFNoise1.kr(0.12).range(4, 12)
+	}),
+	amp: UGenFunc({
+		LinLin.kr(inc, 1.2, 25, 2, 0.25)
 	})
 ]));
+)
 
 p.synth.trace
 
