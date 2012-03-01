@@ -468,7 +468,6 @@ Pdiff(Pwhite(10, 20, 6).clump(3).trace).asStream.next
 WrapInstr(\fuzzy, { |numChannels, bufnum, tfreq = 10, overlap = 20, rate = 1,
 	start = 0, startWidth = 0, startModFreq = 0.1,
 	panWidth = 1, panCtr = 0, envbuf = -1,
-	dratio = 0.4, dratioWidth = 1.2, dust = 8, decimate = 0.01, lpfreq = 19000,
 	env, amp = 1, gate = 1|
 	var	// bufFr = BufFrames.kr(bufnum),
 		// freq = tfreq.value,  // ok to pass UGenFunc
@@ -478,22 +477,34 @@ WrapInstr(\fuzzy, { |numChannels, bufnum, tfreq = 10, overlap = 20, rate = 1,
 			SinOsc.kr(startModFreq, 0, startWidth.value, start.value).clip(0, 1),
 			pan: TRand.kr(panCtr - panWidth, panCtr + panWidth, trig).clip(-1, 1),
 			envbufnum: envbuf
-		),
-		sr = SampleRate.ir;
-	dratioWidth = dratioWidth;
-	dust = dust;
-	dratio = Lag.kr(TExpRand.kr(dratioWidth.reciprocal, dratioWidth, Dust.kr(dust)), 0.05) * dratio;
-	sig = Latch.ar(sig, Impulse.ar(sr * dratio));
-	LPF.ar(sig.round(decimate), lpfreq) * EnvGen.kr(env.value, gate, doneAction: 2) * amp;
+		);
+	sig * EnvGen.kr(env.value, gate, doneAction: 2) * amp
 }, [
 	StaticSpec(1, 8, \lin, 1, 2), \mybuf, #[1, 50, \exp, 0, 10], #[0.5, 50, \exp, 0, 20], #[0.1, 10, \exp, 0, 1],
 	#[0, 1], #[0, 0.1, 4], #[0.02, 5, \exp, 0, 0.1],
 	nil, \bipolar, #[-1, 1000, \lin, 1, -1],
-	#[0.01, 0.5, \exp, 0, 0.4], #[1, 5, \exp], #[1, 25, \exp, 0, 8], #[0.0001, 1.0, \exp], \freq,
 	EnvSpec(Env.asr), \amp, #[0, 1]
+]);
+
+Instr("busfx.rand_decimate", { |bus, numChannels,
+	dratio = 0.4, dratioWidth = 1.2, dust = 8, lagtime = 0.05, decimate = 0.01, lpfreq = 19000|
+	var	sig = In.ar(bus, numChannels),
+		sr = SampleRate.ir;
+	dratio = dratio * Lag.kr(
+		TExpRand.kr(dratioWidth.reciprocal, dratioWidth, Dust.kr(dust)),
+		lagtime
+	);
+	sig = Latch.ar(sig, Impulse.ar(sr * dratio));
+	LPF.ar(sig.round(decimate), lpfreq);
+}, [
+	\audiobus, StaticSpec(1, 8, \lin, 1),
+	#[0.01, 0.5, \exp, 0, 0.4], #[1, 5, \exp], #[1, 25, \exp, 0, 8], #[0, 0.5, 4, 0, 0.5],
+	#[0.0001, 1.0, \exp], \freq,
 ]);
 )
 
+WrapInstr("fuzzy").listArgs;
+Instr("busfx.rand_decimate").listArgs;
 
 p = n.play(WrapInstr("fuzzy"), [2, b[0], UGenFunc({ SinOsc.kr(0.09).range(6, 18) }), nil, nil, `0.5, `0.01, `0.11, nil, nil, -1, nil, 1.01, nil, `0.01, nil, nil, 1]);
 
@@ -501,11 +512,9 @@ p.synth.trace
 
 p.free;
 
-WrapInstr("fuzzy").listArgs
-
 (
 f = { |instr, inputs|
-	var	argAssn = instr.getWrappedArgs, names, specs,
+	var	argAssn = instr.asInstr.getWrappedArgs, names, specs,
 		newInputs = Array.newClear(argAssn.size),
 		index = 0, indexSearch, failed = false;
 
@@ -573,22 +582,34 @@ p = n.play(WrapInstr("fuzzy"), f.(WrapInstr("fuzzy"), [
 			0.5
 		).fold(0.1, 0.9)
 	}), `0.01, `0.11,
-	dratioWidth: UGenFunc({
-		DemandEnvGen.kr(
-			Dseq([1, Dwhite(1.1, 1.8, inf)], inf),
-			Dwhite(3.0, 6.0, inf),
-			shape: Env.shapeNumber(\sin)
-		)
-	}),
-	dust: UGenFunc({
-		LFNoise1.kr(0.12).range(4, 12)
-	}),
 	amp: UGenFunc({
 		LinLin.kr(inc, 1.2, 25, 2, 0.25)
 	})
 ]));
+
+if(~decim.isPlaying.not) {
+	~decim.free;
+	~decim = n.playfx(Instr("busfx.rand_decimate"),
+		\patchArgs.eval("busfx.rand_decimate", [
+			numChannels: 2,
+			dratioWidth: UGenFunc({
+				DemandEnvGen.kr(
+					Dseq([1, Dwhite(1.1, 1.8, inf)], inf),
+					Dwhite(3.0, 6.0, inf),
+					shape: Env.shapeNumber(\sin)
+				)
+			}),
+			dust: UGenFunc({
+				LFNoise1.kr(0.12).range(4, 12)
+			})
+		])
+	);
+};
 )
 
 p.synth.trace
+~decim.synth.trace
 
-p.free;
+p.free; ~decim.free;
+
+~decim.synthDef.inspect
