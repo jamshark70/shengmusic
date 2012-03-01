@@ -362,60 +362,107 @@ PR(\abstractProcess).clone {
 	~event = (eventKey: \dummy);
 	~alwaysReset = true;
 	~serverID = \default;
+	~quant = 0;
+
+	~lowmidi = 64;
+	~himidi = 91;
+	~hfThresh = 0.992;
+	~mode = \f;
 
 	// defaults to first hardware input
 	~micbus = { Server.named[~serverID].options.numOutputBusChannels };
 
 	~prep = {
 		if(~serverID == \default) { ~serverID = Server.default.name };
-		
+		~makeSynthDef.();
+	};
+	~freeCleanup = { ~clearResp.() };
+
+	~pitchAction = { |msg, time|
+		// need to abstract this
+		// case
+		// { midi.inclusivelyBetween(64, 91).not } { nil },
+		// { Mode(\f).includes(midi) } {
+		// 	~pitchAction.(freq, midi, confidence, offset, time)
+		// },
+		// // { (freq.cpsmidi % 1.0) absdif: 0.5 > 0.1 }, playFunc
+		// { midi.asInteger.asMIDINote.debug("rejected") };
+		[time, msg].debug("pitchAction");
+	};
+	~noPitchAction = { |msg, time|
+		[time, msg].debug("\tnoPitchAction");
 	};
 
-	~pitchAction = { 0 };
-	~noPitchAction = { 0 };
+	~stopCleanup = {
+		if(~synth.notNil) {
+			~synth.free;
+			~synth = nil;
+		};
+		~clearResp.();
+	};
+	~preparePlay = { ~makeSynth.() };
 
 	~makeSynth = {
+		if(~synth.isNil) {
+			~synth = Synth(~defName, [
+				inbus: ~micbus.(), lowmidi: ~lowmidi, himidi: ~himidi, hfThresh: ~hfThresh
+			], Server.named[~serverID]);
+			~makeResp.();
+		};
 	};
-
-	~makeResp = {
-		~resps = [
-			OSCFunc(e { |msg, time|
-				var freq, midi, confidence, offset;
-				#freq, midi, confidence, offset = msg[3..];
-
-				// need to abstract this
-
-				case
-				{ midi.inclusivelyBetween(64, 91).not } { nil },
-				{ Mode(\f).includes(midi) } {
-					~pitchAction.(freq, midi, confidence, offset, time)
-				},
-				// { (freq.cpsmidi % 1.0) absdif: 0.5 > 0.1 }, playFunc
-				{ midi.asInteger.asMIDINote.debug("rejected") };
-			}, '/pitch', s.addr),
-			OSCFunc(e { |msg, time|
-				~noPitchAction.(time);
-			}, '/nopitch', s.addr);
-		]
-	};
-
-	~clearResp = { ~resps.free };
 
 	~makeSynthDef = {
-		~defName = ("track" ++ ~collIndex).asSymbol;
-		SynthDef(~defName, { |outbus, lowmidi = 64, himidi = 91, hfThresh = 0.98|
+		~defName = \pitchTrack; // ("track" ++ ~collIndex).asSymbol;
+		SynthDef(~defName, { |inbus, lowmidi = 64, himidi = 91, hfThresh = 0.98|
 			var mic = In.ar(inbus, 1),
 			freq, hasFreq, floatmidi, semitone, onGate, offGate, state;
+			var trigs;
 			#freq, hasFreq = Tartini.kr(mic, threshold: 0.93, n: 1024, k: 0, overlap: 256, smallCutoff: 0.5);
 			floatmidi = freq.cpsmidi;
 			semitone = floatmidi.round;
 			offGate = hasFreq < hfThresh;
-			onGate = (1 - offGate) * InRange.kr(semitone, lowmidi, himidi) * Trig1.kr(HPZ1.kr(semitone).abs, 0.075);
+			// debug form here, revert later (no less efficient in server)
+			trigs = [(1 - offGate), InRange.kr(semitone, lowmidi, himidi), Trig1.kr(HPZ1.kr(semitone).abs, 0.075)];
+			onGate = trigs.reduce('*');
+			// trigs.do { |t, i| t.poll(HPZ1.kr(t).abs, "trig %".format(i)) };
 			// this is just to suppress extra off gates
 			state = SetResetFF.kr(onGate, offGate);
 			SendReply.kr(onGate, '/pitch', [freq, semitone, hasFreq, floatmidi - semitone]);
 			SendReply.kr(state <= 0, '/nopitch');
 		}).add;
 	};
-	} => PR(\pitchtrack);
+
+	~makeResp = {
+		if(~synth.isNil) {
+			"BP(%): Can't make responders without synth".format(~collIndex.asCompileString).warn;
+		} {
+			if(~resps.notNil) { ~clearResp.() };
+			~resps = [
+				// OSCFunc(e { |msg, time|
+				// 	~pitchAction.(msg, time)
+				// }, '/pitch', s.addr, argTemplate: [~synth.nodeID]),
+				// OSCFunc(e { |msg, time|
+				// 	~noPitchAction.(msg, time);
+				// }, '/nopitch', s.addr, argTemplate: [~synth.nodeID]);
+				OSCFunc(e(~pitchAction), '/pitch', s.addr, argTemplate: [~synth.nodeID]),
+				OSCFunc(e(~noPitchAction), '/nopitch', s.addr, argTemplate: [~synth.nodeID]);
+			];
+		};
+	};
+
+	~clearResp = {
+		~resps.free;
+		~resps = nil;
+	};
+
+	~asPattern = {
+		// just to keep the green light lit
+		Pbind(\dur, 4);
+	};
+} => PR(\pitchtrack);
 )
+
+BP(\pt).free;
+PR(\pitchtrack) => BP(\pt);
+
+BP(\pt).hfThresh = 0.992;
