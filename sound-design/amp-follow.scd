@@ -202,25 +202,18 @@ g => VP(0);
 (
 a.free;
 a = m.playfx({ |outbus, lowmidi = 64, himidi = 91, hfThresh = 0.98|
-	var mic = In.ar(outbus, 1), // SoundIn.ar(0),
-	// ampl = Amplitude.kr(mic, attackTime: 0.1, releaseTime: 0.1),
-	fft = FFT(LocalBuf(512, 1), mic),
-	// trig = Onsets.kr(fft, threshold: 0.5, odftype: \wphase, relaxtime: 1, floor: 0.1, mingap: 10, medianspan: 11, whtype: 1, rawodf: 0),
+	var mic = SoundIn.ar(0), // In.ar(outbus, 1),
 	freq, hasFreq, floatmidi, semitone, onGate, offGate, state;
-	// #freq, hasFreq = Qitch.kr(mic, k, ampThreshold: 0.01, algoflag: 1, minfreq: 0, maxfreq: 2500);
 	#freq, hasFreq = Tartini.kr(mic, threshold: 0.93, n: 1024, k: 0, overlap: 256, smallCutoff: 0.5);
 	floatmidi = freq.cpsmidi;
 	semitone = floatmidi.round;
 	offGate = hasFreq < hfThresh;
-	onGate = (1 - offGate) * InRange.kr(semitone, lowmidi, himidi) * Trig1.kr(/*trig +*/ HPZ1.kr(semitone).abs, 0.1);
-	// offGate = ampl < ampThresh;
+	onGate = (1 - offGate) * InRange.kr(semitone, lowmidi, himidi) * Trig1.kr(HPZ1.kr(semitone).abs, 0.075);
 	// this is just to suppress extra off gates
 	state = SetResetFF.kr(onGate, offGate);
-	// state.poll(HPZ1.kr(state).abs > 0);
-	// maybe onGate instead of state here?
 	SendReply.kr(onGate, '/pitch', [freq, semitone, hasFreq, floatmidi - semitone]);
 	SendReply.kr(state <= 0, '/nopitch');
-	mic // 0
+	0
 }, args: [hfThresh: g]);
 )
 
@@ -353,7 +346,7 @@ b.getToFloatArray(wait: -1, action: { |data|
 89.cpsmidi
 (midinote: 41.3).play;
 
-(1045..1070).do(s.sendMsg(\n_free, _));
+(2093..2095).do(s.sendMsg(\n_free, _));
 
 x[3000..3999].plot(numChannels: 2);
 
@@ -362,32 +355,67 @@ y.maxItem
 y.minItem
 
 
-// clean up for list question:
+
+// process: drives another proc by triggerOneEvent
 (
-o.do(_.free);
-o = [
-	OSCFunc({ |msg, time| msg.debug(time) }, '/pitch', s.addr),
-	OSCFunc({ |msg, time| msg.debug("\t" ++ time) }, '/nopitch', s.addr)
-];
+PR(\abstractProcess).clone {
+	~event = (eventKey: \dummy);
+	~alwaysReset = true;
+	~serverID = \default;
 
-a = { |outbus, lowmidi = 64, himidi = 91, hfThresh = 0.98|
-	var sig = SinOsc.ar(
-		Demand.kr(Impulse.kr(2), 0, Dxrand(#[64, 65, 67, 69, 70, 72, 74, 76, 77], inf)).midicps,
-		0,
-		0.1
-	),
-	freq, hasFreq, floatmidi, semitone, onGate, offGate, state;
-	#freq, hasFreq = Tartini.kr(sig, threshold: 0.93, n: 1024, k: 0, overlap: 256, smallCutoff: 0.5);
-	floatmidi = freq.cpsmidi;
-	semitone = floatmidi.round;
-	offGate = hasFreq < hfThresh;
-	onGate = (1 - offGate) * InRange.kr(semitone, lowmidi, himidi) * Trig1.kr(/*trig +*/ HPZ1.kr(semitone).abs, 0.1);
-	// this is just to suppress extra off gates
-	state = SetResetFF.kr(onGate, offGate);
-	SendReply.kr(onGate, '/pitch', [freq, semitone, hasFreq, floatmidi - semitone]);
-	SendReply.kr(state <= 0, '/nopitch');
-	sig // 0
-}.play;
+	// defaults to first hardware input
+	~micbus = { Server.named[~serverID].options.numOutputBusChannels };
+
+	~prep = {
+		if(~serverID == \default) { ~serverID = Server.default.name };
+		
+	};
+
+	~pitchAction = { 0 };
+	~noPitchAction = { 0 };
+
+	~makeSynth = {
+	};
+
+	~makeResp = {
+		~resps = [
+			OSCFunc(e { |msg, time|
+				var freq, midi, confidence, offset;
+				#freq, midi, confidence, offset = msg[3..];
+
+				// need to abstract this
+
+				case
+				{ midi.inclusivelyBetween(64, 91).not } { nil },
+				{ Mode(\f).includes(midi) } {
+					~pitchAction.(freq, midi, confidence, offset, time)
+				},
+				// { (freq.cpsmidi % 1.0) absdif: 0.5 > 0.1 }, playFunc
+				{ midi.asInteger.asMIDINote.debug("rejected") };
+			}, '/pitch', s.addr),
+			OSCFunc(e { |msg, time|
+				~noPitchAction.(time);
+			}, '/nopitch', s.addr);
+		]
+	};
+
+	~clearResp = { ~resps.free };
+
+	~makeSynthDef = {
+		~defName = ("track" ++ ~collIndex).asSymbol;
+		SynthDef(~defName, { |outbus, lowmidi = 64, himidi = 91, hfThresh = 0.98|
+			var mic = In.ar(inbus, 1),
+			freq, hasFreq, floatmidi, semitone, onGate, offGate, state;
+			#freq, hasFreq = Tartini.kr(mic, threshold: 0.93, n: 1024, k: 0, overlap: 256, smallCutoff: 0.5);
+			floatmidi = freq.cpsmidi;
+			semitone = floatmidi.round;
+			offGate = hasFreq < hfThresh;
+			onGate = (1 - offGate) * InRange.kr(semitone, lowmidi, himidi) * Trig1.kr(HPZ1.kr(semitone).abs, 0.075);
+			// this is just to suppress extra off gates
+			state = SetResetFF.kr(onGate, offGate);
+			SendReply.kr(onGate, '/pitch', [freq, semitone, hasFreq, floatmidi - semitone]);
+			SendReply.kr(state <= 0, '/nopitch');
+		}).add;
+	};
+	} => PR(\pitchtrack);
 )
-
-a.free; o.do(_.free);
