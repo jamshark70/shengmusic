@@ -1,6 +1,5 @@
 
 (
-(
 keys: #[master],
 instr: "osc2.fm1porta",
 car_env: nil,
@@ -29,5 +28,38 @@ make: { |name|
 },
 free: { [~target, ~cb, ~mb].free },
 type: \voicer) => Fact(\fmbass);
-)
 
+
+{ |instr, inputs|
+	var	argAssn = instr.asInstr.getWrappedArgs, names, specs,
+		newInputs = Array.newClear(argAssn.size),
+		index = 0, indexSearch, failed = false;
+
+	names = argAssn.collect({ |assn| assn.key.asSymbol });
+	specs = argAssn.collect(_.value);
+
+	inputs.do { |input|
+		if((indexSearch = names.indexOf(input)).notNil) {
+			index = indexSearch;
+		} {
+			case
+				{ newInputs[index].notNil } {
+					"Arg collision: '%' already received %\n"
+					.format(names[index], newInputs[index])
+					.warn;
+					failed = true;
+					index = index + 1;
+				}
+				{ index >= newInputs.size } {
+					Error("Inputs went past argument list bounds").throw;
+				}
+				{
+					newInputs[index] = input;
+					index = index + 1;
+				}
+		};
+	};
+	if(failed) { Error("Argument list conversion failed.").throw } {
+		newInputs
+	};
+} => Func(\patchArgs);
