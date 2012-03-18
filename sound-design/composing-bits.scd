@@ -81,6 +81,7 @@ p.stop;
 }; ""
 
 
+
 // quicky swell pad
 (
 WrapInstr(\quickypad, { |freq = 440, gate = 1, det = 1, amp = 0.1, env, pan = 0,
@@ -108,5 +109,26 @@ MixingBoard.at(0).mixers[0].mixer  // reuse?
 x.free;
 x = Voicer(30, WrapInstr(\quickypad), [det: 1.0028311897235, rq: 0.88031496062992, env: Env.adsr(1.5, 1.5, 0.6, 3.0)], target: MixingBoard.at(0).mixers[0].mixer);
 
-(type: \voicerNote, voicer: x, midinote: ~chords[0], sustain: 12, time: 15, lowffreq: 140, hiffreq: 12500).play;
+f = { |i = 0|
+	(type: \voicerNote, voicer: x, midinote: ~chords[i], sustain: 12, time: 15, lowffreq: 140, hiffreq: 12500).play;
+};
 
+~chords[1] = ~chords[1].copy.add(~chords[1][0] - 12);
+
+~chords[1] = [42, 49, 57, 59, 68, 74, 76, 81];
+
+f.(1);
+
+group 1
+G2, D3, A3, B3, F#4, D5, E5, A5, C#6
+F#2, C#3, A3, B3, G#4, D5, E5, A5
+E2, D3, G#3, C#4, F#4, A4, B4, D5, E5, A5
+D2, D3, A3, B3, F#4, G4, D5, E5, A5
+
+
+group 2
+B2, F#3, C#4, E4, B4, D5, G5, A5
+D2, D3, G#3, B3, E4, F#4, A4, D5, G5, A5
+F2, C3, A3, D4, E4, B4, D5, G5, A5
+F2, D3, B3, E4, F#4, A4, D5, G5, A5
+F2, D3, B3, C#4, E4, F#4, A4, D5, G5, A5
