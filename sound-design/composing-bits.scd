@@ -109,15 +109,14 @@ MixingBoard.at(0).mixers[0].mixer  // reuse?
 x.free;
 x = Voicer(30, WrapInstr(\quickypad), [det: 1.0028311897235, rq: 0.88031496062992, env: Env.adsr(1.5, 1.5, 0.6, 3.0)], target: MixingBoard.at(0).mixers[0].mixer);
 
-f = { |i = 0|
-	(type: \voicerNote, voicer: x, midinote: ~chords[i], sustain: 12, time: 15, lowffreq: 140, hiffreq: 12500).play;
+f = { |i = 0, sus = 12|
+	(type: \voicerNote, voicer: x, midinote: ~chords[i], sustain: sus, time: sus + 3, lowffreq: 140, hiffreq: 12500).play;
 };
 
 ~chords[1] = ~chords[1].copy.add(~chords[1][0] - 12);
+~chords[8] = ~chords[8].copy.add(~chords[8][0] - 12);
 
 ~chords[1] = [42, 49, 57, 59, 68, 74, 76, 81];
-
-f.(1);
 
 group 1
 G2, D3, A3, B3, F#4, D5, E5, A5, C#6
@@ -132,3 +131,30 @@ D2, D3, G#3, B3, E4, F#4, A4, D5, G5, A5
 F2, C3, A3, D4, E4, B4, D5, G5, A5
 F2, D3, B3, E4, F#4, A4, D5, G5, A5
 F2, D3, B3, C#4, E4, F#4, A4, D5, G5, A5
+
+f.(6, 18); ""
+f.(8); ""
+
+p = Penvir(
+	(
+		notes: Pseq(#[
+			// [59, 61, 64, 69], [66, 73, 74], [64, 71, 73, 81], [74, 79, 81, 85]  // 4
+			// [59, 62, 64, 66, 69], [64, 69, 71, 78], [68, 74, 76, 79, 81], [74, 79, 81, 88]  // 5
+			// [57, 62, 64, 71], [59, 67, 73, 74], [69, 74, 76, 79], [74, 79, 81, 83, 88], [79, 81, 86, 90],  // 6
+			[59, 64, 66, 69], [64, 69, 71, 78], [67, 69, 73, 83], [74, 79, 81, 85]  // 8
+		], 1).asStream
+	),
+	Pbind(
+		\type, \voicerNote,
+		\voicer, v,
+		\midinote, Pn(Plazy({
+			var n = ~notes.next;
+			if(n.notNil) { Pseq(n ++ [Rest], 1) } { Pseq([nil], 1) }
+		}, inf)),
+		\dur, Pexprand(0.3, 0.8, inf),
+		\sustain, 4
+	)
+).play;
+
+p.stop;		
+
