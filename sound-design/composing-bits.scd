@@ -1,5 +1,21 @@
 
-TempoClock.default.gui;
+"~/share/SC/scd/simple-piano.scd".standardizePath.loadPath;
+
+TempoClock.tempo = 88/60;
+~tcgui = TempoClock.default.gui;
+
+(
+var c = MIDIPort.at(#[0, omni]).ccAllocator.available.detect { |ctl| ctl.type == \encoder and: ctl.index == 1 };
+var state = false;
+if(c.debug("control").notNil) {
+	~metroCtl.free;
+	~metroCtl = BasicMIDIControl(#[0, omni], c.buttonnum, {
+		state = state.not;
+		topEnvironment[\tcgui].runMetronome(state);
+	});
+};
+)
+
 
 
 // get v from simple-piano voicer
@@ -133,7 +149,7 @@ F2, D3, B3, E4, F#4, A4, D5, G5, A5
 F2, D3, B3, C#4, E4, F#4, A4, D5, G5, A5
 
 f.(6, 18); ""
-f.(8); ""
+f.(4); ""
 
 p = Penvir(
 	(
