@@ -17,6 +17,38 @@ if(c.debug("control").notNil) {
 )
 
 
+// spacer-rest summer
+z = "1*18
+2.
+2
+2.*4
+1*4
+2.
+1*9
+2.*2
+2
+2.
+1*2
+2.
+1*2
+1*2".split(Char.nl);
+
+v = Dictionary[
+	"1" -> 4, "2" -> 2, "4" -> 1,
+	"1." -> 6, "2." -> 3, "4." -> 1.5
+];
+
+a = 0;
+z.do { |line|
+	line = line.split($*);
+	if(line.size == 1) { line = line.add(1) };
+	a = a + (v[line[0]] * line[1].asInteger);
+};
+a
+
+a * 60 / 88
+
+
 
 // get v from simple-piano voicer
 f = { |midi, sustain = 3|
