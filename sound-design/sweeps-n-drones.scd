@@ -56,3 +56,35 @@ a.free;
 
 (0..4).do { |b| s.sendMsg(\b_free, b) };
 (0..4).do { |b| s.bufferAllocator.free(b) };
+
+PeakMonitor(m);
+
+
+// less buzz-saw-y
+// actually really cool - you can hear sweeping through the noise bufs!!
+
+a = m.play {
+	var //excfreq = Rand(30, 80) * LFNoise1.kr(1.2).exprange(1/1.2, 1.2),
+	freq = MouseX.kr(80, 600, 1, 0.1),
+	delayt = freq.reciprocal - ControlDur.ir,
+	excfreq = freq * SinOsc.kr(0.08).range(0.5, 1),
+	exc = VOsc.ar(
+		SinOsc.kr(0.05).range(b[0].bufnum, b[4].bufnum - 0.01),
+		// excfreq / 0.95, excfreq, excfreq * 0.95,
+		excfreq, 0,
+		0.1 //Decay2.kr(Impulse.kr(0) * 0.1, attackTime: 0.005, decayTime: 0.02)
+	),
+	feedback = LocalIn.ar(1);
+	exc = exc + DelayL.ar(exc, 0.05, (excfreq * 2).reciprocal); // (SinOsc.kr(Rand(0.09, 0.11), 0, 0.002, 0.003));
+	feedback = feedback + exc;
+	feedback = LPF.ar(feedback, MouseY.kr(1000, 10000, \exponential, 0.1));
+	feedback = DelayL.ar(feedback, 0.11, delayt, mul: 1);
+	LocalOut.ar(feedback);
+	LeakDC.ar(feedback);
+};
+
+a.trace
+
+m.scope
+
+a.free;
