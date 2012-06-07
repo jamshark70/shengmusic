@@ -88,3 +88,105 @@ a.trace
 m.scope
 
 a.free;
+
+
+
+WrapInstr("osc.ks_sustained", { |freq = 440, amp = 0.1, ffreq = 2000, 
+	excratio = 0.5, excamp = 0.1, fbamp = 1,
+	env, timeScale = 1,
+	bufselect, firstbuf = 1, numbufs = 2|
+	var frq = freq.dereference.value(),
+	delayt = max(0, frq.reciprocal - ControlDur.ir),
+	excfreq = frq * excratio.dereference.value(),
+	firstbufnum = firstbuf.asUGenInput,  // .bufnum if a Buffer, 'this' if a number
+	exc = VOsc.ar(
+		bufselect.dereference.value().range(firstbufnum, firstbufnum + numbufs - 1.01),
+		excfreq, 0,
+		excamp
+	),
+	feedback = LocalIn.ar(1),
+	gate = 1, eg, gatedEnv;
+	// the delay doubles the number of end-to-beginning buffer transitions
+	// helps to blur the glitchiness somewhat
+	exc = exc + DelayL.ar(exc, 0.05, (excfreq * 2).reciprocal);
+	feedback = feedback + exc;
+	feedback = LPF.ar(feedback, ffreq);
+	feedback = DelayL.ar(feedback, 0.11, delayt, mul: fbamp);
+	feedback = LeakDC.ar(feedback);
+	LocalOut.ar(feedback);
+	env = env.dereference.value();
+	gatedEnv = try { env.isSustained } { |err|
+		if(env.isKindOf(SequenceableCollection)) { true }
+		{ err.throw }
+	};
+	if(gatedEnv) { gate = NamedControl.kr(\gate, 1) };
+	eg = EnvGen.kr(env, gate, timeScale: timeScale, doneAction: 2);
+	feedback * eg
+}, [
+	\freq, \amp, \freq,
+	#[0.1, 1, \exp], \amp, \amp,
+	EnvSpec(Env.adsr), #[0.01, 100, \exp],
+	ObjectSpec({ SinOsc.kr(Rand(0.08, 0.14)) }), \mybuf, StaticSpec(2, 16, \lin, 1, 2)
+]);
+
+
+p = WrapPatch("osc.ks_sustained", [
+	nil, nil, nil,
+	nil, nil, nil,
+	{ NamedControl(\env, Env.adsr.asArray.extend(40, 0)) }, nil,
+	nil, b[0], b.size
+]);
+
+d = p.asSynthDef;
+
+d.add;
+
+m.play((instrument: d.name, ffreq: 8000, fbamp: 0.5));
+
+r = m.play(
+	q = PbindProxy(
+		\instrument, d.name,
+		\freq, Pexprand(200, 800, inf),
+		\dur, Pexprand(0.06, 0.16, inf),
+		\sustain, Pwhite(0.6, 1.0, inf),
+		\ffreq, Pexprand(800, 9000, inf),
+		\excratio, 0.5 // Pwhite(0.45, 0.6, inf),
+	)
+);
+
+r = m.play(
+	q = PbindProxy(
+		\instrument, d.name,
+		\freq, Pexprand(200, 800, inf),
+		\dur, Pexprand(0.7, 2.2, inf),
+		\sustain, Pwhite(3.0, 6.0, inf),
+		\ffreq, Pexprand(800, 9000, inf),
+		\excratio, 0.5, // Pwhite(0.45, 0.6, inf),
+		\env, [Env.asr(1.5, 1, 2.2)]
+	)
+);
+
+
+// one pitch w/ variations
+// at low frequencies, fundamental is basically gone
+// but the harmonics are damn cool, like inside-piano stuff
+// rather metal-y, may need softening
+r = m.play(
+	q = Pbind(
+		\instrument, d.name,
+		\freq, 33.midicps * Pexprand(1/1.014, 1.014, 6),
+		\dur, Pexprand(0.4, 0.8, inf),
+		\sustain, Pwhite(4.0, 7.0, inf),
+		\ffreq, Pexprand(2000, 9000, inf),
+		\excratio, Pwhite(0.45, 0.6, inf),
+		\env, [Env.adsr(0.5, 0.6, 0.6, 4)]
+	).trace
+);
+
+
+r.stop;
+
+e = r.originalStream.next(());
+
+OSCFunc({ |msg| s.sendMsg(\n_trace, msg[1]) }, '/n_go', s.addr).oneShot;
+m.play(e);
