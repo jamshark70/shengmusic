@@ -92,7 +92,7 @@ a.free;
 
 
 WrapInstr("osc.ks_sustained", { |freq = 440, amp = 0.1, ffreq = 2000, 
-	excratio = 0.5, excamp = 0.1, fbamp = 1,
+	excratio = 0.5, excamp = 0.1, fbamp = 1, pan = 0,
 	env, timeScale = 1,
 	bufselect, firstbuf = 1, numbufs = 2|
 	var frq = freq.dereference.value(),
@@ -121,10 +121,10 @@ WrapInstr("osc.ks_sustained", { |freq = 440, amp = 0.1, ffreq = 2000,
 	};
 	if(gatedEnv) { gate = NamedControl.kr(\gate, 1) };
 	eg = EnvGen.kr(env, gate, timeScale: timeScale, doneAction: 2);
-	feedback * eg
+	Pan2.ar(feedback, pan, eg)
 }, [
 	\freq, \amp, \freq,
-	#[0.1, 1, \exp], \amp, \amp,
+	#[0.1, 1, \exp], \amp, \amp, \bipolar,
 	EnvSpec(Env.adsr), #[0.01, 100, \exp],
 	ObjectSpec({ SinOsc.kr(Rand(0.08, 0.14)) }), \mybuf, StaticSpec(2, 16, \lin, 1, 2)
 ]);
@@ -132,8 +132,8 @@ WrapInstr("osc.ks_sustained", { |freq = 440, amp = 0.1, ffreq = 2000,
 
 p = WrapPatch("osc.ks_sustained", [
 	nil, nil, nil,
-	nil, nil, nil,
-	{ NamedControl(\env, Env.adsr.asArray.extend(40, 0)) }, nil,
+	`{ LFDNoise1.kr(0.9).range(0.5, 1) }, nil, nil, nil,
+	`{ NamedControl(\env, Env.adsr.asArray.extend(40, 0)) }, nil,
 	nil, b[0], b.size
 ]);
 
@@ -171,18 +171,25 @@ r = m.play(
 // at low frequencies, fundamental is basically gone
 // but the harmonics are damn cool, like inside-piano stuff
 // rather metal-y, may need softening
-r = m.play(
-	q = Pbind(
+r = n.play(
+	q = PbindProxy(
 		\instrument, d.name,
-		\freq, 33.midicps * Pexprand(1/1.014, 1.014, 6),
-		\dur, Pexprand(0.4, 0.8, inf),
+		\freq, Pwhite(33, 57, inf) *.x Pexprand(1/1.014, 1.014, 6),
+		\dur, Pseq([Pexprand(0.4, 0.8, 5), Pwhite(6.0, 10.0, 1)], inf),
 		\sustain, Pwhite(4.0, 7.0, inf),
 		\ffreq, Pexprand(2000, 9000, inf),
 		\excratio, Pwhite(0.45, 0.6, inf),
+		\pan, Pwhite(0.7, 1.0, inf) * Pseq(#[-1, 1], inf, { 2.rand }),
 		\env, [Env.adsr(0.5, 0.6, 0.6, 4)]
-	).trace
+	)
 );
 
+q.set(\ffreq, 2000);
+
+// OK, THAT'S nice -- strong sense of pitch
+q.set(\ffreq, Pexprand(800, 1800, inf));
+
+q.set(\freq, Pwhite(33, 57, inf).collect { |num| num.asMIDINote.postln; num.midicps } *.x Pexprand(1/1.014, 1.014, 6));
 
 r.stop;
 
