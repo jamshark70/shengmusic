@@ -21,7 +21,7 @@ fork {
 		var new = Buffer.alloc(s, 2048, 1).debug("allocated");
 		s.sync;
 		fork {
-			new.sendCollection(Signal.fill(1024, { 1.0.rand2 }), action: { c.unhang });
+			new.sendCollection(Signal.fill(1024, { 1.0.rand2 }).asWavetable, action: { c.unhang });
 		};
 		c.hang;
 		new
@@ -134,7 +134,7 @@ p = WrapPatch("osc.ks_sustained", [
 	nil, nil, nil,
 	`{ LFDNoise1.kr(0.9).range(0.5, 1) }, nil, nil, nil,
 	`{ NamedControl(\env, Env.adsr.asArray.extend(40, 0)) }, nil,
-	nil, b[0], b.size
+	`{ LFDNoise1.kr(Rand(0.08, 0.14)) }, b[0], b.size
 ]);
 
 d = p.asSynthDef;
@@ -189,7 +189,9 @@ q.set(\ffreq, 2000);
 // OK, THAT'S nice -- strong sense of pitch
 q.set(\ffreq, Pexprand(800, 1800, inf));
 
-q.set(\freq, Pwhite(33, 57, inf).collect { |num| num.asMIDINote.postln; num.midicps } *.x Pexprand(1/1.014, 1.014, 6));
+q.set(\freq, Pwhite(50, 69, inf).collect { |num| num.asMIDINote.postln; num.midicps } *.x Pexprand(1/1.014, 1.014, 6));
+
+q.set(\freq, Pwhite(50, 69, inf).midicps *.x Pexprand(1/1.014, 1.014, 6));
 
 r.stop;
 
@@ -197,3 +199,43 @@ e = r.originalStream.next(());
 
 OSCFunc({ |msg| s.sendMsg(\n_trace, msg[1]) }, '/n_go', s.addr).oneShot;
 m.play(e);
+
+// low notes are quite buzzy, dystopian
+// midrange sounds better
+(44100/64).cpsmidi.asInteger.asMIDINote
+
+1.014.ratiomidi
+
+n.play((instrument: d.name, midinote: [57, 61, 64].dup(3).flat, ctranspose: Array.fill(9, { 0.25.rand2 }), sustain: 3, ffreq: 1700, env: Env.adsr(0.5, 0.6, 0.6, 4)));
+
+
+n.play((instrument: d.name, midinote: [26, 38].dup(5).flat, ctranspose: Array.fill(10, { 0.25.rand2 }), sustain: 15, ffreq: 900, env: Env.adsr(0.5, 0.6, 0.6, 4)));
+
+
+// actually quite nice, calls for cavernous reverb *heh heh*
+// sometimes low pitches seem tuned noticeably sharper than higher ones
+q = PbindProxy(
+	\instrument, d.name,
+	\deg, Pseries(
+		1,
+		Pseq([1, 3, Pwrand(#[1, 2, 3], #[0.5, 0.3, 0.2], inf) * Prand(#[-1, 1], inf)]),
+		inf
+	).fold(-7, 7),
+	\degree, Pfunc({ |ev| ev[\deg].dup(3).flat }),
+	\ctranspose, Pwhite(-0.25, 0.25, inf).clump(Pkey(\degree).collect(_.size)),
+	\root, 2,
+	\dur, Pseq([Pexprand(0.4, 0.8, 5), Pwhite(6.0, 10.0, 1)], inf),
+	\sustain, Pwhite(4.0, 7.0, inf),
+	\ffreq, Pexprand(1600, 2000, inf),
+	\excratio, Pwhite(0.45, 0.6, inf),
+	\pan, Pwhite(0.7, 1.0, inf) * Pseq(#[-1, 1], inf, { 2.rand }),
+	\env, [Env.adsr(0.5, 0.6, 0.6, 4)]
+);
+
+r = n.play(q);
+
+q.set(\amp, 0.01);
+q.set(\excamp, 0.05);
+
+r.stop;
+
