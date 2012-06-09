@@ -136,7 +136,7 @@ win = ResizeFlowWindow(\test, Rect(500, 50, 800, 150));
 kbd = PR(\tradShengKbd).copy.prep(win, (0@0).asRect);
 win.recursiveResize.front;
 
-voicer = MIDIPort.at(\omni).tryPerform(\sockets).tryPerform(\detect, { |sock|
+voicer = MIDIPort.at(0).tryPerform(\sockets).tryPerform(\detect, { |sock|
 	sock.destination.tryPerform(\nodes).tryPerform(\first).tryPerform(\defname)
 	.asString == "pf"
 });

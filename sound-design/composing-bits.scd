@@ -1,20 +1,24 @@
+// DO NOT RUN THE WHOLE FILE - just these next few blocks
 
 "~/share/SC/scd/simple-piano.scd".standardizePath.loadPath;
 
 TempoClock.tempo = 88/60;
 ~tcgui = TempoClock.default.gui;
 
-(
-var c = MIDIPort.at(#[0, omni]).ccAllocator.available.detect { |ctl| ctl.type == \encoder and: ctl.index == 1 };
-var state = false;
-if(c.debug("control").notNil) {
-	~metroCtl.free;
-	~metroCtl = BasicMIDIControl(#[0, omni], c.buttonnum, {
-		state = state.not;
-		topEnvironment[\tcgui].runMetronome(state);
-	});
-};
-)
+{
+	var c = MIDIPort.at(#[0, omni]).ccAllocator.available.detect { |ctl| ctl.type == \encoder and: ctl.index == 1 };
+	var state = false;
+	if(c.debug("control").notNil) {
+		~metroCtl.free;
+		~metroCtl = BasicMIDIControl(#[0, omni], c.buttonnum, {
+			state = state.not;
+			topEnvironment[\tcgui].runMetronome(state);
+		});
+	};
+}.value;
+
+
+~fingerctl.set(1)
 
 
 // spacer-rest summer
@@ -206,3 +210,133 @@ p = Penvir(
 
 p.stop;		
 
+
+
+// trying a few chords, can't play by hand
+p = Pbind(
+	\type, \voicerNote, \voicer, v,
+	\root, 2,
+	\degree, Pseq([
+		15, 11,
+		[-2, 1, 7],
+		[-1, 3.1, 8],
+		[5, 9, 10]
+	]),
+	\dur, Pseq([0.1, 1, 2/3, 2/3, 2/3]),
+	\sustain, Pseq([0.11, 4, 2/3, 2/3, 5/3])
+).play(quant: #[1, -0.1]);
+
+(type: \voicerNote, voicer: v, root: 2, degree: [-2, 6, 9, 11], sustain: 2).play
+(type: \voicerNote, voicer: v, root: 2, degree: [-3, 3, 5, 14], sustain: 2).play
+[-3, 3, 8, 14].degreeToKey(Scale.major) + 62
+
+p = Pbind(
+	\type, \voicerNote, \voicer, v,
+	\root, 2,
+	\degree, Pseq([
+		// 10, 11, [7, 1], [9, 6, -2]
+		10, 11, [7, -2], [9, 5, -1]
+	]),
+	\dur, Pseq([1, 0, 1.5, 0.5]),
+	\sustain, Pseq([2.5, 2, 1.5, 0.4])
+).play(quant: #[1]);
+
+
+p = Pbind(
+	\type, \voicerNote, \voicer, v,
+	\root, 2,
+	\degree, Pseq([
+		10, 14, 10, 14,
+		Pn(#[-3, 3, 5], 8),
+		#[3.1, 7, 8, 13],
+		3, #[-3, 5, 14], #[7, 15]
+	]),
+	#[dur, sustain], Pseq([
+		1, 1, 0.125, 0.125, 0.125, 0.125, 1.5, 4.25,
+		0.25, 0.15, 0.5, 0.45, Pseq(#[0.25, 0.15], 5), 2.25, 0.75,
+		3, 0.5,
+		0, 3, 2, 2, 1, 1
+	]).clump(2)
+).play(quant: #[1]);
+
+
+p = Pbind(
+	\type, \voicerNote, \voicer, v,
+	\midinote, Ptuple([69, 76,
+		Pstutter(
+			Pseq([5, 3, 2, 1, 2, 1, 1], 1),
+			Pseq([66, 68], inf)
+		)
+	], 1),
+	\dur, PdurStutter(Pseq([5, 3, 3, 4], 1), 1),
+	\vel, 80
+).play;
+
+
+// 'w' from play-midi.scd
+(type: \voicerNote, voicer: w, midinote: #[59, 66, 67, 74, 81, 88], sustain: #[11, 5, 8, 7, 11, 3], releaseTime: 1.5).play;
+
+p = Ppar(
+	[
+		#[59, 67, 66, 74, 81, 88],
+		#[11, 5, 8, 7, 11, 3] - 1
+	].flop.collect { |row|
+		Pbind(
+			\midinote, row[0],
+			\dur, Pseq([row[1], Pconst(3.0, Pgeom(0.2, 1.08, inf))], 1),
+			\legato, 0.9
+		)
+	}
+).play(protoEvent: (type: \voicerNote, voicer: w));
+
+
+Pbind(
+	\midinote, 88,
+	\dur, Pseq([2, Pconst(2.0, Pgeom(0.2, 1.08, inf))], 1).trace,
+	\legato, 0.9
+).play(protoEvent: (type: \voicerNote, voicer: w));
+
+
+(
+var da = #[74, 81], csgs = #[61, 68], b = 71, e = 64;
+
+p = Pbind(
+	\midinote, Pseq([
+		[64, 71, 73, 74, 81],
+		[68, 74, 76, 81],
+		da, b, b, e, e, b,
+		b, da, da, b, b, e, e, b, da, b, b, e,
+		Pseq([da, b, b, e, csgs], 2),
+		da, csgs, da, csgs, da, b, e,
+		da, b, e, da, b, 61, da, 68, 61,
+		da, [61, 71], da
+	]),
+	\dur, Pseq([
+		1, 1.5, Pn(0.25, 6 + 12 + 10),
+		Pn(0.4, 4), 0.5+0.4, Pn(0.25, 11),
+		0.5, 0.5, 3
+	]),
+	\sustain, Pseq([
+		0.75, 1.5, Pn(0.2, 6 + 12 + 10),
+		Pn(0.4, 4), 0.9, Pn(0.2, 11),
+		0.45, 3.5, 3
+	])
+).play(protoEvent: (type: \voicerNote, voicer: v));
+)
+
+p.stop
+
+
+(
+p = Pbind(
+	\midinote, Pseq(#[
+		[57, 62], 59, 68, 64, 73, 86, 78
+	]),
+	\dur, Pseq(#[
+		3, 2, 1, 1.5, 1.5, 1, 3
+	]),
+	\sustain1, 16 - Pseries(0, Pkey(\dur), inf),
+	\sustainOverride, Pseq(#[[16, 5], -1, -1, -1, 2, -1, -1], 1),
+	\sustain, Pif(Pbinop('==', Pkey(\sustainOverride), -1), Pkey(\sustain1), Pkey(\sustainOverride))
+).play(quant: 1, protoEvent: (type: \voicerNote, voicer: w));
+)
