@@ -92,9 +92,9 @@ a.free;
 
 
 WrapInstr("osc.ks_sustained", { |freq = 440, amp = 0.1, ffreq = 2000, 
-	excratio = 0.5, excamp = 0.1, fbamp = 1, pan = 0,
+	excratio = 0.5, excamp = 1, fbamp = 1, pan = 0,
 	env, timeScale = 1,
-	bufselect, firstbuf = 1, numbufs = 2|
+	bufselect, firstbuf = 1, numbufs = 2, detectSilence|
 	var frq = freq.dereference.value(),
 	delayt = max(0, frq.reciprocal - ControlDur.ir),
 	excfreq = frq * excratio.dereference.value(),
@@ -102,7 +102,7 @@ WrapInstr("osc.ks_sustained", { |freq = 440, amp = 0.1, ffreq = 2000,
 	exc = VOsc.ar(
 		bufselect.dereference.value().range(firstbufnum, firstbufnum + numbufs - 1.01),
 		excfreq, 0,
-		excamp
+		excamp.dereference.value()
 	),
 	feedback = LocalIn.ar(1),
 	gate = 1, eg, gatedEnv;
@@ -121,12 +121,16 @@ WrapInstr("osc.ks_sustained", { |freq = 440, amp = 0.1, ffreq = 2000,
 	};
 	if(gatedEnv) { gate = NamedControl.kr(\gate, 1) };
 	eg = EnvGen.kr(env, gate, timeScale: timeScale, doneAction: 2);
-	Pan2.ar(feedback, pan, eg)
+	if(detectSilence == true) {
+		DetectSilence.ar(feedback, 0.003, doneAction: 2);
+	};
+	Pan2.ar(feedback, pan, eg * amp)
 }, [
 	\freq, \amp, \freq,
 	#[0.1, 1, \exp], \amp, \amp, \bipolar,
 	EnvSpec(Env.adsr), #[0.01, 100, \exp],
-	ObjectSpec({ SinOsc.kr(Rand(0.08, 0.14)) }), \mybuf, StaticSpec(2, 16, \lin, 1, 2)
+	ObjectSpec({ SinOsc.kr(Rand(0.08, 0.14)) }), \mybuf, StaticSpec(2, 16, \lin, 1, 2),
+	ObjectSpec(false)
 ]);
 
 
@@ -227,7 +231,7 @@ q = PbindProxy(
 	\dur, Pseq([Pexprand(0.4, 0.8, 5), Pwhite(6.0, 10.0, 1)], inf),
 	\sustain, Pwhite(4.0, 7.0, inf),
 	\ffreq, Pexprand(1600, 2000, inf),
-	\excratio, Pwhite(0.45, 0.6, inf),
+	// \excratio, Pwhite(0.45, 0.6, inf),
 	\pan, Pwhite(0.7, 1.0, inf) * Pseq(#[-1, 1], inf, { 2.rand }),
 	\env, [Env.adsr(0.5, 0.6, 0.6, 4)]
 );
@@ -238,4 +242,163 @@ q.set(\amp, 0.01);
 q.set(\excamp, 0.05);
 
 r.stop;
+
+
+
+// plucked
+WrapInstr("osc.ks_sustained").listArgs
+
+p = WrapPatch("osc.ks_sustained", [
+	nil, nil, nil,
+	nil, // `{ LFDNoise1.kr(0.9).range(0.5, 1) },
+	`{
+		var time = NamedControl.kr(\excTime, 0.06);
+		EnvGen.kr(Env.perc(0.5, 0.5), timeScale: time)
+	}, nil, nil,
+	Env(#[0, 1, 1], #[0.005, 3000]), nil,
+	`{ LFDNoise1.kr(Rand(0.08, 0.14)) }, b[0], b.size, true
+]);
+
+(d = p.asSynthDef).add;
+
+OSCdef(\on, { |msg| s.sendMsg(\n_trace, msg[1]); msg.debug("^^ on") }, '/n_go', s.addr);
+OSCdef(\off, { |msg| msg.debug("  off") }, '/n_end', s.addr);
+
+OSCdef(\on).free; OSCdef(\off).free;
+
+
+n.play((instrument: d.name, fbamp: 0.99, ffreq: 2000, amp: 1, excTime: 0.05))
+
+q = PbindProxy(
+	\instrument, d.name,
+	\freq, 60.midicps,
+	\baseDur, 0.1,
+	\dur, Pkey(\baseDur) * Pwrand(#[1, 2], #[0.9, 0.1], inf),
+	\fbamp, 0.96,
+	\ffreq, 2000,
+	\amp, 1,
+	\excTime, 0.01,
+	\excratio, 1
+);
+
+r = n.play(q);
+
+q.set(\ffreq, Pexprand(900, 2400, inf) * 2);
+
+q.set(\baseDur, 0.12);
+
+q.set(\fbamp, Pwhite(0.8, 1.0, inf));
+
+// q.set(\freq, Array.fill(3, { 60.midicps * exprand(0.95, 1/0.95) }));
+
+q.set(\freq, 60.midicps * Ptuple(Array.fill(3, Pexprand(0.8, 1 / 0.8, inf)), inf));
+
+// excratio == 1 seems to raise by 1 octave
+q.set(\excratio, 1);
+q.set(\freq, 72.midicps);
+
+r.stop;
+
+
+// logic has some potential but this sound is too pitchy
+
+p = Pbind(
+	\instrument, d.name,
+	\freq, Plazy({ exprand(100, 689).loop }),
+	\baseDur, Plazy({ exprand(0.09, 0.14).loop }),
+	\dur, Pkey(\baseDur) * Pwrand(#[1, 2], #[0.9, 0.1], inf),
+	\fbamp, Pwhite(0.8, 1.0, inf),
+	\ffreq, Pexprand(900, 2400, inf),
+	\amp, Pseg(
+		Pseq([0, 0.5, 0]),
+		Plazy({ rrand(3.0, 6.0).loop }),
+		\sine
+	),
+	\excTime, 0.01,
+	\excratio, 1
+);
+
+r = n.play(p);
+
+q = n.play(Pspawner({ |sp|
+	loop {
+		sp.par(p);
+		sp.wait(rrand(1.0, 4.0));
+	}
+}));
+
+q.stop;
+
+
+// maybe something like this?
+
+a = m.play {
+	var exc = Osc.ar(b.choose, exprand(50, 200)) * Decay2.ar(
+		Impulse.ar(0), 0.01, 0.05),
+	sig = Klank.ar(`[
+		Array.fill(5, { exprand(200, 1400) }),
+		Array.fill(5, 0.1),
+		Array.fill(5, { exprand(0.02, 0.2) })
+	], exc);
+	DetectSilence.ar(sig, doneAction: 2);
+	sig
+};
+
+
+[ [ 621.62188989246, 458.28750962083, 483.12690995039, 1341.4332586515, 229.71349364755 ], [ 0.1, 0.1, 0.1, 0.1, 0.1 ], [ 0.16730279340267, 0.039352280429134, 0.13997095946335, 0.030161787383422, 0.14313835788342 ] ].flat
+
+
+// would like a more transparent sound
+// the exciter is too clearly audible
+(
+SynthDef(\klinks, { |out, bufnum, amp = 0.1, excfreq = 100, excAtk = 0.01, excDcy = 0.05,
+	pan = 0|
+	var exc = Osc.ar(bufnum, excfreq, 0, amp) * Decay2.ar(
+		Impulse.ar(0), excAtk, excDcy),
+	specs = NamedControl.kr(\specs, #[621.62188989246, 458.28750962083, 483.12690995039, 1341.4332586515, 229.71349364755, 0.1, 0.1, 0.1, 0.1, 0.1, 0.16730279340267, 0.039352280429134, 0.13997095946335, 0.030161787383422, 0.14313835788342]),
+	sig = Klank.ar(`(specs.clump(5)), exc);
+	DetectSilence.ar(sig, doneAction: 2);
+	Out.ar(out, Pan2.ar(sig, pan));
+}).add;
+)
+
+e = n.play((instrument: \klinks, bufnum: b.choose, amp: 0.8));
+
+p = n.play(Pn((instrument: \klinks, bufnum: b.choose, amp: 0.8, dur: 0.5, excAtk: 0.05, excDcy: 0.1, specs: [[621.62188989246, 458.28750962083, 483.12690995039, 1341.4332586515, 229.71349364755, 0.1, 0.1, 0.1, 0.1, 0.1] ++ Array.fill(5, { exprand(0.05, 0.15) })]), inf));
+
+p.stop;
+
+
+p = n.play(Pspawner({ |sp|
+	var dur;
+	loop {
+		dur = rrand(3.0, 7.0);
+		sp.par(
+			Pfindur(dur, Pbind(
+				\instrument, \klinks,
+				\bufnum, b.choose,
+				\amp, Env(#[0.4, 0.8, 0.8, 0.2], [0.1, 0.5, 0.4] * dur, #[-4, 0, -2]),
+				\dur, rrand(0.09, 0.41) * Pwrand(#[1, 2], #[0.85, 0.15], inf),
+				\pan, 1.0.rand2,
+				\excfreq, exprand(300, 900),
+				// \excAtk, 0.06,
+				// \excDcy, 0.14,
+				\specs, [[
+					Array.fill(5, { exprand(1400, 4000) }),
+					Array.fill(5, 0.1),
+					Array.fill(5, { exprand(0.02, 0.2) })
+				].flat]
+			))
+		);
+		sp.wait(rrand(1.0, 4.0));
+	}
+}));
+
+p.stop;
+
+
+OSCFunc({ |msg| s.sendMsg(\n_trace, msg[1]) }, '/n_go', s.addr).oneShot;
+
+
+s.sendMsg(\n_trace, e.id[0]);
 
