@@ -18,7 +18,7 @@ s.addr = ~saveAddr;
 fork {
 	var c = Condition.new;
 	b = Array.fill(5, {
-		var new = Buffer.alloc(s, 2048, 1).debug("allocated");
+		var new = Buffer.alloc(s, 2048, 1);
 		s.sync;
 		fork {
 			new.sendCollection(Signal.fill(1024, { 1.0.rand2 }).asWavetable, action: { c.unhang });
@@ -238,8 +238,8 @@ q = PbindProxy(
 
 r = n.play(q);
 
-q.set(\amp, 0.01);
-q.set(\excamp, 0.05);
+q.set(\amp, 0.1);
+q.set(\excamp, 0.5);
 
 r.stop;
 
@@ -348,15 +348,20 @@ a = m.play {
 [ [ 621.62188989246, 458.28750962083, 483.12690995039, 1341.4332586515, 229.71349364755 ], [ 0.1, 0.1, 0.1, 0.1, 0.1 ], [ 0.16730279340267, 0.039352280429134, 0.13997095946335, 0.030161787383422, 0.14313835788342 ] ].flat
 
 
+// could transform into this sound later
+// but not what I want at first
+
 // would like a more transparent sound
 // the exciter is too clearly audible
 (
-SynthDef(\klinks, { |out, bufnum, amp = 0.1, excfreq = 100, excAtk = 0.01, excDcy = 0.05,
+SynthDef(\klinks, { |out, bufnum, amp = 0.1,
+	excfreq = 100, excAtk = 0.01, excDcy = 0.05,
+	klAtk = 0, klDcy = 1,
 	pan = 0|
 	var exc = Osc.ar(bufnum, excfreq, 0, amp) * Decay2.ar(
 		Impulse.ar(0), excAtk, excDcy),
-	specs = NamedControl.kr(\specs, #[621.62188989246, 458.28750962083, 483.12690995039, 1341.4332586515, 229.71349364755, 0.1, 0.1, 0.1, 0.1, 0.1, 0.16730279340267, 0.039352280429134, 0.13997095946335, 0.030161787383422, 0.14313835788342]),
-	sig = Klank.ar(`(specs.clump(5)), exc);
+	specs = NamedControl.kr(\specs, #[621.62188989246, 458.28750962083, 483.12690995039, 1341.4332586515, 229.71349364755, 0.1, 0.1, 0.1, 0.1, 0.1, 0.16730279340267, 0.039352280429134, 0.13997095946335, 0.030161787383422, 0.14313835788342]).clump(5),
+	sig = Klank.ar(`specs, exc, decayscale: klDcy) - Klank.ar(`specs, exc, decayscale: klAtk);
 	DetectSilence.ar(sig, doneAction: 2);
 	Out.ar(out, Pan2.ar(sig, pan));
 }).add;
@@ -369,8 +374,11 @@ p = n.play(Pn((instrument: \klinks, bufnum: b.choose, amp: 0.8, dur: 0.5, excAtk
 p.stop;
 
 
+Pdefn(\klAtk, 0.5);
+Pdefn(\klDcy, 1);
+
 p = n.play(Pspawner({ |sp|
-	var dur;
+	var dur, ampTemplate = Array.fill(5, 0.5);
 	loop {
 		dur = rrand(3.0, 7.0);
 		sp.par(
@@ -380,25 +388,246 @@ p = n.play(Pspawner({ |sp|
 				\amp, Env(#[0.4, 0.8, 0.8, 0.2], [0.1, 0.5, 0.4] * dur, #[-4, 0, -2]),
 				\dur, rrand(0.09, 0.41) * Pwrand(#[1, 2], #[0.85, 0.15], inf),
 				\pan, 1.0.rand2,
+				\klAtk, Pdefn(\klAtk),
+				\klDcy, Pdefn(\klDcy),
 				\excfreq, exprand(300, 900),
 				// \excAtk, 0.06,
 				// \excDcy, 0.14,
 				\specs, [[
 					Array.fill(5, { exprand(1400, 4000) }),
-					Array.fill(5, 0.1),
+					ampTemplate,
 					Array.fill(5, { exprand(0.02, 0.2) })
 				].flat]
 			))
 		);
-		sp.wait(rrand(1.0, 4.0));
+		sp.wait(exprand(1.0, 4.0));
 	}
 }));
+
+Pdefn(\klAtk, 0.3);
+Pdefn(\klDcy, 0.5);
 
 p.stop;
 
 
 OSCFunc({ |msg| s.sendMsg(\n_trace, msg[1]) }, '/n_go', s.addr).oneShot;
 
+s.nodeAllocator.inspect
 
 s.sendMsg(\n_trace, e.id[0]);
 
+
+
+// the secret: low frequency (gets a really silvery chorusy effect)
+// and high-pass filtering
+
+SynthDef(\zzip, { |out, bufnum, freq = 440, dtune = 1.003,
+	hpfreq = 800, hprq = 1,
+	amp = 0.1, gate = 1, pan = 0|
+	var sig = VOsc3.ar(bufnum, freq / dtune, freq, freq * dtune, amp),
+	env = NamedControl.kr(\env, Env.asr(0.02, 1, 0.02).asArray.extend(32, 0));
+	sig = RHPF.ar(sig, hpfreq, hprq);
+	Out.ar(out, Pan2.ar(sig, pan, EnvGen.kr(env, gate, doneAction: 2)));
+}).add
+
+n.play((instrument: \zzip, bufnum: rrand(0.0, b.size - 1.01), sustain: 0.07, freq: 30, hpfreq: 8000, env: Env.asr(0.03, 1, 0.03)));
+
+p = n.play(q = PbindProxy(
+	\instrument, \zzip,
+	\bufnum, rrand(0.0, b.size - 1.01),
+	\sustain, 0.07,
+	\freq, Pexprand(25, 38, inf),
+	\hpfreq, Pexprand(6000, 9500, inf),
+	\env, [Env.adsr(0.01, 0.02, 0.05, 0.03).asArray],
+	\pan, Pwhite(0.7, 1.0, inf) * Pseq(#[-1, 1], inf, { 2.rand })
+));
+
+q.set(\dur, Pstutter(Pwhite(3, 8, inf), Pexprand(0.09, 0.14, inf)));
+q.set(\pan, Pwhite(-1.0, 1.0, inf));
+q.set(\hprq, Pwhite(0.1, 0.4, inf));
+q.set(\hpfreq, Pexprand(5000, 8000, inf));
+
+q.set(\env, [Env.adsr(0.01, 0.15, 0.05, 0.03).asArray]);
+
+p.stop;
+
+
+
+p = n.play(Pspawner({ |sp|
+	var dur, ampTemplate = Array.fill(5, 0.5);
+	loop {
+		dur = rrand(3.0, 7.0);
+		sp.par(
+			Pfindur(dur, Pbind(
+				\instrument, \zzip,
+				\bufnum, rrand(0.0, b.size - 1.01),
+				\sustain, 0.07,
+				\freq, Pexprand(25, 38),
+				\hpfreq, exprand(5000, 8000),
+				\hprq, 0.05, // rrand(0.1, 0.4),
+				\env, [Env.adsr(0.01, rrand(0.02, 0.15), 0.05, 0.03).asArray],
+				// \env, [Env.adsr(0.01, 0.02, 0.05, 0.03).asArray],
+				\amp, Env(#[0.4, 0.8, 0.8, 0.2] / 8, [0.1, 0.5, 0.4] * dur, #[-4, 0, -2]),
+				\dur, rrand(0.09, 0.41) * Pwrand(#[1, 2], #[0.85, 0.15], inf),
+				\pan, 1.0.rand2,
+			))
+		);
+		sp.wait(exprand(1.0, 4.0));
+	}
+}));
+
+p.stop;
+
+
+// ok, idea - multiple synthdefs
+
+(
+var ampTemplate = Array.fill(5, 0.5), freqTemplate = (3..15),
+zzipFreqStream = (Prand(#[62, 69], inf) + (12 * Pwhite(2, 6))).midicps.asStream;
+
+~dict = (
+	zzip: Pbind(
+		\instrument, \zzip,
+		\bufnum, Plazy({ b[0].bufnum + rrand(0.0, b.size - 1.01).loop }),
+		\sustain, 0.07,
+		\freq, Pexprand(25, 38),
+		\hpfreq, Plazy({ zzipFreqStream.next.loop }),
+		\hprq, 0.05, // rrand(0.1, 0.4),
+		\env, Plazy({ [Env.adsr(0.01, rrand(0.02, 0.15), 0.05, 0.03).asArray].loop }),
+		// \env, [Env.adsr(0.01, 0.02, 0.05, 0.03).asArray],
+		\dur, Plazy({ rrand(0.09, 0.41).loop }) * Pwrand(#[1, 2], #[0.85, 0.15], inf),
+		\pan, Plazy({ 1.0.rand2.loop }),
+		\ampFactor, 1/8 * (-6.dbamp)
+	),
+	klinks: Pbind(
+		\instrument, \klinks,
+		\bufnum, Plazy({ b.choose.loop }),
+		\dur, Plazy({ rrand(0.09, 0.41).loop }) * Pwrand(#[1, 2], #[0.85, 0.15], inf),
+		\pan, Plazy({ 1.0.rand2.loop }),
+		\klAtk, Pdefn(\klAtk),
+		\klDcy, Pdefn(\klDcy),
+		\excfreq, Plazy({ exprand(300, 900).loop }),
+		// \excAtk, 0.06,
+		// \excDcy, 0.14,
+		\specs, Plazy({ [[
+			// Array.fill(5, { exprand(1400, 4000) }),
+			(#[1, 2] ++ freqTemplate.scramble.keep(3)) * #[62, 69].choose.midicps,
+			ampTemplate,
+			Array.fill(5, { exprand(0.02, 0.2) })
+		].flat].loop }),
+		\ampFactor, -3.dbamp
+	)
+);
+)
+
+p = n.play(Pspawner({ |sp|
+	var dur, synthStream = Prand(#[zzip, klinks], inf).asStream, synth;
+	loop {
+		dur = rrand(3.0, 7.0);
+		synth = synthStream.next.postln;
+		sp.par(
+			Pchain(
+				Pbind(
+					\amp, Env(#[0.4, 0.8, 0.8, 0.2], [0.1, 0.5, 0.4] * dur, #[-4, 0, -2])
+					.asStream * Pkey(\ampFactor),
+					\dur, Pkey(\dur) * Env(#[1, 2], [dur], 3)
+				),
+				Pfindur(dur, ~dict[synth])
+			)
+		);
+		sp.wait(exprand(1.0, 4.0));
+	};
+}));
+
+p.isPlaying
+p.stop;
+
+
+(~rvb = MixerChannel(\rvb, s, 2, 2, outbus: ~master)) => MCG(6);
+
+z = ~rvb.playfx(Instr("busfx.freeverb2"), [0]); z.gui;
+
+FxPatch(
+	[ 'busfx', 'freeverb2' ], [ 22, 1.0, 0.96938775510204, 0.38265306122449, 1.0 ]
+)
+
+n.postSettings;  // send == -8.dbamp
+
+
+
+// actually quite nice, calls for cavernous reverb *heh heh*
+// sometimes low pitches seem tuned noticeably sharper than higher ones
+q = PbindProxy(
+	\instrument, d.name,
+	\octave, 5,
+	\deg, Prand(#[0, 4], inf),
+	\degree, Pfunc({ |ev| ev[\deg].dup(3).flat }),
+	\root, 2,
+	\dur, Pseq([Pexprand(0.4, 0.8, 5), Pwhite(6.0, 10.0, 1)], inf),
+	\sustain, Pwhite(4.0, 7.0, inf),
+	\ffreq, Pexprand(1600, 2000, inf),
+	\ctranspose, Pwhite(-0.25, 0.25, inf).clump(Pkey(\degree).collect(_.size)),
+	// \excratio, Pwhite(0.45, 0.6, inf),
+	\pan, Pwhite(0.7, 1.0, inf) * Pseq(#[-1, 1], inf, { 2.rand }),
+	\env, [Env.adsr(0.5, 0.6, 0.6, 4)]
+);
+
+r = n.play(q);
+
+q.set(\amp, 0.1);
+q.set(\excamp, 1.2);
+
+q.set(\dur, Pseq([Pexprand(0.4, 0.8, { rrand(2, 9) }), Pwhite(1.5, 4.5, 1)], inf));
+
+q.set(\octave, Pwhite(3, 5, inf));
+
+q.set(\octave, Pwhite(3, 3, inf));
+
+q.set(\octave, 3);
+q.set(\octave, 4);
+q.set(\octave, 5);
+
+q.set(\ffreq, Pfunc({ |ev|
+	var freq = ev.use({ ~detunedFreq.value.asArray.maxItem }),
+	ffreq = max(rrand(1600, 2000), (rrand(3, 6) + rrand(0.2, 0.8)) * freq);
+	if(0.01.coin) { ffreq = ffreq * exprand(2.0, 3.0) };
+	// [ev[\octave], (ffreq / freq)].postln;
+	ev[\fratio] = ffreq / freq;
+	ev[\ampFactor] = ffreq.linlin(1600, 12000, 1.0, 0.08);
+	ffreq
+}));
+
+q.set(\excamp, 1.2 * Pkey(\ampFactor));
+
+g = GenericGlobalControl(\cents, nil, 15.306, #[-100, 100]);
+g.gui;
+
+q.set(\ctranspose, (Pwhite(-0.15, 0.15, inf) + (g.asPattern * 0.01)).clump(Pkey(\degree).collect(_.size)));
+
+q.set(\ctranspose, (/*Pwhite(-0.15, 0.15, inf) +*/ (Pkey(\octave).linlin(3, 5, 0.051, 0.38))).clump(Pkey(\degree).collect(_.size)));
+
+q.set(\ctranspose, (Pwhite(-0.1, 0.1, inf) + (Pkey(\fratio).linlin(4, 23, 0.6, 0.051))).clump(Pkey(\degree).collect(_.size)));
+
+r.stop;
+
+r.isPlaying
+
+1600 / 36.midicps
+
+440 * 24
+
+Library.at(WrapInstr, \test).keys
+
+a = m.play(Instr("test.tuner"), [nil, 1]); a.gui
+
+Patch("test.tuner",[
+	440.0,
+	1,
+	Env([ 0.0, 1.0, 1.0, 0.0 ], [ 0.05, 0, 0.1 ], -4.0, 2),
+	0.0,
+	0.9911978051386
+])
+
+0.9911978051386.ratiomidi
+
+50.midicps
