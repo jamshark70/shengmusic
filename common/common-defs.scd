@@ -63,3 +63,58 @@ type: \voicer) => Fact(\fmbass);
 		newInputs
 	};
 } => Func(\patchArgs);
+
+
+Proto {
+	~prep = {
+		~todo = IdentitySet.with(\noiseBufs);
+		~ready = false;
+		fork {
+			var c = Condition.new;
+			~noiseBufs = Array.fill(5, {
+				var new = Buffer.alloc(s, 2048, 1);
+				s.sync;
+				fork {
+					new.sendCollection(
+						Signal.fill(1024, { 1.0.rand2 }).asWavetable,
+						action: { c.unhang }
+					);
+				};
+				c.hang;
+				new
+			});
+			~doneWith.(\noiseBufs);
+		};
+		currentEnvironment
+	};
+	~freeCleanup = {
+		~noiseBufs.free;
+	};
+	~doneWith = { |key|
+		"%: done\n".postf(key);
+		~todo.remove(key);
+		if(~todo.isEmpty) {
+			~ready = true;
+			"BP(%) is ready\n".postf(~collIndex.asCompileString);
+			NotificationCenter.notify(currentEnvironment, \sharedReady);
+		};
+		currentEnvironment
+	};
+	~updateWhenReady = { |bpkey|
+		if(BP.exists(bpkey)) {
+			if(~ready) {
+				BP(bpkey).sharedReady = true;
+			} {
+				NotificationCenter.registerOneShot(currentEnvironment, \sharedReady, bpkey, {
+					BP(bpkey).sharedReady = true;
+				});
+			};
+		} {
+			"BP(%).updateWhenReady: BP(%) does not exist."
+			.format(~collIndex.asCompileString, bpkey.asCompileString)
+			.warn;
+		};
+		currentEnvironment
+	};
+} => PR(\shengShared);
+
