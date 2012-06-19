@@ -1,5 +1,8 @@
 (thisProcess.nowExecutingPath.dirname +/+ "../common/dev-setup.scd").loadPath;
 
+BP(\shengShared).free;
+PR(\shengShared) => BP(\shengShared);
+
 ~saveAddr = s.addr;
 ~debugAddr = DebugNetAddr("127.0.0.1", 57110);
 
@@ -618,7 +621,7 @@ r.isPlaying
 
 Library.at(WrapInstr, \test).keys
 
-a = m.play(Instr("test.tuner"), [nil, 1]); a.gui
+a = n.play(Instr("test.tuner"), [nil, 1]); a.gui
 
 Patch("test.tuner",[
 	440.0,
@@ -631,3 +634,26 @@ Patch("test.tuner",[
 0.9911978051386.ratiomidi
 
 50.midicps
+
+
+
+
+
+BP(\sd).free;
+PR(\shengDrone) => BP(\sd);
+
+
+BP(\cl).free;
+PR(\clicks) => BP(\cl);
+
+BP(\cl).listVars;
+
+BP(\cl).postPattern = {
+			var dur = ~phraseDurStream.next;
+			Pfindur(dur, Pbind(
+				\amp, Env(#[0.4, 0.8, 0.8, 0.2], [0.1, 0.5, 0.4] * dur, #[-4, 0, -2])
+					.asStream * Pkey(\ampFactor),
+				\dur, Plazy({ ~dur }) * Env(#[1, 2], [dur], -1.5),
+				\pan, Plazy({ ~panStream.next.loop })
+			))
+		};
