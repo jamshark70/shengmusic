@@ -3,6 +3,8 @@
 BP(\shengShared).free;
 PR(\shengShared) => BP(\shengShared);
 
+MixingBoard.at(0).postSettings;
+
 ~saveAddr = s.addr;
 ~debugAddr = DebugNetAddr("127.0.0.1", 57110);
 
@@ -637,23 +639,133 @@ Patch("test.tuner",[
 
 
 
+// process tests
+
+(~rvb = MixerChannel(\rvb, s, 2, 2, outbus: ~master)) => MCG(6);
+
+z = ~rvb.playfx(Instr("busfx.freeverb2"), [22, 1.0, 0.96938775510204, 0.38265306122449, 1.0]);
 
 
 BP(\sd).free;
 PR(\shengDrone) => BP(\sd);
-
+0 => BP(\sd);
 
 BP(\cl).free;
-PR(\clicks) => BP(\cl);
+PR(\clicks).chuck(BP(\cl), nil, (master: ~master));
+BP(\cl) => MCG(3);
+0 => BP(\cl);
+
 
 BP(\cl).listVars;
 
-BP(\cl).postPattern = {
-			var dur = ~phraseDurStream.next;
-			Pfindur(dur, Pbind(
-				\amp, Env(#[0.4, 0.8, 0.8, 0.2], [0.1, 0.5, 0.4] * dur, #[-4, 0, -2])
-					.asStream * Pkey(\ampFactor),
-				\dur, Plazy({ ~dur }) * Env(#[1, 2], [dur], -1.5),
-				\pan, Plazy({ ~panStream.next.loop })
-			))
-		};
+
+p = BP(\sd);
+
+e = p.use { ~eventStream.next(~event.copy) };
+e.associationsDo { |assn| assn.postln }; ""
+
+f = e.copy;
+f.keysValuesDo { |key, val|
+	if(val.size == 3) { f[key] = val[0] };
+};
+
+f.amp = 0.5;
+e.amp = 0.5;
+
+p.chan.play(f);
+
+p.chan.play(e);
+
+p.triggerOneEvent(0);
+
+e.pan = 0;
+
+p.chan.play(e.copy.sustain_(7).env_([Env.adsr(0.4, 0.9, 0.2, 4, curve: #[2, -1, -4])]));
+
+var sus = 0.2;
+p.chan.play(e.copy.sustain_(7).env_([Env.adsr(0.5, 0.6, sus, 4, 0.2/sus, curve: #[2, -1, -4])]));
+
+var sus = 0.2;
+n.play(e.copy.sustain_(7).env_([Env.adsr(0.5, 0.6, sus, 4, 0.2/sus, curve: #[2, -1, -4])]));
+
+e.env.postcs
+
+e.env_([Env.adsr(0.5, 0.8, 0.2, 4)]);
+
+p.listVars
+
+
+p.sustainAmp = 0.2;
+p.desiredSusAmp = 0.2;
+
+p.sustainAmp = 0.6;
+p.desiredSusAmp = 0.6;
+
+p.octave = Pwhite(3, 5, inf);
+p.octave = 5;
+p.deg = Pif(Pkey(\dur) >= 2, 0, Pwrand(#[0, 4], #[0.45, 0.55], inf));
+
+p.override(\deg, Pseq([3, 5], 1));
+p.override(\octave, Pn(5, 2));
+
+p.saveSustain = p.sustain;
+p.saveDur = p.dur;
+
+p.dur.postcs
+
+// slow opening
+p.hiProb = 0;
+
+p.dur = Pseq([
+	Pexprand(4.0, 9.0, { rrand(4, 9) }),
+	Pexprand(0.3, 0.8, { rrand(0, 6) })
+], inf);
+
+p.sustain = Pwhite(1.5, 4.5, inf);
+
+p.listMethods;
+
+(
+p.override(\deg, Pscratch(
+	Pwhile1(
+		{ |inval, next| next <= 9 },
+		Pseries(-14, Pseq([4, 3, Pwrand(#[1, 2, 3], #[0.45, 0.45, 0.1], inf)], 1), inf)
+	),
+	Pn(Plazy({
+		var numforward = rrand(2, 5), numbackward = rrand(2, 4);
+		Pseq([Pn(1, numforward), numbackward, Pn(-1, numbackward - 1), numbackward], 1)
+	}), inf)
+), false, { p.unOverride(\dur.debug("unOverriding")) });
+
+p.override(\dur, Pexprand(0.3, 0.8, inf));
+)
+
+p.unOverride(\deg);
+p.unOverride(\dur);
+
+z = Pwhile1(
+	{ |inval, next| next <= 9 },
+	Pseries(-14, Pseq([4, 3, Pwrand(#[1, 2, 3], #[0.45, 0.45, 0.1], inf)], 1), inf)
+).asStream;
+
+z.next
+
+
+p.saveDeg = p.deg;
+p.saveDur = p.dur.postcs;
+
+p.deg = p.saveDeg;
+p.saveDur = p.dur.postcs;
+
+p.deg = Pscratch(
+	Pwhile1(
+		{ |inval, next| next <= 9 },
+		Pseries(-14, Pseq([4, 3, Pwrand(#[1, 2, 3], #[0.45, 0.45, 0.1], inf)], 1), inf)
+	),
+	Pn(Plazy({
+		var numforward = rrand(2, 5), numbackward = rrand(2, 4);
+		Pseq([Pn(1, numforward), numbackward, Pn(-1, numbackward - 1), numbackward], 1)
+	}), inf)
+);
+
+p.dur = Pexprand(0.3, 0.8, inf);

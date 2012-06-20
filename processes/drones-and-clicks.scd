@@ -55,8 +55,10 @@ protect {
 		~prep = {
 			~chan = MixerChannel(~collIndex, s, 2, 2,
 				level: 0.75,
-				outbus: ~master ? topEnvironment[\master] //,
-				// completionFunc?
+				outbus: ~master ? topEnvironment[\master],
+				completionFunc: { |chan|
+					chan.newPostSend(~rvb ? topEnvironment[\rvb], -4.75.dbamp);
+				};
 			);
 			~event.proto = (group: ~chan.synthgroup, out: ~chan.inbus.index);
 			BP(\shengShared).updateWhenReady(~collIndex);
@@ -101,19 +103,28 @@ protect {
 			Pwhite(-0.1, 0.1, inf) + Pkey(\fratio).linlin(4, 23, 0.6, 0.051)
 		).clump(Pkey(\degree).collect(_.size));
 		~pan = Pwhite(0.7, 1.0, inf) * Pseq(#[-1, 1], inf, { 2.rand });
-		~env = [Env.adsr(0.5, 0.6, 0.6, 4)];
+		~sustainAmp = 0.6;
+		~desiredSusAmp = 0.6;
+		// ~env = [Env.adsr(0.5, 0.6, 0.6, 4, curve: #[2, -1, -4])];
+		~env = Pfunc({ |ev|
+			[Env.adsr(
+				0.5, 0.6, ev[\sustainAmp], 4,
+				peakLevel: ev[\desiredSusAmp] / ev[\sustainAmp],
+				curve: #[2, -1, -4]
+			)]
+		});
 		~excamp = 1.2;
 		~amp = 0.1;
 
 		~asPattern = {
 			Pbind(
 				\instrument, BPStream(\defName),
+				\dur, BPStream(\dur),
+				\sustain, BPStream(\sustain),
 				\octave, BPStream(\octave),
 				\deg, BPStream(\deg),
 				\degree, BPStream(\degree),
 				\root, BPStream(\root),
-				\dur, BPStream(\dur),
-				\sustain, BPStream(\sustain),
 				#[freq, topFreq], BPStream(\freqStuff),
 				\ffreq, BPStream(\ffreq),
 				\fratio, Pkey(\ffreq) / Pkey(\topFreq),
@@ -123,6 +134,8 @@ protect {
 				// I need to reapply ctranspose here
 				\freq, Pkey(\freq) * Pkey(\ctranspose).midiratio,
 				\pan, BPStream(\pan),
+				\sustainAmp, BPStream(\sustainAmp),
+				\desiredSusAmp, BPStream(\desiredSusAmp),
 				\env, BPStream(\env),
 				\excamp, BPStream(\excamp) * Pkey(\ampFactor),
 				\amp, BPStream(\amp)
@@ -136,6 +149,7 @@ protect {
 		~requiredKeys = #[sharedReady];
 
 		~userprep = {
+			~chan.newPostSend(~rvb ? topEnvironment[\rvb], -3.32.dbamp);
 			BP(\shengShared).updateWhenReady(~collIndex);
 			currentEnvironment
 		};
@@ -237,7 +251,7 @@ protect {
 			Pfindur(dur, Pbind(
 				\amp, Env(#[0.4, 0.8, 0.8, 0.2], [0.1, 0.5, 0.4] * dur, #[-4, 0, -2])
 					.asStream * Pkey(\ampFactor),
-				\dur, Plazy({ ~dur }),
+				\dur, Plazy({ ~dur }) * Env(#[1, 2], [dur], -1.5),
 				\pan, Plazy({ ~panStream.next.loop })
 			))
 		};
