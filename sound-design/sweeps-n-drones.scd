@@ -645,21 +645,22 @@ Patch("test.tuner",[
 
 z = ~rvb.playfx(Instr("busfx.freeverb2"), [22, 1.0, 0.96938775510204, 0.38265306122449, 1.0]);
 
+(thisProcess.nowExecutingPath.dirname.dirname +/+ "processes/drones-and-clicks.scd").loadPath;
 
 BP(\sd).free;
 PR(\shengDrone) => BP(\sd);
 0 => BP(\sd);
+p = BP(\sd);
 
 BP(\cl).free;
 PR(\clicks).chuck(BP(\cl), nil, (master: ~master));
-BP(\cl) => MCG(3);
+// BP(\cl) => MCG(3);
 0 => BP(\cl);
 
 
 BP(\cl).listVars;
 
 
-p = BP(\sd);
 
 e = p.use { ~eventStream.next(~event.copy) };
 e.associationsDo { |assn| assn.postln }; ""
@@ -717,13 +718,62 @@ p.dur.postcs
 p.hiProb = 0;
 
 p.dur = Pseq([
-	Pexprand(4.0, 9.0, { rrand(4, 9) }),
-	Pexprand(0.3, 0.8, { rrand(0, 6) })
+	Pexprand(4.0, 9.0, { rrand(2, 5) }),
+	Pexprand(0.3, 0.8, { rrand(2, 8) })
+	Pexprand(4.0, 9.0, { rrand(2, 4) }),
 ], inf);
 
 p.sustain = Pwhite(1.5, 4.5, inf);
 
+p.savePan = p.pan;
+p.pan = Pwhite(-0.5, 0.5, inf);
+
+p.gestures.longPauses = Pbind(
+	\dur, Pseq([
+		Pexprand(4.0, 9.0, { rrand(2, 5) }),
+		Pexprand(0.3, 0.8, { rrand(2, 8) }),
+		Pexprand(4.0, 9.0, { rrand(2, 4) })
+	], 1),
+	\sustain, Pwhite(1.5, 4.5, inf),
+	\octave, 5,
+	\deg, Pif(Pkey(\dur) >= 2, 0, Pwrand(#[0, 4], #[0.45, 0.55], inf))
+);
+
+p.gst = \longPauses;
+p.gstStream
+
+p.gesture.postcs
+
 p.listMethods;
+p.listVars;
+
+p.override(\gst, Pn(\default, 1).trace(prefix: "override gesture: "));
+p.unOverride(\gst);
+
+p.makeStreamForKey(\gesture);
+
+p.gestures.dArpeg = Pbind(
+	\dur, Pexprand(0.3, 0.8, inf),
+	\sustain, Pwhite(1.5, 4.5, inf),
+	\octave, 5,
+	\deg, Pscratch(
+		Pwhile1(
+			{ |inval, next| next <= 9 },
+			Pseries(-14, Pseq([4, 3, Pwrand(#[1, 2, 3], #[0.45, 0.45, 0.1], inf)], 1), inf)
+		),
+		Pn(Plazy({
+			var numforward = rrand(2, 5), numbackward = rrand(2, 4);
+			Pseq([Pn(1, numforward), numbackward, Pn(-1, numbackward - 1), numbackward], 1)
+		}), inf)
+	)
+);
+
+p.override(\gesture, p.gestures[\dArpeg], false, { "override done".debug });
+p.nextEventNow;
+
+p.v[\override].postcs
+
+p.listVars;
 
 (
 p.override(\deg, Pscratch(
@@ -738,34 +788,10 @@ p.override(\deg, Pscratch(
 ), false, { p.unOverride(\dur.debug("unOverriding")) });
 
 p.override(\dur, Pexprand(0.3, 0.8, inf));
+
+p.nextEventNow;
 )
 
 p.unOverride(\deg);
 p.unOverride(\dur);
 
-z = Pwhile1(
-	{ |inval, next| next <= 9 },
-	Pseries(-14, Pseq([4, 3, Pwrand(#[1, 2, 3], #[0.45, 0.45, 0.1], inf)], 1), inf)
-).asStream;
-
-z.next
-
-
-p.saveDeg = p.deg;
-p.saveDur = p.dur.postcs;
-
-p.deg = p.saveDeg;
-p.saveDur = p.dur.postcs;
-
-p.deg = Pscratch(
-	Pwhile1(
-		{ |inval, next| next <= 9 },
-		Pseries(-14, Pseq([4, 3, Pwrand(#[1, 2, 3], #[0.45, 0.45, 0.1], inf)], 1), inf)
-	),
-	Pn(Plazy({
-		var numforward = rrand(2, 5), numbackward = rrand(2, 4);
-		Pseq([Pn(1, numforward), numbackward, Pn(-1, numbackward - 1), numbackward], 1)
-	}), inf)
-);
-
-p.dur = Pexprand(0.3, 0.8, inf);

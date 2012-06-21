@@ -74,20 +74,53 @@ protect {
 		~makeSynthDef = {
 			~def = WrapPatch("osc.ks_sustained", [
 				nil, nil, nil,
-				`{ LFDNoise1.kr(0.9).range(0.5, 1) }, nil, nil, nil,
+				`{ LFDNoise1.kr(Rand(0.14, 0.4)).range(0.3, 0.77) }, nil, nil, nil,
 				`{ NamedControl(\env, Env.adsr.asArray.extend(40, 0)) }, nil,
-				`{ LFDNoise1.kr(Rand(0.08, 0.14)) },
+				`{ LFDNoise1.kr(Rand(0.08, 0.46)) },
 				BP(\shengShared).noiseBufs[0], BP(\shengShared).noiseBufs.size
 			]).asSynthDef.add;
 			~defName = ~def.name.asSymbol;
 		};
 
-		~octave = 5;
-		~deg = Prand(#[0, 4], inf);
+		~gst = \longPauses;
+		~gestures = (
+			default: Pbind(
+				\dur, Pseq([Pexprand(0.4, 0.8, { rrand(2, 9) }), Pwhite(1.5, 4.5, 1)], 1),
+				\sustain, Pwhite(4.0, 7.0, inf),
+				\octave, 5,
+				\deg, Prand(#[0, 4], inf)
+			),
+			longPauses: Pbind(
+				\dur, Pseq([
+					Pexprand(4.0, 9.0, { rrand(2, 5) }),
+					Pexprand(0.3, 0.8, { rrand(2, 8) }),
+					Pexprand(4.0, 9.0, { rrand(2, 4) })
+				], 1),
+				\sustain, Pwhite(1.5, 4.5, inf),
+				\octave, 5,
+				\deg, Pif(Pkey(\dur) >= 2, 0, Pwrand(#[0, 4], #[0.45, 0.55], inf))
+			),
+			dArpeg: Pbind(
+				\dur, Pexprand(0.3, 0.8, inf),
+				\sustain, Pwhite(1.5, 4.5, inf),
+				\octave, 5,
+				\deg, Pscratch(
+					Pwhile1(
+						{ |inval, next| next <= 9 },
+						Pseries(-14, Pseq([4, 3, Pwrand(#[1, 2, 3], #[0.45, 0.45, 0.1], inf)], 1), inf)
+					),
+					Pn(Plazy({
+						var numforward = rrand(2, 5), numbackward = rrand(2, 4);
+						Pseq([Pn(1, numforward), numbackward, Pn(-1, numbackward - 1), numbackward], 1)
+					}), inf)
+				)
+			)
+		);
+
+		~gesture = Plazy({ Psym(BPStream(\gst), ~gestures) });
+
 		~degree = Pfunc({ |ev| ev[\deg].dup(3).flat });
 		~root = 2;
-		~dur = Pseq([Pexprand(0.4, 0.8, { rrand(2, 9) }), Pwhite(1.5, 4.5, 1)], inf);
-		~sustain = Pwhite(4.0, 7.0, inf);
 		~freqStuff = Pfunc({ |ev|
 			// for efficiency: do this only once
 			var freq = ev.use({ ~detunedFreq.value });
@@ -117,29 +150,43 @@ protect {
 		~amp = 0.1;
 
 		~asPattern = {
-			Pbind(
-				\instrument, BPStream(\defName),
-				\dur, BPStream(\dur),
-				\sustain, BPStream(\sustain),
-				\octave, BPStream(\octave),
-				\deg, BPStream(\deg),
-				\degree, BPStream(\degree),
-				\root, BPStream(\root),
-				#[freq, topFreq], BPStream(\freqStuff),
-				\ffreq, BPStream(\ffreq),
-				\fratio, Pkey(\ffreq) / Pkey(\topFreq),
-				\ampFactor, Pkey(\ffreq).linlin(1600, 12000, 1.0, 0.08),
-				\ctranspose, BPStream(\ctranspose),
-				// I see... because I hacked \freq above,
-				// I need to reapply ctranspose here
-				\freq, Pkey(\freq) * Pkey(\ctranspose).midiratio,
-				\pan, BPStream(\pan),
-				\sustainAmp, BPStream(\sustainAmp),
-				\desiredSusAmp, BPStream(\desiredSusAmp),
-				\env, BPStream(\env),
-				\excamp, BPStream(\excamp) * Pkey(\ampFactor),
-				\amp, BPStream(\amp)
+			Pchain(
+				Pbind(
+					\instrument, BPStream(\defName),
+					// \dur, BPStream(\dur),
+					// \sustain, BPStream(\sustain),
+					// \octave, BPStream(\octave),
+					// \deg, BPStream(\deg),
+					\degree, BPStream(\degree),
+					\root, BPStream(\root),
+					#[freq, topFreq], BPStream(\freqStuff),
+					\ffreq, BPStream(\ffreq),
+					\fratio, Pkey(\ffreq) / Pkey(\topFreq),
+					\ampFactor, Pkey(\ffreq).linlin(1600, 12000, 1.0, 0.08),
+					\ctranspose, BPStream(\ctranspose),
+					// I see... because I hacked \freq above,
+					// I need to reapply ctranspose here
+					\freq, Pkey(\freq) * Pkey(\ctranspose).midiratio,
+					\pan, BPStream(\pan),
+					\sustainAmp, BPStream(\sustainAmp),
+					\desiredSusAmp, BPStream(\desiredSusAmp),
+					\env, BPStream(\env),
+					\excamp, BPStream(\excamp) * Pkey(\ampFactor),
+					\amp, BPStream(\amp)
+				),
+				BPStream(\gesture)
 			)
+		};
+
+		// I cannot BELIEVE this actually worked the first time!
+		~nextEventNow = {
+			var oldPlayer = ~eventStreamPlayer,
+			// make a new stream player, fix dependants etc.
+			newPlayer = BP(~collIndex).asEventStreamPlayer;
+			~clock.sched(0, newPlayer.refresh);
+			// this doesn't kill the BP because the old dependency is already broken
+			oldPlayer.stop;
+			currentEnvironment
 		};
 	} => PR(\shengDrone);
 
