@@ -82,10 +82,10 @@ protect {
 			~defName = ~def.name.asSymbol;
 		};
 
-		~gst = \longPauses;
+		~gst = Pseq(#[longPauses, da, longPauses], inf);
 		~gestures = (
 			default: Pbind(
-				\dur, Pseq([Pexprand(0.4, 0.8, { rrand(2, 9) }), Pwhite(1.5, 4.5, 1)], 1),
+				\dur, Pseq([Pexprand(0.4, 0.8, { rrand(2, 9) }), Pwhite(1.0, 2.7, 1)], 1),
 				\sustain, Pwhite(4.0, 7.0, inf),
 				\octave, 5,
 				\deg, Prand(#[0, 4], inf)
@@ -93,12 +93,16 @@ protect {
 			longPauses: Pbind(
 				\dur, Pseq([
 					Pexprand(4.0, 9.0, { rrand(2, 5) }),
-					Pexprand(0.3, 0.8, { rrand(2, 8) }),
-					Pexprand(4.0, 9.0, { rrand(2, 4) })
 				], 1),
 				\sustain, Pwhite(1.5, 4.5, inf),
 				\octave, 5,
-				\deg, Pif(Pkey(\dur) >= 2, 0, Pwrand(#[0, 4], #[0.45, 0.55], inf))
+				\deg, 0
+			),
+			da: Pbind(
+				\dur, Pexprand(0.3, 0.8, { rrand(2, 8) }),
+				\sustain, Pwhite(1.5, 4.5, inf),
+				\octave, 5,
+				\deg, Pwrand(#[0, 4], #[0.45, 0.55], inf)
 			),
 			dArpeg: Pbind(
 				\dur, Pexprand(0.3, 0.8, inf),
@@ -114,6 +118,52 @@ protect {
 						Pseq([Pn(1, numforward), numbackward, Pn(-1, numbackward - 1), numbackward], 1)
 					}), inf)
 				)
+			),
+			enat: Pbind(
+				\dur, Plazy({ Pn(rrand(0.3, 0.52), rrand(5, 9)) }),
+				\sustain, 0.25,
+				\octave, 5,
+				\deg, 1,
+				\amp, 0.25
+			),
+			ebnat: Pbind(
+				\dur, Plazy({ Pn(rrand(0.2, 0.45), rrand(6, 11)) }),
+				\sustain, 0.25,
+				\octave, 5,
+				\deg, Pstutter(Pwhite(2, 3, inf), Pseq(#[-2, 1], inf, { 2.rand })),
+				\amp, 0.25
+			),
+			pentatonic: Pbind(
+				\dur, Plazy({ Pn(rrand(0.2, 0.45), inf) }),
+				\sustain, 0.25,
+				\octave, 5,
+				\deg, Pstutter(Pwhite(2, 3, inf), Pshuf(#[-2, 0, 1, 2, 4], 1)),
+				\amp, 0.25
+			),
+			gb: Pbind(
+				\dur, Plazy({ Pn(rrand(0.2, 0.45), { rrand(7, 12) }) }),
+				\sustain, 0.25,
+				\octave, 5,
+				\deg, Pstutter(Pwhite(2, 3, inf), Pseq(#[3, 5], inf)),
+				\amp, 0.25
+			),
+			gbcs: Pbind(
+				\dur, Plazy({ Pn(rrand(0.2, 0.45), { rrand(12, 21) }) }),
+				\sustain, 0.25,
+				\octave, 5,
+				\deg, Pstutter(Pwhite(2, 3, inf), Pseq(#[3, 5, 6], inf)),
+				\amp, 0.25
+			),
+			gsbcs: Pbind(
+				\dur, Plazy({ Pn(rrand(0.2, 0.45), { rrand(12, 21) }) }),
+				\sustain, 0.25,
+				\octave, 5,
+				\deg, Pstutter(Pwhite(2, 3, inf), Pn(Pshuf(#[3.1, 5, 6], 1), inf)),
+				\amp, 0.25
+			),
+			midRest: Pbind(
+				\dur, Pwhite(2.0, 5.0, 1),
+				\deg, Rest
 			)
 		);
 
@@ -149,14 +199,13 @@ protect {
 		~excamp = 1.2;
 		~amp = 0.1;
 
+		// little hack: gesture pattern can override main-calc pattern
 		~asPattern = {
+			var gestureEvent;
 			Pchain(
+				Pfunc({ |ev| ev.putAll(gestureEvent) }),
 				Pbind(
 					\instrument, BPStream(\defName),
-					// \dur, BPStream(\dur),
-					// \sustain, BPStream(\sustain),
-					// \octave, BPStream(\octave),
-					// \deg, BPStream(\deg),
 					\degree, BPStream(\degree),
 					\root, BPStream(\root),
 					#[freq, topFreq], BPStream(\freqStuff),
@@ -174,7 +223,7 @@ protect {
 					\excamp, BPStream(\excamp) * Pkey(\ampFactor),
 					\amp, BPStream(\amp)
 				),
-				BPStream(\gesture)
+				BPStream(\gesture).collect { |ev| gestureEvent = ev; ev }
 			)
 		};
 
@@ -186,6 +235,19 @@ protect {
 			~clock.sched(0, newPlayer.refresh);
 			// this doesn't kill the BP because the old dependency is already broken
 			oldPlayer.stop;
+			currentEnvironment
+		};
+
+		~gestureNow = { |keyPat, overrideDoneFunc|
+			~override.(\gesture, Psym(Pn(keyPat, 1), ~gestures), false, overrideDoneFunc);
+			~nextEventNow.();
+			currentEnvironment
+		};
+
+		~setGstNow = { |gstPat|
+			~gst = gstPat;
+			~makeStreamForKey.(\gesture);  // start 'gesture' fresh with the new choice
+			~nextEventNow.();              // go immediately
 			currentEnvironment
 		};
 	} => PR(\shengDrone);

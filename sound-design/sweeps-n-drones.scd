@@ -731,15 +731,23 @@ p.pan = Pwhite(-0.5, 0.5, inf);
 p.gestures.longPauses = Pbind(
 	\dur, Pseq([
 		Pexprand(4.0, 9.0, { rrand(2, 5) }),
-		Pexprand(0.3, 0.8, { rrand(2, 8) }),
-		Pexprand(4.0, 9.0, { rrand(2, 4) })
 	], 1),
 	\sustain, Pwhite(1.5, 4.5, inf),
 	\octave, 5,
-	\deg, Pif(Pkey(\dur) >= 2, 0, Pwrand(#[0, 4], #[0.45, 0.55], inf))
+	\deg, 0
+);
+
+p.gestures.da = Pbind(
+	\dur, Pexprand(0.3, 0.8, { rrand(2, 8) }),
+	\sustain, Pwhite(1.5, 4.5, inf),
+	\octave, 5,
+	\deg, Pwrand(#[0, 4], #[0.45, 0.55], inf)
 );
 
 p.gst = \longPauses;
+
+p.gst = Pseq(#[longPauses, da], inf);
+
 p.gstStream
 
 p.gesture.postcs
@@ -771,27 +779,99 @@ p.gestures.dArpeg = Pbind(
 p.override(\gesture, p.gestures[\dArpeg], false, { "override done".debug });
 p.nextEventNow;
 
-p.v[\override].postcs
 
-p.listVars;
+p.gestures.enat = Pbind(
+	\dur, Plazy({ Pn(rrand(0.3, 0.52), rrand(5, 9)) }),
+	\sustain, 0.25,
+	\octave, 5,
+	\deg, 1,
+	\amp, 0.25
+);
 
+p.override(\gesture, p.gestures[\enat]); p.nextEventNow;
+
+
+p.gestures.ebnat = Pbind(
+	\dur, Plazy({ Pn(rrand(0.2, 0.45), rrand(6, 11)) }),
+	\sustain, 0.25,
+	\octave, 5,
+	\deg, Pstutter(Pwhite(2, 3, inf), Pseq(#[-2, 1], inf, { 2.rand })),
+	\amp, 0.25
+);
+
+p.override(\gesture, p.gestures[\ebnat]); p.nextEventNow;
+
+
+p.gestures.pentatonic = Pbind(
+	\dur, Plazy({ Pn(rrand(0.2, 0.45), inf) }),
+	\sustain, 0.25,
+	\octave, 5,
+	\deg, Pstutter(Pwhite(2, 3, inf), Pshuf(#[-2, 0, 1, 2, 4], 1)),
+	\amp, 0.25
+);
+
+p.override(\gesture, p.gestures[\pentatonic]); p.nextEventNow;
+
+
+p.gestures.gb = Pbind(
+	\dur, Plazy({ Pn(rrand(0.2, 0.45), { rrand(7, 12) }) }),
+	\sustain, 0.25,
+	\octave, 5,
+	\deg, Pstutter(Pwhite(2, 3, inf), Pseq(#[3, 5], inf)),
+	\amp, 0.25
+);
+
+p.gestures.gbcs = Pbind(
+	\dur, Plazy({ Pn(rrand(0.2, 0.45), { rrand(12, 21) }) }),
+	\sustain, 0.25,
+	\octave, 5,
+	\deg, Pstutter(Pwhite(2, 3, inf), Pseq(#[3, 5, 6], inf)),
+	\amp, 0.25
+);
+
+p.gestures.gsbcs = Pbind(
+	\dur, Plazy({ Pn(rrand(0.2, 0.45), { rrand(12, 21) }) }),
+	\sustain, 0.25,
+	\octave, 5,
+	\deg, Pstutter(Pwhite(2, 3, inf), Pn(Pshuf(#[3.1, 5, 6], 1), inf)),
+	\amp, 0.25
+);
+
+p.gestures.midRest = Pbind(
+	\dur, Pwhite(2.0, 5.0, 1),
+	\deg, Rest
+);
+
+// this does not yield control, so you have to override it or use below technique
+p.gestures.fullRangeDrone = Plazy({
+	Pset(\octave, Pwhite(Env(#[5, 3], #[5]).asStream.round, 5.99, inf).trunc, PnNilSafe(~gestures[\default], inf))
+});
+
+// p.gst = \fullRangeDrone; p.gestureNow(\fullRangeDrone);
 (
-p.override(\deg, Pscratch(
-	Pwhile1(
-		{ |inval, next| next <= 9 },
-		Pseries(-14, Pseq([4, 3, Pwrand(#[1, 2, 3], #[0.45, 0.45, 0.1], inf)], 1), inf)
-	),
-	Pn(Plazy({
-		var numforward = rrand(2, 5), numbackward = rrand(2, 4);
-		Pseq([Pn(1, numforward), numbackward, Pn(-1, numbackward - 1), numbackward], 1)
-	}), inf)
-), false, { p.unOverride(\dur.debug("unOverriding")) });
-
-p.override(\dur, Pexprand(0.3, 0.8, inf));
-
-p.nextEventNow;
+p.gst = \fullRangeDrone;       // new gesture name
+p.makeStreamForKey(\gesture);  // start 'gesture' fresh with the new choice
+p.nextEventNow;                // go immediately
 )
 
-p.unOverride(\deg);
-p.unOverride(\dur);
+p.gestureNow(Pn(\gb, 2));
+p.gestureNow(Pn(\gsbcs, 1));
+
+
+(
+p.gst = Pseq(#[longPauses, da, longPauses], inf);
+p.makeStreamForKey(\gesture);  // start 'gesture' fresh with the new choice
+p.nextEventNow;                // go immediately
+)
+
+p.gstStream
+
+p.gestureNow = { |keyPat, overrideDoneFunc|
+	~override.(\gesture, Psym(Pn(keyPat, 1), ~gestures), false, overrideDoneFunc);
+	~nextEventNow.();
+	currentEnvironment
+};
+
+p.gestureNow(Pseq(#[da, gsbcs, midRest], 1));
+
 
