@@ -2,7 +2,7 @@ v = MIDIPort.at(0).sockets[0].destination;
 
 m = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/fast-sketch1.midi");
 m = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/long-chords-after-intro2.midi");
-m = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/middle-fast-1.midi");
+m = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/middle-fast-1c.midi");
 
 p = m.p;
 p = Pbindf(m.p, \midinote, Pkey(\midinote) - v.globalControls[\transpose]);
