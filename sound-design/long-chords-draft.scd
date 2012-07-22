@@ -201,8 +201,142 @@ PbindProxy(
 
 VC(\pz).free;
 Fact(\pizz) => VC(\pz);
+VC(\pz) => VP(0);
+
+Pwhite(0.6, 2.4, inf) * Ptuple([1, Pwhite(4.2, 9.8, inf), 0.5], inf) => MicRh(\pizzes);
+
+MIDIRecBuf(\pzch, [
+	[	38, 45, 50, 54, 55, 59, 61, 64,
+		40, 49, 50, 54, 57, 61, 64, 71,
+		42, 50, 52, 57, 59, 62, 66, 67,
+		43, 47, 49, 52, 54, 57, 62, 67
+	],
+	Array.fill(4, (0.1 ! 8).put(7, 1)).flat,
+	1 ! 32,
+	0.5 ! 32
+].asNotes, (type: \ch, mode: \d)) => MBM(0);
+
+(
+(
+make: { |name|
+	var new;
+	BP(name).free;
+	new = \newCh.eval(name, \arpeg1, \macroRh, MBM(0)[\pzch], nil, Pwhite(14, 24, inf), \pizzes, \shuf1, nil, \d);
+	new.quant = 0;
+	new.topNote = PR(\patternTop).copy.make {
+		~deg = 'patRejectLastN'.eval(Pseries(
+			{ rrand(36, 43) },
+			Pwrand(#[1, 2, 3], #[0.5, 0.3, 0.2], inf),
+			inf
+		).fold(36, 43), 1);
+		~mode = \d;
+	};
+	new.child.use {
+		~fitFunc = \chordFitNotes;
+
+		~ffreq = (Pfunc({ |ev| ev[\mode].asMode.cps(ev[\freq] ?? { ev[\note].freq }).asArray.maxItem }) * Pexprand(4.0, 18.0)).clip(1000, 12000);
+		~excratio = Pwhite(0.4, 0.65);
+		~excamp = 1;
+		~fbamp = Pwhite(0.98, 0.998, inf);
+		~trigFreqEnv = Pfunc({
+			var atk = rrand(0.35, 0.5);
+			[Env(
+				[rrand(0.9, 1.25), rrand(8.0, 12.5), rrand(0.9, 1.25)],
+				[atk, 1 - atk],
+				\exp
+			)].asArray
+		});
+		~timeScale = Pkey(\length);
+		~excAtk = Pexprand(0.005, 0.02);
+		~excDcy = (Pkey(\excAtk) * Pwhite(2.0, 5.0));
+		~retrigProb = 0.6;
+		~pan = (Pwhite(0.4) * Pseq([ -1, 1 ], inf));
+		~amp = 1;
+
+		~argPairs = Pbind(
+			\ffreq, BPStream(\ffreq),
+			\excratio, BPStream(\excratio),
+			\excamp, BPStream(\excamp),
+			\fbamp, BPStream(\fbamp),
+			\trigFreqEnv, BPStream(\trigFreqEnv),
+			\timeScale, BPStream(\timeScale),
+			\excAtk, BPStream(\excAtk),
+			\excDcy, BPStream(\excDcy),
+			\retrigProb, BPStream(\retrigProb),
+			\pan, BPStream(\pan),
+			\amp, BPStream(\amp)
+		);
+	};
+	new
+}, type: \bp) => Fact(\pzBP);
+
+(
+play: {
+	if(~cond.notNil) { ~cond.hang }
+	{ "No ~cond, ProtoEvent(\\hang) can't hang".warn }
+}, delta: 0
+) => ProtoEvent(\hang);
+
+PR(\abstractProcess).clone {
+	~resetChild = false;
+	~rest = Pwhite(7.0, 14.0, inf);
+
+	~event = (eventKey: \hang);
+	~alwaysReset = true;
+	~prep = { |bpname|
+		~bp = bpname ?? { ~bp };
+		~cond = Condition.new;
+		~event.put(\cond, ~cond);
+		currentEnvironment
+	};
+	~preparePlay = {
+		case
+		{ BP.exists(~bp).not } { "BP(%) doesn't exists".format(~bp.asCompileString).warn }
+		{ BP(~bp).v[\eventStream].isNil } { BP(~bp).prepareForPlay }
+		{ ~resetChild } { BP(~bp).reset };
+
+		if(~stopWatcher.isNil) {
+			~stopWatcher = NotificationCenter.register(BP(~bp).child, \childStop, ~collIndex, e {
+				~cond.unhang
+			});
+		};
+	};
+	~asPattern = {
+		if(~restStream.isNil) { ~makeStreamForKey.(\rest) };
+		Prout({ |inevent|
+			loop {
+				BP(~bp).triggerOneEvent(0);
+				// hang first, then wait 'delta' beats
+				inevent = inevent.copy.put(\delta, ~restStream.next(inevent)).yield;
+			}
+		})
+	};
+	~stopCleanup = {
+		~stopWatcher.remove;
+		~stopWatcher = nil;
+	};
+} => PR(\chordRunner);
+)
 
 BP(\pz).free;
+Fact(\pzBP) => BP(\pz);
+VC(\pz) => BP(\pz);
+
+BP(\pzr).free;
+PR(\chordRunner).chuck(BP(\pzr), nil, (bp: \pz));
+
+Library.put(\currentBassNote, Penvir(
+	(lastTime: 0),
+	Pclutch(
+		Pwhite(0, 6, inf).trace,
+		Pfunc({ (thisThread.beats - ~lastTime > 1).value(~lastTime = thisThread.beats) })
+	)
+).asStream);
+
+BP(\pz).child.fitFunc = \chordFitInt;
+BP(\pz).child.fitFunc = \chordFitNotes;
+
+
 PR(\arpeg1) => BP(\pz);
 PR(\macroRh) => BP(\pz);
 
@@ -210,7 +344,7 @@ BP(\pz).child.use {
 	~ffreq = (Pfunc({ |ev| ev[\mode].asMode.cps(ev[\freq] ?? { ev[\note].freq }).asArray.maxItem }) * Pexprand(4.0, 18.0)).clip(1000, 12000);
 	~excratio = Pwhite(0.4, 0.65);
 	~excamp = 1;
-	~fbamp = 0.98;
+	~fbamp = Pwhite(0.98, 0.998, inf);
 	~trigFreqEnv = Pfunc({
 		var atk = rrand(0.35, 0.5);
 		[Env(
@@ -244,7 +378,6 @@ BP(\pz).child.use {
 
 BP(\pz).quant = 0;
 
-Pwhite(0.6, 2.4, inf) * Ptuple([1, Pwhite(4.2, 9.8, inf), 0.5], inf) => MicRh(\pizzes);
 
 Pwhite(14, 24, inf) =>.macro BP(\pz);
 
@@ -268,16 +401,6 @@ BP(\pz).mode = \d;
 
 // [21, 25, 28, 30, 31, 33, 34, 36].unmapMode(\d)
 
-MIDIRecBuf(\chords, [
-	[	38, 45, 50, 54, 55, 59, 61, 64,
-		40, 49, 50, 54, 57, 61, 64, 71,
-		42, 50, 52, 57, 59, 62, 66, 67,
-		43, 47, 49, 52, 54, 57, 62, 67
-	],
-	Array.fill(4, (0.1 ! 8).put(7, 1)).flat,
-	1 ! 32,
-	0.5 ! 32
-].asNotes, (type: \ch, mode: \d)) => BP(\pz);
 
 // Voicer(25, d.name.asSymbol, target: n) => VC(\pizz);
 
