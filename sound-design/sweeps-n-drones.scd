@@ -875,3 +875,24 @@ p.gestureNow = { |keyPat, overrideDoneFunc|
 p.gestureNow(Pseq(#[da, gsbcs, midRest], 1));
 
 
+p.gestureNow(\enat);
+p.gestureNow(\ebnat);
+p.gestureNow(\pentatonic);
+p.gestureNow(Pseq(#[da, gb], 1));
+
+p.gestureNow(Pseq(#[da, gbcs], 1));
+
+p.gestureNow(\dArpeg);
+
+p.setGstNow(\fullRangeDrone);
+p.setGstNow(Pseq([ 'longPauses', 'da', 'longPauses' ], inf));
+
+p.gst = Pseq([
+	Pseq(['longPauses', 'da']),
+	Prand([
+		\enat, \ebnat, \pentatonic,
+		Pseq(#[da, gb], 1),
+		Pseq(#[da, gbcs], 1),
+		\dArpeg
+	])
+], inf).trace;
