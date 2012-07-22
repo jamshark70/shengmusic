@@ -90,6 +90,10 @@ protect {
 				\octave, 5,
 				\deg, Prand(#[0, 4], inf)
 			),
+			fullRangeDrone: Plazy({
+				Pset(\octave, Pwhite(Env(#[5, 3], #[5]).asStream.round, 5.99, inf).trunc,
+					PnNilSafe(~gestures[\default], inf))
+			}),
 			longPauses: Pbind(
 				\dur, Pseq([
 					Pexprand(4.0, 9.0, { rrand(2, 5) }),
@@ -293,6 +297,9 @@ protect {
 					specs = NamedControl.kr(\specs, #[621.62188989246, 458.28750962083, 483.12690995039, 1341.4332586515, 229.71349364755, 0.1, 0.1, 0.1, 0.1, 0.1, 0.16730279340267, 0.039352280429134, 0.13997095946335, 0.030161787383422, 0.14313835788342]).clump(5),
 					sig = Klank.ar(`specs, exc, decayscale: klDcy) - Klank.ar(`specs, exc, decayscale: klAtk);
 					DetectSilence.ar(sig, doneAction: 2);
+					// zombie armor: if DetectSilence doesn't stop the synth,
+					// then this definitely will
+					Line.kr(0, 1, klDcy + excDcy, doneAction: 2);
 					Out.ar(out, Pan2.ar(sig, pan));
 				}),
 				pattern: Pbind(
