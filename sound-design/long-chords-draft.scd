@@ -74,7 +74,26 @@ WrapInstr("osc.ks_retrig", { |freq = 440, amp = 0.1, ffreq = 2000,
 	ObjectSpec({ SinOsc.kr(Rand(0.08, 0.14)) }), \mybuf, StaticSpec(2, 16, \lin, 1, 2),
 	ObjectSpec(false)
 ]);
+
+(keys: #[master, rvbmc],
+initLevel: 0.75,
+make: { |name|
+	var out;
+	~target = MixerChannel(name, s, 2, 2, ~initLevel, outbus: ~master, completionFunc: { |chan|
+		if(~rvbmc.notNil) { chan.newPostSend(~rvbmc, 0.4) };
+	});
+	out = Voicer(25, WrapInstr("osc.ks_retrig"), [
+		env: `{ NamedControl.kr(\env, (0 ! 20).overWrite(Env.asr.asArray)) },
+		firstbuf: `(BP(\shengShared).noiseBufs[0].bufnum),
+		numbufs: `(BP(\shengShared).noiseBufs.size),
+		amp: 1
+	], target: ~target);
+	out.mapGlobal(\retrigProb, nil, 0.12, #[0, 1]);
+	out
+}, free: { ~target.free }, type: \voicer) => Fact(\pizz);
 )
+
+();
 
 WrapInstr("osc.ks_retrig").listArgs
 
@@ -178,6 +197,11 @@ PbindProxy(
 
 
 
+// pizz: chord process
+
+VC(\pz).free;
+Fact(\pizz) => VC(\pz);
+
 BP(\pz).free;
 PR(\arpeg1) => BP(\pz);
 PR(\macroRh) => BP(\pz);
@@ -189,14 +213,14 @@ BP(\pz).child.use {
 	~fbamp = 0.98;
 	~trigFreqEnv = Pfunc({
 		var atk = rrand(0.35, 0.5);
-		Env(
+		[Env(
 			[rrand(0.9, 1.25), rrand(8.0, 12.5), rrand(0.9, 1.25)]
 			, //++ Array.fill(6, { rrand(0.7, 1.6) }),
 			// ([rrand(1.5, 3.0), rrand(2.5, 5.0)] // ++ Array.fill(6, { rrand(0.7, 2.1) })
 			// ).normalizeSum,
 			[atk, 1 - atk],
 			\exp
-		)
+		)].asArray
 	});
 	~timeScale = Pkey(\length);
 	~excAtk = Pexprand(0.005, 0.02);
@@ -228,7 +252,12 @@ Pwhite(14, 24, inf) =>.macro BP(\pz);
 \pizzes =>.micro BP(\pz);
 
 BP(\pz).topNote = PR(\patternTop).copy.make {
-	~deg = Pwhite(36, 43, inf);
+	// ~deg = Pwhite(36, 43, inf);
+	~deg = 'patRejectLastN'.eval(Pseries(
+		{ rrand(36, 43) },
+		Pwrand(#[1, 2, 3], #[0.5, 0.3, 0.2], inf),
+		inf
+	).fold(36, 43), 1);
 	~mode = \d;
 };
 
@@ -237,18 +266,22 @@ BP(\pz).child.fitFunc = \chordFitInt;
 BP(\pz).mode = \d;
 
 
-[21, 25, 28, 30, 31, 33, 34, 36].unmapMode(\d)
+// [21, 25, 28, 30, 31, 33, 34, 36].unmapMode(\d)
 
 MIDIRecBuf(\chords, [
-	[38, 45, 50, 54, 55, 59, 61, 64],
-	1 ! 8,
-	1 ! 8,
-	0.5 ! 8
+	[	38, 45, 50, 54, 55, 59, 61, 64,
+		40, 49, 50, 54, 57, 61, 64, 71,
+		42, 50, 52, 57, 59, 62, 66, 67,
+		43, 47, 49, 52, 54, 57, 62, 67
+	],
+	Array.fill(4, (0.1 ! 8).put(7, 1)).flat,
+	1 ! 32,
+	0.5 ! 32
 ].asNotes, (type: \ch, mode: \d)) => BP(\pz);
 
-Voicer(25, d.name.asSymbol, target: n) => VC(\pizz);
+// Voicer(25, d.name.asSymbol, target: n) => VC(\pizz);
 
-VC(\pizz) => BP(\pz);
+VC(\pz) => BP(\pz);
 
 
 BP(\pz).child.trigFreqEnv = Pfunc({
@@ -272,7 +305,34 @@ b = NotificationCenter.register(BP(\pz).child, \childStop, \test, { |... args| a
 a.remove; b.remove;
 
 
-r = fork {
+BP(\pz).prepareForPlay;
+
+p = Pfset(
+	{
+		~cond = Condition.new;
+		~hangEvent = (play: { ~cond.hang(\hang) }, cond: ~cond, delta: 0);
+		~stopWatcher = NotificationCenter.register(BP(\pz).child, \childStop, \test, e { ~cond.unhang });
+	},
+	Prout({ |inevent|
+		loop {
+			BP(\pz).triggerOneEvent(0);
+			inevent = inevent[\hangEvent].yield;
+			inevent = Event.silent(rrand(7.0, 14.0)).yield;
+		}
+	}),
+	{
+		~stopWatcher.asCompileString.debug("removing").remove;
+	}
+).play;
+
+p.stop;
+
+
+Library.put(\currentBassNote, Pwhite(0, 6, inf).trace.asStream);
+
+BP(\pz).child.fitFunc = \chordFitNotes;
+
+fork {
 	var cond = Condition.new,
 	stopWatcher = NotificationCenter.register(BP(\pz).child, \childStop, \test, { "waking".debug; cond.unhang });
 	loop {
@@ -287,4 +347,4 @@ r.stop;
 // if 'g' is still there
 BP(\pz).child.retrigProb = g.asMap;
 
-BP(\pz).child.fbamp = Pwhite(0.98, 1.0, inf).trace;
+BP(\pz).child.fbamp = Pwhite(0.98, 0.998, inf);
