@@ -1,4 +1,5 @@
 (thisProcess.nowExecutingPath.dirname +/+ "../common/dev-setup.scd").loadPath;
+// (thisProcess.nowExecutingPath.dirname +/+ "../common/common-defs.scd").loadPath;
 
 BP(\shengShared).free;
 PR(\shengShared) => BP(\shengShared);
@@ -471,3 +472,201 @@ r.stop;
 BP(\pz).child.retrigProb = g.asMap;
 
 BP(\pz).child.fbamp = Pwhite(0.98, 0.998, inf);
+
+
+
+
+
+// modify this for triplet-chord gesture
+
+SynthDef(\tri, { |out, freq = 440, det = 1.003, width = 0.5, ffreq = -1, rq = 1, gate = 1, amp = 0.1, releaseTime = 0.12, pan|
+	var sig = VarSaw.ar(freq * [1, det], 0, width).sum * amp,
+	eg = EnvGen.kr(Env.adsr(0.07, 0.12, 0.4, releaseTime), gate, doneAction: 2);
+	ffreq = Select.kr(ffreq <= 0, [ffreq, ExpRand(2000, 5000)]);
+	Out.ar(out, Pan2.ar(RLPF.ar(sig, ffreq, rq, eg), pan))
+}).add;
+
+(
+(
+keys: #[master, rvbmc],
+make: { |name|
+	var out;
+	~target = MixerChannel(name, s, 2, 2, level: ~initLevel ? 0.75, outbus: ~master);
+	out = Voicer(20, \tri, [], target: ~target);
+	out
+},
+free: { ~target.free },
+type: \voicer) => Fact(\triVC);
+)
+
+VC(\tri).free;
+Fact(\triVC) => VC(\tri);
+
+
+// triplet process
+
+~clock88 = TempoClock(88/60);
+
+{ |notes, event| Pn(event[\length] / 3, 3).collect { |x| [x, x * 0.7, 0.5] } } => MicRh(\triplet);
+
+{ |notes, event| Ptuple([Pn(event[\length] / 3, 3), Pseq([event[\length] * 0.16, 0.1, 0.1], 1), 0.5]) } => MicRh(\trpOverlap);
+
+{ |notes, event| Ptuple([Pn(event[\length] / 3, 3), event[\length] * 0.22, 0.5]) } => MicRh(\trpOverlap);
+
+Pwhite(0.8, 1.6, { rrand(5, 11) }) => MacRh(\triplet);
+
+Pwhite(0.5, 0.75, { rrand(2, 4) }) => MacRh(\tshort);
+Pwhite(1.0, 1.25, { rrand(1, 2) }) => MacRh(\tmid);
+Pwhite(1.8, 2.2, 1) => MacRh(\tlong);
+
+// IMPORTANT: this assumes MicRh will stop the arpeggiation
+{ |notes|
+// var id = UniqueID.next; //.debug("called blocks");
+	if(notes.isArray) {
+		Pn(notes.asChord, inf)//.collect { |ch| ch.asFloat.debug("blocks" + id); ch }
+	} {
+		Pn(notes, inf)//.collect { |ch| ch.asFloat.debug("blocks" + id); ch }
+	};
+} => ArpegPat(\blocks);
+
+MIDIRecBuf(\tripletCh, [
+	[	62, 67, 69,
+		62, 66, 71,
+		62, 64, 71,
+		62, 67, 71,
+		62, 66, 76
+	],
+	(0.1 ! 15).putSeries(2, 5, 15, 1),
+	0.1,
+	0.5
+].asNotes, (mode: \d, type: \ch)) => MBM(0);
+
+(
+(
+make: { |name|
+	var p;
+	BP(name).free;
+	p = \newCh.eval(name, \arpeg1, \macroRh, MBM(0)[\tripletCh], nil, MacRh(\triplet), \triplet, \blocks, nil, \d);
+
+	p.topNote = PR(\patternTop).clone {
+		~deg = Pxrand((33..44), inf);
+		~mode = \d;
+	};
+
+	p.child.makeChordPattern = { Pxrand(~chords, inf) };
+	p.child.fitFunc = \chordFitNotes;
+	p.quant = 0;
+	p.clock = ~clock88;
+	p.printStopMsg = false;
+
+	// make sure each child pattern stays on the same chord
+	// especially for overlap
+	p.child.nextNoteStream = #{ |inEvent|
+		~nextNotePattern.value(inEvent);
+		~updateNoteStream.value(inEvent);
+		Pn(~noteStream.next(inEvent), inf);
+	};
+
+	p.child.panWidth = Pwhite(0.7, 1.0, inf);
+	p.child.panSide = Pseq(#[-1, 1], inf);
+	p.child.argPairs = [
+		amp: Pseq(#[0.17, 0.1, 0.1]),
+		pan: Plazy({ |ev| (~panWidthStream.next(ev) * ~panSideStream.next(ev)).loop }),
+		width: Pstutter(10, Pwhite(0.05, 0.15, 1)),
+		ffreq: Pgeom({ exprand(8000, 12000) }, Pstutter(10, Pwhite(0.15, 0.22, 1)), 3),
+		rq: Pseq(#[0.1, 0.4, 1.0], inf)
+	];
+
+	p
+}, type: \bp) => Fact(\tripletBP);
+
+// p.child.argPairs = [amp: Pseq(#[0.2, 0.08, 0.08], 1)];
+p.child.argPairs = [amp: Pgeom(0.2, Pstutter(3, Pwhite(0.45, 0.7, 1)), 3)];
+
+VC(\tri) => p;
+
+p.play;
+p.printStopMsg = false;
+
+Pwhite(0.4, 1.4, { rrand(5, 11) }) => MacRh(\triplet);
+
+Pgeom({ rrand(0.3, 0.6) }, Plazy({ Pn(rrand(1.5, 2.3), inf) }), { rrand(5, 11) }).wrap(0.3, 2.0) => MacRh(\triplet);
+MacRh(\triplet) => p;
+
+Pswitch1(
+	[Pwhite(0.5, 0.75), Pwhite(1.0, 1.25), Pwhite(1.8, 2.2)],
+	// Pfin({ rrand(8, 15) },
+		Psmartstutter(
+			// Pfunc({ |i| if(i == 0) { rrand(2, 3) } { 1 } }),
+			Pfunc({ |i| max(1, rrand(2, 3) - i) }),
+			// Pxrand((0..2), inf)
+			Pn(Pshuf((0..2), 1).trace, { rrand(8, 15) } /*inf*/)
+		)
+	// ).trace
+) => MacRh(\triplet);
+MacRh(\triplet) => p;
+
+
+// macrorhythm gestures
+
+q = Pseq([MacRh(\tlong), MacRh(\tshort)], 1).asStream;
+q.next;
+
+Prand(MacRh(#[tshort, tmid, tlong]), 10) =>.macro p;
+
+// try overlap :->
+
+(Pwhite(1.6, 2.4, inf) * Ptuple([Pwhite(0.15, 0.35, inf), 1], inf)) => MacRh(\overlap);
+MacRh(\overlap) => p;
+
+g = GenericGlobalControl(\overlap, nil, 1, #[1, 8]); g => VP(0);
+
+(Pstutter(Pwhite(3, 5, inf), Pwhite(2.0, 3.5, inf)) / Ptuple([g, 1], inf)) => MacRh(\overlap);
+MacRh(\overlap) => p;
+
+g.watch.automate {
+	DemandEnvGen.kr(
+		Dseq([1, 4, Dwhite(2.2, 5.2, inf)]),
+		Dseq([25, Dwhite(3.7, 5.1, inf)])
+	)
+};
+
+g.stopWatching.stopAuto;
+
+KrBusWatcher.newFrom(s).updateFreq = 6;
+
+
+Pn(#[1, 2], 2) =>.macro p;
+
+(Pwhite(1.6, 2.4, inf) * Ptuple([Pwhite(0.5, 0.8, inf), 1], inf)) => MacRh(\overlap);
+MacRh(\overlap) => p;
+
+MacRh(\tlong) => p;
+
+/*
+x = List.new;
+p.child.argPairs = [amp: Pgeom(0.2, Pstutter(3, Pwhite(0.65, 0.8, 1)), 3), counter: Pseries(0, 1, inf).collect { |c| x.add(c); c }];
+
+p.child.argPairs = [amp: Pgeom(0.2, Pstutter(3, Pwhite(0.65, 0.8, 1)), 3), pan: Pstutter(3, Pwhite(0.7, 1.0, 1) * Prand(#[-1, 1], 1)) * Pseq(#[0, -1, 1], 1)];
+
+x.histo(3, 0, 2);
+*/
+
+p.child.argPairs = [amp: Pgeom(0.2, Pstutter(3, Pwhite(0.75, 0.9, 1)), 3), pan: Pseries(0, Pstutter(10, Pwhite(0.34, 0.5, 1) * Prand(#[-1, 1], 1)), 3), width: Pseq([Pwhite(0.1, 0.25, 1), 0.5, 0.5], 1)];
+
+\trpOverlap =>.micro p;
+
+p.child.argPairs = [amp: 0.1, pan: Pseries(0, Pstutter(10, Pwhite(0.34, 0.5, 1) * Prand(#[-1, 1], 1)), 3), width: /*Pseq([0.25, */Pstutter(10, Pwhite(0.05, 0.15, 1))/*])*/, ffreq: Pgeom({ exprand(8000, 12000) }, Pstutter(10, Pwhite(0.25, 0.4, 1)), 3), rq: 0.1];
+
+x = Pseq(#[-1, 1], inf).asStream;
+p.child.argPairs = [amp: Pseq(#[0.17, 0.1, 0.1]), pan: Plazy({ (rrand(0.7, 1.0) * x.next).loop }), width: /*Pseq([0.25, */Pstutter(10, Pwhite(0.05, 0.15, 1))/*])*/, ffreq: Pgeom({ exprand(8000, 12000) }, Pstutter(10, Pwhite(0.15, 0.22, 1)), 3), rq: Pseq(#[0.1, 0.4, 1.0], inf)];
+
+p.reset;
+e = p.eventStream.next(p.event.copy);
+
+e.copy.play;
+
+e = (instrument: \tri, degree: 1, sustain: 2, width: 0.5, ffreq: 10000).play;
+{ s.sendMsg(\n_trace, e.id[0]) }.defer(0.25);
+
+VarSaw.ar( freq: 440, iphase: 0, width: 0.5, mul: 1, add: 0 )
