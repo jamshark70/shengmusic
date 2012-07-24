@@ -67,23 +67,42 @@ type: \voicer) => Fact(\fmbass);
 
 Proto {
 	~prep = {
-		~todo = IdentitySet.with(\noiseBufs);
+		var oscSpectrum = Array.fill((20000 / 48.midicps).asInteger, { |i| (i+1).reciprocal }),
+		indexStream = Pshuf((0 .. oscSpectrum.size - 1)).asStream;
+		(oscSpectrum.size div: 10).do {
+			oscSpectrum.swap(indexStream.next, indexStream.next);
+		};
+		~todo = IdentitySet.with(\noiseBufs, \oscBufs);
 		~ready = false;
 		fork {
 			var c = Condition.new;
-			~noiseBufs = Array.fill(5, {
-				var new = Buffer.alloc(s, 2048, 1);
-				s.sync;
+			~noiseBufs = Buffer.allocConsecutive(5, s, 2048, 1);
+			s.sync;
+			~noiseBufs.do { |buf|
 				fork {
-					new.sendCollection(
+					buf.sendCollection(
 						Signal.fill(1024, { 1.0.rand2 }).asWavetable,
 						action: { c.unhang }
 					);
 				};
 				c.hang;
-				new
-			});
+			};
 			~doneWith.(\noiseBufs);
+			~oscBufs = Buffer.allocConsecutive(8, s, 2048, 1);
+			s.sync;
+			~oscBufs.do { |buf, i|
+				fork {
+					buf.sendCollection(
+						Signal.sineFill(
+							1024,
+							oscSpectrum.keep((20000 / (48.midicps * (2**i))).asInteger)
+						).asWavetable,
+						action: { c.unhang }
+					);
+				};
+				c.hang;
+			};
+			~doneWith.(\oscBufs);
 		};
 		currentEnvironment
 	};
@@ -118,3 +137,9 @@ Proto {
 	};
 } => PR(\shengShared);
 
+(
+play: {
+	if(~cond.notNil) { ~cond.hang }
+	{ "No ~cond, ProtoEvent(\\hang) can't hang".warn }
+}, delta: 0
+) => ProtoEvent(\hang);
