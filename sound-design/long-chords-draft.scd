@@ -486,13 +486,30 @@ SynthDef(\tri, { |out, freq = 440, det = 1.003, width = 0.5, ffreq = -1, rq = 1,
 	Out.ar(out, Pan2.ar(RLPF.ar(sig, ffreq, rq, eg), pan))
 }).add;
 
+
+WrapInstr("osc2.v3mappan", { |pan, holdtime = 1|
+	var sig = WrapInstr.wrap("osc2.vosc3mapfilt");
+	Line.kr(0, 1, holdtime + 0.15, doneAction: 2);  // zombie killer
+	Pan2.ar(sig, pan);
+}, [\bipolar, #[0.01, 10], \amp]);
+
+WrapInstr("osc2.v3mappan").listArgs;
+
 (
 (
 keys: #[master, rvbmc],
 make: { |name|
 	var out;
 	~target = MixerChannel(name, s, 2, 2, level: ~initLevel ? 0.75, outbus: ~master);
-	out = Voicer(20, \tri, [], target: ~target);
+	out = Voicer(20, WrapInstr("osc2.v3mappan"), [
+		bufbase: `(BP(\shengShared).oscBufs.first.bufnum),
+		numbufs: `(BP(\shengShared).oscBufs.size),
+		basefreq: `(48.midicps),
+		topfreq: `(132.midicps),
+		env: Env.adsr(0.07, 0.12, 0.4, 0.12),
+		vsens: `1,
+		detune: 1.003
+	], target: ~target);
 	out
 },
 free: { ~target.free },
@@ -509,7 +526,7 @@ Fact(\triVC) => VC(\tri);
 
 { |notes, event| Pn(event[\length] / 3, 3).collect { |x| [x, x * 0.7, 0.5] } } => MicRh(\triplet);
 
-{ |notes, event| Ptuple([Pn(event[\length] / 3, 3), Pseq([event[\length] * 0.16, 0.1, 0.1], 1), 0.5]) } => MicRh(\trpOverlap);
+// { |notes, event| Ptuple([Pn(event[\length] / 3, 3), Pseq([event[\length] * 0.16, 0.1, 0.1], 1), 0.5]) } => MicRh(\trpOverlap);
 
 { |notes, event| Ptuple([Pn(event[\length] / 3, 3), event[\length] * 0.22, 0.5]) } => MicRh(\trpOverlap);
 
@@ -521,11 +538,10 @@ Pwhite(1.8, 2.2, 1) => MacRh(\tlong);
 
 // IMPORTANT: this assumes MicRh will stop the arpeggiation
 { |notes|
-// var id = UniqueID.next; //.debug("called blocks");
 	if(notes.isArray) {
-		Pn(notes.asChord, inf)//.collect { |ch| ch.asFloat.debug("blocks" + id); ch }
+		Pn(notes.asChord, inf)
 	} {
-		Pn(notes, inf)//.collect { |ch| ch.asFloat.debug("blocks" + id); ch }
+		Pn(notes, inf)
 	};
 } => ArpegPat(\blocks);
 
@@ -543,6 +559,7 @@ MIDIRecBuf(\tripletCh, [
 
 (
 (
+keys: #[clock88],
 make: { |name|
 	var p;
 	BP(name).free;
@@ -553,11 +570,10 @@ make: { |name|
 		~mode = \d;
 	};
 
-	p.child.makeChordPattern = { Pxrand(~chords, inf) };
-	p.child.fitFunc = \chordFitNotes;
 	p.quant = 0;
 	p.clock = ~clock88;
 	p.printStopMsg = false;
+	p.alwaysReset = true;
 
 	// make sure each child pattern stays on the same chord
 	// especially for overlap
@@ -566,24 +582,49 @@ make: { |name|
 		~updateNoteStream.value(inEvent);
 		Pn(~noteStream.next(inEvent), inf);
 	};
+	p.child.makeChordPattern = { Pxrand(~chords, inf) };
+	p.child.fitFunc = \chordFitNotes;
 
 	p.child.panWidth = Pwhite(0.7, 1.0, inf);
 	p.child.panSide = Pseq(#[-1, 1], inf);
 	p.child.argPairs = [
-		amp: Pseq(#[0.17, 0.1, 0.1]),
+		gate: Pseq(#[0.17, 0.1, 0.1]),
 		pan: Plazy({ |ev| (~panWidthStream.next(ev) * ~panSideStream.next(ev)).loop }),
 		width: Pstutter(10, Pwhite(0.05, 0.15, 1)),
 		ffreq: Pgeom({ exprand(8000, 12000) }, Pstutter(10, Pwhite(0.15, 0.22, 1)), 3),
-		rq: Pseq(#[0.1, 0.4, 1.0], inf)
+		rq: Pseq(#[0.1, 0.4, 1.0], inf),
+		holdtime: Pkey(\length) / Ptempo()
 	];
+
+	p.overlapCtl = GenericGlobalControl(\tpOverlap, nil, 1, #[0.3, 10, \exp]);
+	p.useGui = { |vpi| ~overlapCtl => VP(vpi) };
+	p.userfree = { ~overlapCtl.free };
+	p.event.stopChild = false;
 
 	p
 }, type: \bp) => Fact(\tripletBP);
+)
+
+BP(\tri).free;
+Fact(\tripletBP) => BP(\tri);
+p = BP(\tri);
+VC(\tri) => p;
+
+p.child.argPairs[0] = \gate;
+
+p.lastEvent.associationsDo(_.postln); ""
+
+e = p.lastEvent;
+
+e === p.lastEvent;
+
+f = p.eventStream.next(p.event.copy);
+
+p.lastEvent.copy.play;
 
 // p.child.argPairs = [amp: Pseq(#[0.2, 0.08, 0.08], 1)];
-p.child.argPairs = [amp: Pgeom(0.2, Pstutter(3, Pwhite(0.45, 0.7, 1)), 3)];
+// p.child.argPairs = [amp: Pgeom(0.2, Pstutter(3, Pwhite(0.45, 0.7, 1)), 3)];
 
-VC(\tri) => p;
 
 p.play;
 p.printStopMsg = false;
@@ -624,12 +665,19 @@ g = GenericGlobalControl(\overlap, nil, 1, #[1, 8]); g => VP(0);
 (Pstutter(Pwhite(3, 5, inf), Pwhite(2.0, 3.5, inf)) / Ptuple([g, 1], inf)) => MacRh(\overlap);
 MacRh(\overlap) => p;
 
+// non-g version
+p.use { ~bindPattern.(Pstutter(Pwhite(3, 5, inf), Pwhite(2.0, 3.5, inf)) / Ptuple([~overlapCtl, 1], inf), \macro) };
+
+\trpOverlap =>.micro p;
+
 g.watch.automate {
 	DemandEnvGen.kr(
-		Dseq([1, 4, Dwhite(2.2, 5.2, inf)]),
+		Dseq([1, 4, Dwhite(3.3, 5.2, inf)]),
 		Dseq([25, Dwhite(3.7, 5.1, inf)])
 	)
 };
+
+p.event.stopChild = false;
 
 g.stopWatching.stopAuto;
 
@@ -653,8 +701,6 @@ x.histo(3, 0, 2);
 */
 
 p.child.argPairs = [amp: Pgeom(0.2, Pstutter(3, Pwhite(0.75, 0.9, 1)), 3), pan: Pseries(0, Pstutter(10, Pwhite(0.34, 0.5, 1) * Prand(#[-1, 1], 1)), 3), width: Pseq([Pwhite(0.1, 0.25, 1), 0.5, 0.5], 1)];
-
-\trpOverlap =>.micro p;
 
 p.child.argPairs = [amp: 0.1, pan: Pseries(0, Pstutter(10, Pwhite(0.34, 0.5, 1) * Prand(#[-1, 1], 1)), 3), width: /*Pseq([0.25, */Pstutter(10, Pwhite(0.05, 0.15, 1))/*])*/, ffreq: Pgeom({ exprand(8000, 12000) }, Pstutter(10, Pwhite(0.25, 0.4, 1)), 3), rq: 0.1];
 
