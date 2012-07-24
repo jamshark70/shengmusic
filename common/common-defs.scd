@@ -137,9 +137,40 @@ Proto {
 	};
 } => PR(\shengShared);
 
+
+
+// various pattern helpers
+
 (
 play: {
+	~action.value;
 	if(~cond.notNil) { ~cond.hang }
 	{ "No ~cond, ProtoEvent(\\hang) can't hang".warn }
 }, delta: 0
 ) => ProtoEvent(\hang);
+
+Proto({
+	~canEmbed = true;
+
+	~prep = { |pattern, func|
+		~pattern = pattern;
+		~func = func;
+		currentEnvironment
+	};
+
+	~embedInStream = { |inval|
+		var stream = ~pattern.asStream, item;
+		while { (item = stream.next(inval)).notNil } {
+			inval = ~func.value(item).embedInStream(inval);
+		};
+		inval
+	};
+
+	~asStream = {
+		Routine({ |inval| ~embedInStream.(inval) })
+	};
+
+	~asPattern = { currentEnvironment };
+
+	~next = { currentEnvironment };
+}) => PR(\collectEmbed);
