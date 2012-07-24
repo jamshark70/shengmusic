@@ -271,13 +271,6 @@ make: { |name|
 	new
 }, type: \bp) => Fact(\pzBP);
 
-(
-play: {
-	if(~cond.notNil) { ~cond.hang }
-	{ "No ~cond, ProtoEvent(\\hang) can't hang".warn }
-}, delta: 0
-) => ProtoEvent(\hang);
-
 PR(\abstractProcess).clone {
 	~resetChild = false;
 	~rest = Pwhite(7.0, 14.0, inf);
@@ -500,7 +493,16 @@ WrapInstr("osc2.v3mappan").listArgs;
 keys: #[master, rvbmc],
 make: { |name|
 	var out;
-	~target = MixerChannel(name, s, 2, 2, level: ~initLevel ? 0.75, outbus: ~master);
+	~target = MixerChannel(name, s, 2, 2, level: ~initLevel ? 0.75, outbus: ~master,
+		completionFunc: { |chan|
+			~eq = MultiEQ(2, \loshelf, 1266.303, -7.669.dbamp, 1).play(chan);
+			~chorus = chan.playfx(Instr("busfx.chorus2"), [
+				0, 2, 2, 3,
+				0.017377393674649, 0.1, 0.0071613988449721,
+				1.6669675304762, 0.61054022965853]
+			);
+		};
+	);
 	out = Voicer(20, WrapInstr("osc2.v3mappan"), [
 		bufbase: `(BP(\shengShared).oscBufs.first.bufnum),
 		numbufs: `(BP(\shengShared).oscBufs.size),
@@ -519,6 +521,15 @@ type: \voicer) => Fact(\triVC);
 VC(\tri).free;
 Fact(\triVC) => VC(\tri);
 
+
+a = VC(\tri).env.target.playfx(Instr("busfx.chorus2"), [0, 2, 2, 3]); a.gui;
+
+FxPatch(
+	[ 'busfx', 'chorus2' ], [ 22, 2, 2, 3, 0.017377393674649, 0.1, 0.0071613988449721, 1.6669675304762, 0.61054022965853 ]
+)
+
+MultiEQ(2).edit(VC(\tri).env.target);
+MultiEQ.new(2, \loshelf, 1266.303, -7.669.dbamp, 1)
 
 // triplet process
 
@@ -670,6 +681,14 @@ p.use { ~bindPattern.(Pstutter(Pwhite(3, 5, inf), Pwhite(2.0, 3.5, inf)) / Ptupl
 
 \trpOverlap =>.micro p;
 
+g = BP(\tri).overlapCtl;
+
+p.play;
+g.watch.automate { EnvGen.kr(Env(#[3, 8.2, 4.4, 3], #[8, 12, 6], #[2, 5, -3]), doneAction: 2) };
+g.autoSynth.onFree({ p.stop; });
+
+g.stopAuto;
+
 g.watch.automate {
 	DemandEnvGen.kr(
 		Dseq([1, 4, Dwhite(3.3, 5.2, inf)]),
@@ -681,7 +700,7 @@ p.event.stopChild = false;
 
 g.stopWatching.stopAuto;
 
-KrBusWatcher.newFrom(s).updateFreq = 6;
+KrBusWatcher.newFrom(s).updateFreq = 4;
 
 
 Pn(#[1, 2], 2) =>.macro p;
@@ -716,3 +735,191 @@ e = (instrument: \tri, degree: 1, sustain: 2, width: 0.5, ffreq: 10000).play;
 { s.sendMsg(\n_trace, e.id[0]) }.defer(0.25);
 
 VarSaw.ar( freq: 440, iphase: 0, width: 0.5, mul: 1, add: 0 )
+
+
+// triplet driver
+Prand(MacRh(#[tshort, tmid, tlong]), 3) => MacRh(\triPrand);
+MacRh(\triPrand) => BP(\tri);
+
+// PR(\collectEmbed).copy.prep(Pstutter(Pwhite(1, 2, inf), Pseq(#[tlong, tmid, tshort, tmid, tlong])), MacRh(_)) => MacRh(\accelrit);
+
+(
+PR(\abstractProcess).clone {
+	~event = (eventKey: \hang);
+	// ~bp = nil;  // name of bp
+	~playMode = \default;
+
+	~alwaysReset = true;
+
+	~prep = { |bpname|
+		~cond = Condition.new;
+		~event.put(\cond, ~cond);
+		~modes = ~modes.value;
+		~bp_.(bpname ?? ~bp);
+		currentEnvironment
+	};
+	~freeCleanup = { ~resp.remove };
+
+	~bp_ = { |bpname|
+		if(bpname != ~bp or: { ~resp.isNil }) {
+			~resp.remove;
+			~bp = bpname;
+			// wrong, we want to wait for the parent to stop, not each arpeg
+			// ~resp = NotificationCenter.register(BP(~bp).child, \childStop, ~collIndex, e {
+			// 	~cond.unhang;
+			// });
+			~resp = Updater(BP(~bp), e { |obj, what, more|
+				if(more == \stopped) { ~cond.debug("unhang").unhang };
+			});
+		};
+		currentEnvironment
+	};
+
+	~dftRest = Pwhite(6.0, 10.0, inf);
+
+	~modes = { (
+		default: (
+			stopChild: false,
+			prepare: {
+				MacRh(\tlong) => BP(~bp);
+			},
+			asPattern: {
+				Pbind(
+					\action, e { BP(~bp).play(0) },
+					\delta, BPStream(\dftRest)
+				)
+			},
+		),
+		overlap: (
+			// prepare: {
+			// },
+			asPattern: {
+			},
+			stopChild: false
+		),
+		at2: { |me, subKey ... keys|
+			var k = keys.detect { |key| me[key][subKey].notNil };
+			me[k ?? { \default }][subKey]
+		}
+	) };
+
+	~preparePlay = {
+		~modes.at2(\prepare, ~playMode).value;
+	};
+
+	~asPattern = {
+		~modes.at2(\asPattern, ~playMode).value;
+	};
+
+	~stopCleanup = {
+		if(~modes.at2(\stopChild, ~playMode)) { BP(~bp).stopNow };
+	};
+} => PR(\triDriver);
+)
+
+BP(\td).free;
+PR(\triDriver).chuck(BP(\td), nil, (bp: \tri));
+
+q = BP(\td);
+q.quant = 0;
+q.clock = ~clock88;
+
+q.modes[\accelrit] = (prepare: { MacRh(\accelrit) => BP(~bp) });
+
+Plazy({
+	var dur = rrand(9.0, 16.0), proportion = rrand(0.3, 0.7);
+	Plimitsum(dur, Pexprand(0.8, 1.25, inf)
+		// * Env([2.0, 0.8, 2.0], [proportion, 1 - proportion] * dur, \exp).postcs);
+		* Env(rrand(#[1.5, 0.56, 1.8], #[2.2, 0.75, 2.4]), [proportion, 1 - proportion] * dur, \sin));
+}) => MacRh(\accelrit);
+MacRh(\accelrit) => BP(\tri);
+
+BP(\td).triggerOneEvent;  // careful, must be in a routine to do this b/c of hang
+
+{ |env, timeScale = 1, lo = 0.8, hi = 1.25|
+	var times = env.times * timeScale;
+	Plimitsum(times.sum, Pexprand(0.8, 1.25, inf) * env.copy.times_(times))
+} => Func(\envRandWrap);
+
+Plazy({
+	\envRandWrap.eval(Env([rrand(0.4, 0.6), rrand(2.0, 2.5)], #[1], \exp), rrand(6.0, 11.0))
+}) => MacRh(\decel);
+MacRh(\decel) => BP(\tri);
+
+Plazy({
+	var ratio = rrand(0.6, 0.75);
+	\envRandWrap.eval(Env([rrand(2.0, 2.5), rrand(0.4, 0.6), rrand(0.4, 0.6), rrand(1.4, 1.7)], [ratio, 0.9 - ratio, 0.1], \exp), rrand(11.0, 16.0))
+}) => MacRh(\accel);
+MacRh(\accel) => BP(\tri);
+
+Library.put(\currentBassNote, SequenceNote(0, 1, 1, 1));
+
+x = Penvir((time: 0), Pclutch(Pstutter(Pwhite(3, 9, inf), Pwhite(0, 6, inf)), Pfunc({ (thisThread.beats - ~time > 0).value(~time = thisThread.beats) })));
+Library.put(\currentBassNote, x.asStream);
+
+
+q.playMode = \accelrit;
+MacRh(\accelrit).v.asPattern
+
+MacRh(\triplet) => BP(\tri);
+MacRh(\accelrit) => BP(\tri);
+
+
+Pstutter(Pwhite(3, 5, inf), Pwhite(2.0, 3.5, inf)) / Ptuple([Plazy({ BP(\tri).overlapCtl.asPattern }), 1], inf) => MacRh(\tpOverlap);
+
+SynthDef(\overlapEnv, { |out|
+	Out.kr(out, EnvGen.kr(
+		Env(
+			[Rand(3.0, 3.2), Rand(8.0, 8.5), Rand(3.7, 4.2), 3],
+			[Rand(7, 9), Rand(10, 14), Rand(5, 7)], 
+			#[2, 5, -3]
+		),
+		doneAction: 2
+	))
+}).add;
+
+// overlap
+q.modes[\overlap] = (
+	prepare: {
+		MacRh(\tpOverlap) => BP(~bp);
+	},
+	asPattern: {
+		Pbind(
+			\action, e {
+				BP(~bp).overlapCtl
+				.watch
+				.automate(\overlapEnv)
+				.onFree(e { BP(~bp).stopNow });
+				BP(~bp).play(0);
+			},
+			\delta, BPStream(\dftRest)
+		)
+	}
+);
+
+q.playMode = \overlap;
+
+q.cond = Condition.new; q.event.cond = q.cond;
+
+p.macro
+
+q.modes.at2(\asPattern, \accelrit).postcs
+q.modes.at2(\asPattern, \default) === q.modes.at2(\asPattern, \default)
+
+q.modes[\default][\asPattern] = {
+	Pbind(
+		\action, e { BP(~bp).debug("NOW PLAYING").play(0) },
+		\delta, BPStream(\dftRest)
+	).trace
+};
+
+q.cond.dump
+
+q.cond.unhang
+
+~not = NotificationCenter.register(BP(\tri).child, \childStop, \test, e {
+	"childStop notification".debug;
+});
+~not.remove;
+
+q.freeCleanup = nil;
