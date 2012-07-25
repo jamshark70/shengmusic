@@ -571,12 +571,13 @@ MIDIRecBuf(\tripletCh, [
 (
 (
 keys: #[clock88],
+childProc: \arpeg1,
 make: { |name|
 	var p;
 	BP(name).free;
-	p = \newCh.eval(name, \arpeg1, \macroRh, MBM(0)[\tripletCh], nil, MacRh(\triplet), \triplet, \blocks, nil, \d);
+	p = \newCh.eval(name, ~childProc, \macroRh, MBM(0)[\tripletCh], nil, MacRh(\triplet), \triplet, \blocks, nil, \d);
 
-	p.topNote = PR(\patternTop).clone {
+	p.topNote = PR(\patternTop).copy.make {
 		~deg = Pxrand((33..44), inf);
 		~mode = \d;
 	};
@@ -923,3 +924,137 @@ q.cond.unhang
 ~not.remove;
 
 q.freeCleanup = nil;
+
+
+
+// subdiv process
+
+(
+{ |source, inEvent, fitFactors, eventValues|
+	var	transposeStats,  // [[xpose1, fitness1], [xpose2, fitness2]...]
+		xposeBy, mode, topEvent, top, topMode, root, notes;
+
+	#mode, topEvent, top, topMode, root, notes = eventValues;
+
+		// transpose and evaluate for each note
+	transposeStats = notes.collect({ |n|
+		[xposeBy = (top - n).asFloat,
+		 Func(\chPitchFit).doAction(notes + xposeBy, top, root, mode, fitFactors)];
+	}).sort({ |a, b| a[1] > b[1] });  // sort fitnesses descending
+		// transpose the whole chord
+	Func(\fixNotesAboveTop).doAction(notes + transposeStats[0][0], top, mode);
+} => Func(\chordFitNotesCustomValues);
+
+{ |source, inEvent, fitFactors|
+	var eventValues = Func(\getValuesFromEvent).doAction(source, inEvent),
+	evcopy = eventValues.copy,
+	top = eventValues[2];
+
+	top.asFloat.asArray.collect { |aTop|
+		\chordFitNotesCustomValues.eval(source, inEvent, fitFactors,
+			evcopy.put(2, aTop)
+		)
+	}
+} => Func(\chordFitNotesMulti);
+
+{ |notes|
+	notes = notes.collect { |item|
+		if(item.isArray) {
+			item.asChord
+		} {
+			item
+		};
+	};
+	Pseq(notes, inf)
+} => ArpegPat(\blocksMulti);
+
+
+// PR(\arpeg1).clone {
+	
+// } => PR(\arpegFlipFlop);
+)
+
+BP(\tup).free;
+Fact(\tripletBP) => BP(\tup);
+r = BP(\tup);
+VC(\tri) => r;
+
+// undo override
+r.child.nextNoteStream = PR(\arpeg1).v[\nextNoteStream];
+
+r.child.fitFunc = \chordFitNotesMulti;
+\blocksMulti =>.arpeg r;
+
+r.child.argPairs[1] = Pseq([0.17, Pn(0.1, inf)]);
+r.child.argPairs[7] = Pgeom({ exprand(8000, 12000) }, Pstutter(10, Pwhite(0.5, 0.7, 1)), inf);
+r.child.argPairs[9] = Pseq([0.1, min(1, Pgeom(0.4, 0.97, inf))]);
+
+r.child.argPairs.pairsDo { |a, b|
+	[a, b].postcs
+}; ""
+
+
+{ |notes, event| var d = rrand(3, 7); Ptuple([Pn(event[\length] / d, d), event[\length] * 0.7 / d, 0.5]) } => MicRh(\tup);
+
+\tup =>.micro r;
+
+r.triggerOneEvent(0);
+
+r.topNote.deg = (Pxrand((33..44), inf) - Ptuple([0, Pwhite(-6, -2, inf)], inf));
+r.topNote.deg = Pxrand((33..44), inf);
+
+r.lastEvent = nil;
+
+r.topNote.listVars
+r.topNote.listMethods
+
+r.topNote[\next]
+
+r.topNotePatternStream.next
+
+r.listVars
+
+Pwhite(1, 3, inf) =>.macro BP(\tup);
+
+p.prepareForPlay;
+e = p.eventStream.next(p.event.copy);
+
+e.top.freq = #[39, 34];
+
+x = \chordFitNotesMulti.eval(p.child.chords[0], e.copy, Library.at(\fitFactors)).asFloat;
+
+
+
+
+BP(\flip).free;
+Fact(\tripletBP).chuck(BP(\flip), nil, (childProc: \arpegFlipFlop));
+
+
+r.topNote.inspect
+
+r.topNote.putAction
+PR(\patternTop).copy.putAction
+
+z = PR(\patternTop).copy;
+z.putAction;
+y = z.make {
+	~deg = 'patRejectLastN'.eval(Pseries(
+		{ rrand(36, 43) },
+		Pwrand(#[1, 2, 3], #[0.5, 0.3, 0.2], inf),
+		inf
+	).fold(36, 43), 1);
+	~mode = \d;
+};
+y.putAction;
+
+r.topNote = y;
+
+r.topNote.degStream.next
+
+
+r.child.notePatternStream.next
+r.child.notePattern.postcs
+
+r.v[\nextNoteStream].postcs
+
+r.child.noteStream.next
