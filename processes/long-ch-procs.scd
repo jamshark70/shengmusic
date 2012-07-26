@@ -457,11 +457,12 @@ make: { |name|
 		{ rrand(36, 43) },
 		Pwrand(#[1, 2, 3], #[0.5, 0.3, 0.2], inf),
 		inf
-	).fold(36, 43), 1);
+	).fold(36, 43), 1) - Ptuple([0, Pwhite(-6, -2, inf)], inf);
 	Pwhite(1, 3, inf) =>.macro r;
 
 	r.child.fitFunc = \chordFitNotesMulti;
 	\blocksMulti =>.arpeg r;
+	\tup =>.micro r;
 
 	r
 },
