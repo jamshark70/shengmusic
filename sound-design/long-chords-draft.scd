@@ -1058,3 +1058,10 @@ r.child.notePattern.postcs
 r.v[\nextNoteStream].postcs
 
 r.child.noteStream.next
+
+
+
+// doesn't play properly
+
+Fact(\tupletBP) => BP(\tup);
+VC(\tri) => BP(\tup);
