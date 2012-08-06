@@ -205,8 +205,15 @@ WrapInstr("osc2.v3mappan", { |pan, holdtime = 1|
 
 (
 keys: #[master, rvbmc],
+iMadeBufs: false,
+getBufs: { BP(\shengShared).oscBufs },
+env: Env.adsr(0.07, 0.12, 0.4, 0.12),
 make: { |name|
 	var out;
+	~oscBufs = ~getBufs.value;
+	if(~oscBufs.isNil) {
+		Error("Making VC(%): Osc buffers not provided.".format(name.asCompileString)).throw;
+	};
 	~target = MixerChannel(name, s, 2, 2, level: ~initLevel ? 0.75, outbus: ~master,
 		completionFunc: { |chan|
 			~eq = MultiEQ(2, \loshelf, 1266.303, -7.669.dbamp, 1).play(chan);
@@ -218,11 +225,11 @@ make: { |name|
 		};
 	);
 	out = Voicer(20, WrapInstr("osc2.v3mappan"), [
-		bufbase: `(BP(\shengShared).oscBufs.first.bufnum),
-		numbufs: `(BP(\shengShared).oscBufs.size),
+		bufbase: `(~oscBufs.first.bufnum),
+		numbufs: `(~oscBufs.size),
 		basefreq: `(48.midicps),
 		topfreq: `(132.midicps),
-		env: Env.adsr(0.07, 0.12, 0.4, 0.12),
+		env: ~env,
 		vsens: `1,
 		detune: 1.003
 	], target: ~target);
@@ -467,5 +474,125 @@ make: { |name|
 	r
 },
 type: \bp) => Fact(\tupletBP);
+
+
+// transparent thingy
+(
+keys: #[master, rvbmc],
+
+make: { |name|
+	~chan = MixerChannel(name, s, 2, 2, level: 0.75, outbus: ~master);
+	// sh!t design for SY, shouldn't have to do this
+	~target = ~chan.synthgroup;
+	~out = ~chan.inbus;
+	~bus = ~out;
+
+	~bufs = \makeWavetables.eval(8, s, 2048, 48, { |numHarm|
+		var a = Array.squareAmps(numHarm), i;
+		min(numHarm, 7).do { |i|
+			a[i] = a[i] * ((i+1) / 7);
+		};
+		(numHarm * 0.15).do {
+			i = 1.0.rand.lincurve(0, 1, 0, numHarm - 0.001, -3).asInteger;
+			a[i] = a[i] * rrand(2.0, 8.0);
+		};
+		a;
+	});
+
+	~def = WrapPatch("osc2.v3mappan", \patchArgs.eval(WrapInstr("osc2.v3mappan"), [
+		bufbase: ~bufs.first.bufnum,
+		numbufs: ~bufs.size,
+		basefreq: 48.midicps,
+		topfreq: 132.midicps,
+		env: Env.adsr(1.8, 0.9, 0.6, 2.4, curve: -2.5),
+		vsens: 1,
+		detune: `1.003
+	])).asSynthDef;
+	~def.name = ~def.name ++ UniqueID.next;
+	~def.add;
+	SynthDescLib.at(~def.name.asSymbol).msgFuncKeepGate = true;
+
+	~def.name.asSymbol
+},
+free: { [~target, ~bufs].free }) => Fact(\trnspSY);
+
+SynthDef(\ffreqWobble, { |low = 400, hi = 9000, time = 1,
+	upRatio = 0.3, shape = 5, curve = 0,
+	clipLo = 20, clipHi = 20000, out|
+	var env = Env([low, hi, low], [upRatio, 1.0 - upRatio]).asArray
+	.put(6, shape).put(10, shape)
+	.put(7, curve).put(11, curve),
+	eg = EnvGen.kr(env, timeScale: time, doneAction: 2),
+	wobbleAmtEnv = NamedControl.kr(
+		\wobbleEnv,
+		(0 ! 20).overWrite(Env(#[1, 1.4, 1], #[0.5, 0.5], \sin).asArray)
+	),
+	wobbleEg = EnvGen.kr(wobbleAmtEnv, timeScale: time),
+	wobbleRateEnv = NamedControl.kr(
+		\wobbleRateEnv,
+		(0 ! 20).overWrite(Env(#[2.5, 7.5, 2.5], #[0.5, 0.5], \sin).asArray)
+	),
+	wobbleRateEg = EnvGen.kr(wobbleRateEnv, timeScale: time),
+	wobbly = Lag.kr(
+		LFPulse.kr(wobbleRateEg).exprange(wobbleEg.reciprocal, wobbleEg),
+		0.15 / wobbleRateEg
+	);
+	ReplaceOut.kr(out, Clip.kr(wobbly * eg, clipLo, clipHi));
+}).add;
+
+{ |notes, inEvent|
+	Ptuple([
+		Pexprand(0.05, 0.1, notes.estimateLength),
+		inEvent[\length] * Pexprand(0.95, 1.05, inf),
+		0.5
+	], 1)
+} => MicRh(\quickArp);
+
+MIDIRecBuf(\transparent, [
+	[69, 74, 83,  74, 76, 85,  69, 74, 76, 79] + 12,
+	(0.1 ! 10).putEach(#[2, 5, 9], 1),
+	1, 0.5
+].asNotes, (type: \ch, mode: \d)) => MBM(0);
+
+(
+make: { |name|
+	var p;
+
+	BP(name).free;
+	\newCh.eval(name, \arpegSynth, \macroRh, MBM(0)[\transparent], nil, Pwhite(5.0, 10.0, inf), \quickArp, \up1, nil, \d);
+
+	p = BP(name);
+	p.child.argPairs = { |inEvent|
+		[
+			numCh: 1,
+			// debugpost: Pfunc({ |ev| ev[\note].postcs }),
+			holdtime: (inEvent[\length] + 4) / Ptempo(),
+			sustain: Pkey(\length),
+			ffreq: { ~lock.bus.asMap },
+			rq: Pwhite(0.1, 0.4, inf),
+			lpcEv: Pbind(
+				\instrument, \ffreqWobble,
+				\low, Pexprand(300, 500, inf),
+				\hi, Pexprand(3000, 11000, inf),
+				\upRatio, Pwhite(0.15, 0.3, inf),
+				\shape, Env.shapeNumber(\exp),
+				\time, Pkey(\holdtime),
+				\wobbleEnv, Pfunc({ |ev|
+					Env(
+						[rrand(1.25, 1.7), rrand(2.5, 3.5), rrand(1.25, 1.7)],
+						[ev[\upRatio], 1.0 - ev[\upRatio]],
+						\sin
+					)
+				})
+			)
+		]
+	};
+
+	p.child.event.eventKey = \synthNoteKrBusLock;
+	p.recalcPropagateKeys;  // hack hack hack
+
+	p
+}, type: \bp) => Fact(\trnspBP);
+
 
 };
