@@ -1,6 +1,8 @@
 (thisProcess.nowExecutingPath.dirname +/+ "../common/dev-setup.scd").loadPath;
 // (thisProcess.nowExecutingPath.dirname +/+ "../common/common-defs.scd").loadPath;
 
+(thisProcess.nowExecutingPath.dirname +/+ "../processes/long-ch-procs.scd").loadPath;
+
 BP(\shengShared).free;
 PR(\shengShared) => BP(\shengShared);
 
@@ -1062,6 +1064,237 @@ r.child.noteStream.next
 
 
 // doesn't play properly
+// oh wait, actually it might!
 
+VC(\tri).free; Fact(\triVC) => VC(\tri);
 Fact(\tupletBP) => BP(\tup);
 VC(\tri) => BP(\tup);
+
+BP(\tup).quant = 0;
+
+BP(\tup).listVars
+BP(\tup).arpeg.postcs
+BP(\tup).micro.postcs
+
+\tup =>.micro BP(\tup);
+
+BP(\tup).topNote.deg.postcs
+
+
+BP(\tup).topNote.deg = 'patRejectLastN'.eval(Pseries(
+	{ rrand(36, 43) },
+	Pwrand(#[1, 2, 3], #[0.5, 0.3, 0.2], inf),
+	inf
+).fold(36, 43), 1) - Ptuple([0, Pwhite(-6, -2, inf)], inf);
+
+
+
+// transparent thingy for G-A-G motif
+
+// a = Array.fill(1000, { 1.0.rand.lincurve(0, 1, 0, 9.99, -3).asInteger });
+// a.histo(10, 0, 9).plot
+
+b.free;
+b = 'makeWavetables'.eval(8, s, 2048, 48, { |numHarm|
+	var a = Array.squareAmps(numHarm), i;
+	(numHarm * 0.15).do {
+		i = 1.0.rand.lincurve(0, 1, 0, numHarm - 0.001, -3).asInteger;
+		a[i] = a[i] * rrand(2.0, 8.0);
+	};
+	a
+});
+
+
+VC(\trnsp).free;
+Fact(\triVC).chuck(VC(\trnsp), nil, (
+	env: Env.adsr(1.8, 0.9, 0.6, 2.4, curve: -2.5),
+	getBufs: b
+));
+
+v = VC(\trnsp).v;
+v.target.server
+
+(type: \voicerNote, voicer: VC(\trnsp).v, root: 2, degree: [0, 4],
+sustain: 3, holdtime: 7, ffreq: 9000).play;
+
+// max(~freq.size, max(~sustain.size, ~gate.size))
+// (don't know gate size - maybe just ~freq.size is ok)
+// grab a separate bus for each node
+
+~def = WrapPatch("osc2.v3mappan", \patchArgs.eval(WrapInstr("osc2.v3mappan"), [
+	bufbase: b.first.bufnum,
+	numbufs: b.size,
+	basefreq: 48.midicps,
+	topfreq: 132.midicps,
+	env: Env.adsr(1.8, 0.9, 0.6, 2.4, curve: -2.5),
+	vsens: 1,
+	detune: `1.003
+])).asSynthDef;
+
+~def.add;
+SynthDescLib.at(~def.name.asSymbol).msgFuncKeepGate = true;
+
+(parent: ProtoEvent(\polySynthPlayer).v.parent, chan: n, instrument: ~def.name, holdtime: 6, sustain: 3, gate: 0.5, freq: 440, ffreq: 9000).play;
+
+
+e = (parent: ProtoEvent(\polySynthKrBusLock).v.parent, chan: n, instrument: ~def.name, holdtime: 6, sustain: 3, gate: 0.5, ffreq: { ~lock.bus.asMap }, lpcEv: (instrument: \ctlEnv, connect: 0, env: Env(#[400, 9000, 400], #[1.2, 2.8], \exp)));
+
+e.play;
+
+e = (parent: ProtoEvent(\synthNoteKrBusLock).v.parent, chan: n, instrument: ~def.name, holdtime: 6, note: SequenceNote(35, 3, 3, 0.5), mode: \d, ffreq: { ~lock.bus.asMap }, rq: 0.1, lpcEv: (instrument: \ctlEnv, connect: 0, env: Env(#[400, 9000, 400], #[1.2, 2.8], \exp))).play;
+
+e.asSortedArray.do(_.postln); ""
+
+
+e.lock.listVars;
+
+s.controlBusAllocator.free(6);
+s.controlBusAllocator.debug;
+
+o.free; o = OSCFunc({ |msg| s.sendMsg(\n_trace, msg[1]) }, '/n_go', s.addr);
+
+o.free; o = OSCFunc({ |msg| msg.postln }, '/n_end', s.addr);
+
+SynthDef(\ffreqWobble, { |low = 400, hi = 9000, time = 1,
+	upRatio = 0.3, shape = 5, curve = 0,
+	clipLo = 20, clipHi = 20000, out|
+	var env = Env([low, hi, low], [upRatio, 1.0 - upRatio]).asArray
+	.put(6, shape).put(10, shape)
+	.put(7, curve).put(11, curve),
+	eg = EnvGen.kr(env, timeScale: time, doneAction: 2),
+	wobbleAmtEnv = NamedControl.kr(
+		\wobbleEnv,
+		(0 ! 20).overWrite(Env(#[1, 1.4, 1], #[0.5, 0.5], \sin).asArray)
+	),
+	wobbleEg = EnvGen.kr(wobbleAmtEnv, timeScale: time),
+	wobbleRateEnv = NamedControl.kr(
+		\wobbleRateEnv,
+		(0 ! 20).overWrite(Env(#[2.5, 7.5, 2.5], #[0.5, 0.5], \sin).asArray)
+	),
+	wobbleRateEg = EnvGen.kr(wobbleRateEnv, timeScale: time),
+	wobbly = Lag.kr(
+		LFPulse.kr(wobbleRateEg).exprange(wobbleEg.reciprocal, wobbleEg),
+		0.15 / wobbleRateEg
+	);
+	ReplaceOut.kr(out, Clip.kr(wobbly * eg, clipLo, clipHi));
+}).add;
+
+'modWavetables'.eval(b, 48, { |numHarm|
+	var a = Array.squareAmps(numHarm), i;
+	min(numHarm, 7).do { |i|
+		a[i] = a[i] * ((i+1) / 7);
+	};
+	(numHarm * 0.15).do {
+		i = 1.0.rand.lincurve(0, 1, 0, numHarm - 0.001, -3).asInteger;
+		a[i] = a[i] * rrand(2.0, 8.0);
+	};
+	a.postln;
+});
+
+e = (parent: ProtoEvent(\synthNoteKrBusLock).v.parent, chan: n, instrument: ~def.name, holdtime: 6, note: SequenceNote(46, 3, 3, 0.5), mode: \d, ffreq: { ~lock.bus.asMap }, rq: 0.1, lpcEv: (instrument: \ffreqWobble, low: 400, hi: 9000, time: 6, shape: Env.shapeNumber(\exp), upRatio: 0.5, wobbleEnv: Env(#[1.2, 2.5, 1.2], #[0.5, 0.5], \sin))).play;
+
+
+{ |notes, inEvent|
+	Ptuple([
+		Pexprand(0.05, 0.1, notes.estimateLength),
+		inEvent[\length] * Pexprand(0.95, 1.05, inf),
+		0.5
+	], 1).trace(prefix: "quickArp: ")
+} => MicRh(\quickArp);
+
+MIDIRecBuf(\transparent, [
+	[69, 74, 83] + 12,
+	1, 1, 0.5
+].asNotes, (type: \ch, mode: \d)) => MBM(0);
+
+
+
+BP(\trnsp).free;
+\newCh.eval(\trnsp, \arpegSynth, \macroRh, MBM(0)[\transparent], nil, Pwhite(5.0, 10.0, inf), \quickArp, \up1, nil, \d);
+
+p = BP(\trnsp);
+
+p.child.argPairs = { |inEvent|
+	[
+		numCh: 1,
+		// debugpost: Pfunc({ |ev| ev[\note].postcs }),
+		holdtime: (inEvent[\length] + 4) / Ptempo(),
+		sustain: Pkey(\length),
+		ffreq: { ~lock.bus.asMap },
+		rq: Pwhite(0.1, 0.4, inf),
+		lpcEv: Pbind(
+			\instrument, \ffreqWobble,
+			\low, Pexprand(300, 500, inf),
+			\hi, Pexprand(3000, 11000, inf),
+			\upRatio, Pwhite(0.15, 0.3, inf),
+			\shape, Env.shapeNumber(\exp),
+			\time, Pkey(\holdtime),
+			\wobbleEnv, Pfunc({ |ev|
+				Env(
+					[rrand(1.25, 1.7), rrand(2.5, 3.5), rrand(1.25, 1.7)],
+					[ev[\upRatio], 1.0 - ev[\upRatio]],
+					\sin
+				)
+			})
+		)
+	]
+};
+
+p.child.event.eventKey = \synthNoteKrBusLock;
+p.recalcPropagateKeys;  // hack hack hack
+p => SY(\trnsp);
+p.event;
+
+// hack hack hack... I hate my code
+p.child.event.keysToPropagate
+
+
+p.child.event.instrument = ~def.name.asSymbol;
+p.child.event.chan = n;
+
+p.child.event.debug = true;
+
+p.prepareForPlay;
+
+MBM(0)[\transparent] => p;
+
+p.reset;
+p.triggerOneEvent(0);
+
+p.recalcPropagateKeys;
+
+p.event
+p.child.event
+
+p.lastEvent
+
+
+// length is too short but basic flow is working
+
+p.lastEvent
+
+Func(\newCh).listArgs
+
+s.controlBusAllocator.debug
+
+
+// test transparent
+SY(\trnsp).free;
+Fact(\trnspSY) => SY(\trnsp);
+
+Fact(\trnspBP) => BP(\trnsp);
+BP(\trnsp) => SY(\trnsp);
+
+BP(\trnsp).prepareForPlay;
+
+MBM(0)[\transparent] => BP(\trnsp);
+BP(\trnsp).child.fitFunc = \chordFitInt;
+
+BP(\trnsp).topNote = PR(\patternTop).copy.make {
+	~mode = \d;
+	~deg = Pwhite(51, 57, inf);
+};
+
+BP(\trnsp).reset;
+
+BP(\trnsp).triggerOneEvent(0);
