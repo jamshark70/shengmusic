@@ -574,7 +574,7 @@ make: { |name|
 				\instrument, \ffreqWobble,
 				\low, Pexprand(300, 500, inf),
 				\hi, Pexprand(3000, 11000, inf),
-				\upRatio, Pwhite(0.15, 0.3, inf),
+				\upRatio, Pwhite(0.72, 0.9, inf),
 				\shape, Env.shapeNumber(\exp),
 				\time, Pkey(\holdtime),
 				\wobbleEnv, Pfunc({ |ev|
