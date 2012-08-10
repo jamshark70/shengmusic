@@ -20,17 +20,18 @@ WrapInstr("osc.ks_retrig", { |freq = 440, amp = 0.1, ffreq = 2000,
 	excratio = 0.5, excamp = 1, excAtk = 0.005, excDcy = 0.03, retrigProb = 1,
 	fbamp = 1, pan = 0,
 	env, timeScale = 1,
-	bufselect, firstbuf = 1, numbufs = 2, detectSilence|
+	bufselect, firstbuf = 1, numbufs = 2, detectSilence, trigFunc|
 	var frq = freq.dereference.value(),
 	delayt = max(0, frq.reciprocal - ControlDur.ir),
 	excfreq = frq * excratio.dereference.value(),
 	firstbufnum = firstbuf.asUGenInput,  // .bufnum if a Buffer, 'this' if a number
 	// exciter retriggering
-	trigFreqEnv = NamedControl.kr(
-		\trigFreqEnv, 
-		(0 ! 40).overWrite(Env().asArray)
-	),
-	trig = Impulse.ar(EnvGen.kr(trigFreqEnv, timeScale: timeScale)),
+	trig = trigFunc.dereference.value() ?? {
+		Impulse.ar(EnvGen.kr(NamedControl.kr(
+			\trigFreqEnv, 
+			(0 ! 40).overWrite(Env().asArray)
+		), timeScale: timeScale))
+	},
 	mask = TRand.ar(0, 1, trig) < retrigProb,
 	excEnv = min(1.0, Decay2.ar(trig * mask, excAtk, excDcy)),
 	exc = VOsc.ar(
@@ -65,7 +66,7 @@ WrapInstr("osc.ks_retrig", { |freq = 440, amp = 0.1, ffreq = 2000,
 	\amp, \bipolar,
 	EnvSpec(Env.adsr), #[0.01, 100, \exp],
 	ObjectSpec({ SinOsc.kr(Rand(0.08, 0.14)) }), \mybuf, StaticSpec(2, 16, \lin, 1, 2),
-	ObjectSpec(false)
+	ObjectSpec(false), ObjectSpec(nil)
 ]);
 
 (keys: #[master, rvbmc],

@@ -1298,3 +1298,56 @@ BP(\trnsp).topNote = PR(\patternTop).copy.make {
 BP(\trnsp).reset;
 
 BP(\trnsp).triggerOneEvent(0);
+
+
+
+
+// low sound -- thinking, pizzicato-like rather than sustained
+
+BP(\shengShared).oscBufs[3].plotWavetable // sawtooth
+
+Library.at(WrapInstr, \osc2).keys
+Library.at(WrapInstr, \osc).keys - Library.at(WrapInstr, \osc2).keys
+
+(keys: #[master, rvbmc],
+initLevel: 0.75,
+make: { |name|
+	var out;
+	~target = MixerChannel(name, s, 2, 2, ~initLevel, outbus: ~master, completionFunc: { |chan|
+		if(~rvbmc.notNil) { chan.newPostSend(~rvbmc, 0.4) };
+	});
+	out = Voicer(25, WrapInstr("osc.ks_retrig"), [
+		env: `{ NamedControl.kr(\env, (0 ! 20).overWrite(Env.asr.asArray)) },
+		firstbuf: `(BP(\shengShared).noiseBufs[0].bufnum),
+		numbufs: `(BP(\shengShared).noiseBufs.size),
+		amp: 1,
+		trigFunc: `{
+			var baseDur = NamedControl.kr(\baseDur, 0.22);
+			TDuty.kr(
+				baseDur * Dstutter.new(
+					Dseq([Dwrand(#[4, 3, 5, 6], #[6, 2, 1, 1].normalizeSum, 1), 1], inf),
+					Dseq([1, Dwrand(#[2, 3], #[0.86, 0.14], 1)], inf)
+				),
+				level: 1
+			)
+		}
+	], target: ~target);
+	out.mapGlobal(\retrigProb, nil, 0.12, #[0, 1]);
+	out
+}, free: { ~target.free }, type: \voicer) => Fact(\lowpizz);
+
+VC(\lpizz).free;
+Fact(\lowpizz) => VC(\lpizz);
+
+(type: \voicerNote, voicer: VC(\lpizz).v, freq: 60, ffreq: 400, fbamp: 0.92, baseDur: 0.31, sustain: 14, amp: 3, retrigProb: 1).play;
+
+VC(\lpizz).v.trace;
+
+
+// cool, but way too space-music-y
+e = (parent: ProtoEvent(\synthNoteKrBusLock).v.parent, instrument: SY(\trnsp).v, numCh: 1, freq: 34, midi: true, holdtime: 15, dur: 10, sustain: 10, rq: 0.2, ffreq: { ~lock.bus.asMap }, gate: 0.5, bus: SY(\trnsp).env.out, target: SY(\trnsp).env.target, lpcEv: (instrument: \ctlEnv, connect: 0, env: Env(#[140, 8000, 140], #[5, 10], \exp))).play;
+
+e.node[0].trace;
+
+e.keys
+e.node
