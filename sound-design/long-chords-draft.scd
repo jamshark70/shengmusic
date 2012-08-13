@@ -1309,6 +1309,8 @@ BP(\shengShared).oscBufs[3].plotWavetable // sawtooth
 Library.at(WrapInstr, \osc2).keys
 Library.at(WrapInstr, \osc).keys - Library.at(WrapInstr, \osc2).keys
 
+~rvbmc = ~rvb;  // fix this later
+
 (keys: #[master, rvbmc],
 initLevel: 0.75,
 make: { |name|
@@ -1341,9 +1343,62 @@ Fact(\lowpizz) => VC(\lpizz);
 
 (type: \voicerNote, voicer: VC(\lpizz).v, freq: 60, ffreq: 400, fbamp: 0.92, baseDur: 0.31, sustain: 14, amp: 3, retrigProb: 1).play;
 
+
+// need to de-emphasize attacks more
+(parent: ProtoEvent(\voicerNoteBusLock).parent, voicer: VC(\lpizz).v, midi: true, freq: 34, ffreq: 400, fbamp: 0.99, excamp: 0.4, excAtk: 0.08, excDcy: 0.12, baseDur: { ~lock.bus.asMap }, dur: 1, length: 14, gate: 0.5, amp: 3, retrigProb: 1, numCh: 1, lpcEv: (instrument: \ctlEnv, connect: 0, env: Env(#[0.31, 0.1, 0.31], #[7, 7], \sin))).play;
+
+
+// change the notes but this is a good feeling
+
+p = Pbind(
+	\totalLength, Pstutter(2000, Pwhite(17.0, 22.0, 1)),  // constant thru all events
+	\voicer, VC(\lpizz).v,
+	\mode, \d,
+	\freq, Pseq(#[21, 25, 30, 31, 35, 36]),
+	\ffreq, { ~newFreq[0] * exprand(8.0, 11.0) }, // 400,
+	\fbamp, 0.99,
+	\excamp, 0.4,
+	\excAtk, 0.08,
+	\excDcy, 0.12,
+	\baseDur, { ~lock.bus.asMap },
+	\dur, Pexprand(0.8, 2.0, inf),
+	\length, (Pkey(\totalLength) - Pseries(0, Pkey(\dur) * 1.8, inf)).trace,
+	\gate, 0.5,
+	\amp, Pgeom.fromEndpoints(3, 1.5, 6),
+	\retrigProb, 1,
+	\numCh, 1,
+	\timeScale, Pkey(\length) / Ptempo(),
+	\env, [Env(#[0, 1, 1, 0], #[0.12, 0.7, 0.18], #[2, 0, -4])],
+	\lpcEv, Pbind(
+		\instrument, \ctlEnv,
+		\connect, 0,
+		\env, Pfunc({ |ev|
+			Env(
+				#[0.31, 0.1, 0.31] * exprand(0.8, 1.25),
+				#[0.5, 0.5] * ev[\timeScale],
+				\sin
+			)
+		})
+	)
+).play(protoEvent: ProtoEvent(\voicerNoteBusLock).copy);
+
+e = p.asStream.next(ProtoEvent(\voicerNoteBusLock).copy);
+
+o.free; o = ['/n_go', '/n_end'].collect { |path|
+	OSCFunc({ |msg, time| msg.debug(time) }, path, s.addr)
+};
+
+e.play;
+e.associationsDo(_.postln); ""
+
+VC(\lpizz).v.panic
+
+VC(\lpizz).v.nodes[0].defname
+
 VC(\lpizz).v.trace;
 
 
+// low pad to fill in
 // cool, but way too space-music-y
 e = (parent: ProtoEvent(\synthNoteKrBusLock).v.parent, instrument: SY(\trnsp).v, numCh: 1, freq: 34, midi: true, holdtime: 15, dur: 10, sustain: 10, rq: 0.2, ffreq: { ~lock.bus.asMap }, gate: 0.5, bus: SY(\trnsp).env.out, target: SY(\trnsp).env.target, lpcEv: (instrument: \ctlEnv, connect: 0, env: Env(#[140, 8000, 140], #[5, 10], \exp))).play;
 
