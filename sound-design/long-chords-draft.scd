@@ -1478,6 +1478,9 @@ type: \bp
 ) => Fact(\lowChBP);
 )
 
+VC(\lpizz).free;
+Fact(\lowpizz).chuck(VC(\lpizz), nil, (initLevel: -12.dbamp));
+
 BP(\lowCh).free;
 Fact(\lowChBP) => BP(\lowCh);
 VC(\lpizz) => BP(\lowCh);
@@ -1486,3 +1489,4 @@ VC(\lpizz) => BP(\lowCh);
 Pfin(2, MacRh(\lowCh).asPattern) =>.macro BP(\lowCh);
 
 // well sumbitch, that done worked the first try
+

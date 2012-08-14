@@ -599,6 +599,33 @@ make: { |name|
 
 // low chord
 
+(keys: #[master, rvbmc],
+initLevel: 0.75,
+make: { |name|
+	var out;
+	~target = MixerChannel(name, s, 2, 2, ~initLevel, outbus: ~master, completionFunc: { |chan|
+		if(~rvbmc.notNil) { chan.newPostSend(~rvbmc, 0.4) };
+	});
+	out = Voicer(25, WrapInstr("osc.ks_retrig"), [
+		env: `{ NamedControl.kr(\env, (0 ! 20).overWrite(Env.asr.asArray)) },
+		firstbuf: `(BP(\shengShared).noiseBufs[0].bufnum),
+		numbufs: `(BP(\shengShared).noiseBufs.size),
+		amp: 1,
+		trigFunc: `{
+			var baseDur = NamedControl.kr(\baseDur, 0.22);
+			TDuty.kr(
+				baseDur * Dstutter.new(
+					Dseq([Dwrand(#[4, 3, 5, 6], #[6, 2, 1, 1].normalizeSum, 1), 1], inf),
+					Dseq([1, Dwrand(#[2, 3], #[0.86, 0.14], 1)], inf)
+				),
+				level: 1
+			)
+		}
+	], target: ~target);
+	out.mapGlobal(\retrigProb, nil, 0.12, #[0, 1]);
+	out
+}, free: { ~target.free }, type: \voicer) => Fact(\lowpizz);
+
 MIDIRecBuf(\lowCh, [
 	#[33, 45, 54, 55, 62, 64,  35, 47, 54, 55, 61, 64, 69],
 	(0.1 ! 13).putEach(#[5, 12], 1),
