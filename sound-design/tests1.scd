@@ -403,30 +403,57 @@ p = Pbind(
 
 p.stop;
 
+
+// with spectrum mods, *this* bell is promising
+
+(
+WrapInstr("osc2.fm2carV", { arg freq, gate, car_env, mod_env, mod_lev, mod_ratio, detune, car_detune,
+	car_buf, mod_buf, car_vs, mod_vs, basefreq, keyscale, pan;
+	var sig, mod, car_amp, mod_amp, cbeven, cbodd, diff;
+	car_amp = Latch.kr(Sensitivity.kr(1, gate, car_vs), gate);
+	mod_amp = Latch.kr(Sensitivity.kr(1, gate, mod_vs), gate)
+	* EnvGen.kr(mod_env, gate);
+	mod_lev = mod_lev * basefreq / ((keyscale * freq) + (basefreq * (1 - keyscale)));
+	mod = VOsc.ar(mod_buf, freq.madd(mod_ratio * [1, car_detune], detune * [1, -1]), 0, mod_amp * mod_lev);
+	freq = freq * [1, car_detune];
+
+	// car_buf processing, since VOsc can't be used as an FM carrier
+	cbeven = car_buf.round(2);
+	diff = car_buf - cbeven;
+	cbodd = cbeven + sign(diff);
+
+	sig = [cbeven, cbodd].collect { |buf| Osc.ar(buf, freq + (mod * freq), 0, car_amp) };
+	sig = XFade2.ar(sig[0], sig[1], diff.fold(0, 1) * 2 - 1);
+
+	sig = Pan2.ar(Mix(sig) * EnvGen.kr(car_env, gate, doneAction:2), pan)
+}, [\freq, \amp, EnvSpec(Env.adsr(0.01, 1, 1, 0.05)), EnvSpec(Env.adsr(0.01, 1, 1, 1)), [0.01, 300, \exponential], [1, 12, \linear, 0, 1], [-5, 5, \linear, 0, 0], \mydetune, \mybuf, \mybuf, nil, nil, \freq, [0.001, 1.0, \exp], \bipolar]);
+)
+
 (
 keys: #[master],
 make: { |name|
-	var	out;
+	var	out, carHarmonics = [1, 0.3];
 
 //	VC(name).free;  // this breaks stuff
 	~target = MixerChannel(name, s, 2, 2, level: -12.dbamp, outbus: ~master/*, completionFunc: {  }*/);
 
-	~cb = Buffer(s, 2048, 1);
-	~mb = Buffer(s, 2048, 1);
+	~cb = Buffer.allocConsecutive(6, s, 2048, 1);
+	~mb = Buffer.allocConsecutive(2, s, 2048, 1);
 	// just being EXTRA careful about possible supernova crash
 	fork {
-		~cb.alloc;
-		~mb.alloc;
 		s.sync;
-		~cb.sine1(#[1, 0, 0, 0, 0, 0, 0.3]);
-		~mb.sine1(#[1]);
+		~cb.scramble.do { |buf|
+			buf.sine1(carHarmonics);
+			carHarmonics = carHarmonics.insert(1, 0);
+		};
+		~mb.do(_.sine1(#[1]));  // we need 2 for VOsc
 	};
 
-	WrapInstr("osc2.fm2carpan", { |pan|
-		Pan2.ar(WrapInstr.wrap("osc2.fm2car"), pan)
-	}, [\bipolar]);
+	// WrapInstr("osc2.fm2carpan", { |pan|
+	// 	Pan2.ar(WrapInstr.wrap("osc2.fm2car"), pan)
+	// }, [\bipolar]);
 
-	out = Voicer(8, WrapInstr("osc2.fm2carpan"), [mod_lev: 4.13, mod_ratio: 5, car_detune: `1.00288, car_vs: `0.2697, mod_vs: `0.8, basefreq: `440, keyscale: `0.337, car_buf: `~cb, mod_buf: `~mb, car_env: UGenFunc({ Env.perc(0.01, NamedControl(\sustain, 1)) }), mod_env: UGenFunc({ var sus = NamedControl(\sustain, 1); Env(#[0, 1, 0.2], [0.01, sus], -4) })], target: ~target);
+	out = Voicer(8, WrapInstr("osc2.fm2carV"), [mod_lev: 4.13, mod_ratio: 5, car_detune: `1.00288, car_vs: `0.2697, mod_vs: `0.8, basefreq: `440, keyscale: `0.337, car_buf: UGenFunc({ LFDNoise1.kr(LFNoise1.kr(0.2).range(0.3, 5.0)).range(~cb.first.bufnum, ~cb.first.bufnum + ~cb.size - 1.001) }), mod_buf: `~mb[0], car_env: UGenFunc({ Env.perc(0.01, NamedControl.kr(\sustain, 1)) }), mod_env: UGenFunc({ var sus = NamedControl.kr(\sustain, 1); Env(#[0, 1, 0.2], [0.01, sus], -4) })], target: ~target);
 	out.mapGlobal(\detune, nil, 1.63, #[-5, 5]);
 	out
 },
@@ -435,7 +462,11 @@ type: \voicer) => Fact(\fmbell);
 
 VC(\fmbell).free;
 Fact(\fmbell) => VC(\fmbell);
+VC(\fmbell) => VP(0);
 
+VC(\fmbell).v.mapGlobal(\mod_lev, nil, 4.13, #[1, 30, \exp]);
+
+VC(\fmbell).globalControls[\mod_lev].spec = #[1, 30, \exp];
 
 p = Pbind(
 	\type, \voicerNote,
@@ -451,3 +482,6 @@ p = Pbind(
 p.stop;
 
 
+// would like more attack-iness
+
+(type: \voicerNote, voicer: VP(0).v, root: 2, octave: 6, degree: #[0, 5, 6, 10.1], dur: 2, sustain: 6, gate: 0.3).play
