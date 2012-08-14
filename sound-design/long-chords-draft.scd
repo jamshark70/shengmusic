@@ -1339,13 +1339,13 @@ make: { |name|
 }, free: { ~target.free }, type: \voicer) => Fact(\lowpizz);
 
 VC(\lpizz).free;
-Fact(\lowpizz) => VC(\lpizz);
+Fact(\lowpizz).chuck(VC(\lpizz), nil, (initLevel: -12.dbamp));
 
 (type: \voicerNote, voicer: VC(\lpizz).v, freq: 60, ffreq: 400, fbamp: 0.92, baseDur: 0.31, sustain: 14, amp: 3, retrigProb: 1).play;
 
 
 // need to de-emphasize attacks more
-(parent: ProtoEvent(\voicerNoteBusLock).parent, voicer: VC(\lpizz).v, midi: true, freq: 34, ffreq: 400, fbamp: 0.99, excamp: 0.4, excAtk: 0.08, excDcy: 0.12, baseDur: { ~lock.bus.asMap }, dur: 1, length: 14, gate: 0.5, amp: 3, retrigProb: 1, numCh: 1, lpcEv: (instrument: \ctlEnv, connect: 0, env: Env(#[0.31, 0.1, 0.31], #[7, 7], \sin))).play;
+(parent: ProtoEvent(\voicerNoteKrBusLock).parent, voicer: VC(\lpizz).v, midi: true, freq: 34, ffreq: 400, fbamp: 0.99, excamp: 0.4, excAtk: 0.08, excDcy: 0.12, baseDur: { ~lock.bus.asMap }, dur: 1, length: 14, gate: 0.5, amp: 3, retrigProb: 1, numCh: 1, lpcEv: (instrument: \ctlEnv, connect: 0, env: Env(#[0.31, 0.1, 0.31], #[7, 7], \sin))).play;
 
 
 // change the notes but this is a good feeling
@@ -1354,17 +1354,19 @@ p = Pbind(
 	\totalLength, Pstutter(2000, Pwhite(17.0, 22.0, 1)),  // constant thru all events
 	\voicer, VC(\lpizz).v,
 	\mode, \d,
-	\freq, Pseq(#[21, 25, 30, 31, 35, 36]),
+	// \freq, Pseq(#[21, 25, 30, 31, 35, 36]),
+	// \freq, Pseq(#[18, 25, 30, 31, 35, 36]),
+	\freq, Pseq(#[19, 26, 30, 31, 34, 36, 39]),
+	\amp, Pgeom.fromEndpoints(3, 1.5, 7),
 	\ffreq, { ~newFreq[0] * exprand(8.0, 11.0) }, // 400,
 	\fbamp, 0.99,
 	\excamp, 0.4,
 	\excAtk, 0.08,
 	\excDcy, 0.12,
 	\baseDur, { ~lock.bus.asMap },
-	\dur, Pexprand(0.8, 2.0, inf),
+	\dur, Pseq([0, Pexprand(0.8, 2.0, inf)], 1),
 	\length, (Pkey(\totalLength) - Pseries(0, Pkey(\dur) * 1.8, inf)).trace,
 	\gate, 0.5,
-	\amp, Pgeom.fromEndpoints(3, 1.5, 6),
 	\retrigProb, 1,
 	\numCh, 1,
 	\timeScale, Pkey(\length) / Ptempo(),
@@ -1380,9 +1382,9 @@ p = Pbind(
 			)
 		})
 	)
-).play(protoEvent: ProtoEvent(\voicerNoteBusLock).copy);
+).play(protoEvent: ProtoEvent(\voicerNoteKrBusLock).copy);
 
-e = p.asStream.next(ProtoEvent(\voicerNoteBusLock).copy);
+e = p.asStream.next(ProtoEvent(\voicerNoteKrBusLock).copy);
 
 o.free; o = ['/n_go', '/n_end'].collect { |path|
 	OSCFunc({ |msg, time| msg.debug(time) }, path, s.addr)
@@ -1406,3 +1408,81 @@ e.node[0].trace;
 
 e.keys
 e.node
+
+
+// fix up as process, can play multiple chords
+
+[18, 25, 30, 31, 35, 36].unmapMode(\d)
+
+MIDIRecBuf(\lowCh, [
+	#[33, 45, 54, 55, 62, 64,  35, 47, 54, 55, 61, 64, 69],
+	(0.1 ! 13).putEach(#[5, 12], 1),
+	1, 0.5
+].asNotes, (mode: \d, type: \ch)) => MBM(0);
+
+(Pwhite(17.0, 22.0, inf) + Ptuple([Pwhite(2.5, 4.5, inf), 0], inf)) => MacRh(\lowCh);
+
+{ |notes, ev|
+	var totalDur = ev[\length];
+	Pseq([0, Pexprand(0.8, 2.0, inf)], 1).collect { |delta|
+		[
+			delta,
+			// this is my evil hack to calculate a side effect and ignore its result
+			totalDur.value(totalDur = totalDur - (delta * rrand(1.4, 1.8))),
+			0.5
+		]
+	}
+} => MicRh(\lowCh);
+
+
+(
+(
+make: { |name|
+	var p;
+	BP(name).free;
+	p = Func(\newCh).value(name, \arpeg1, \macroRh, MBM(0)[\lowCh], nil, MacRh(\lowCh), \lowCh, \up1, nil, \d);
+
+	p.child.event.eventKey = \voicerNoteKrBusLock;
+	p.recalcPropagateKeys;  // hack hack hack
+	p.child.argPairs = { |event|
+		[
+			\amp, Pgeom.fromEndpoints(3, 1.5, ~currentChord.notes.size),
+			\ffreq, { ~newFreq[0] * exprand(8.0, 11.0) },
+			\fbamp, 0.99,
+			\excamp, 0.4,
+			\excAtk, 0.08,
+			\excDcy, 0.12,
+			\baseDur, { ~lock.bus.asMap },
+			\retrigProb, 1,
+			\numCh, 1,
+			\timeScale, Pkey(\length) / Ptempo(),
+			\env, [Env(#[0, 1, 1, 0], #[0.12, 0.7, 0.18], #[2, 0, -4])],
+			\lpcEv, Pbind(
+				\instrument, \ctlEnv,
+				\connect, 0,
+				\env, Pfunc({ |ev|
+					Env(
+						#[0.31, 0.1, 0.31] * exprand(0.8, 1.25),
+						#[0.5, 0.5] * ev[\timeScale],
+						\sin
+					)
+				})
+			)
+		]
+	};
+	p.printStopMsg = false;
+
+	p
+},
+type: \bp
+) => Fact(\lowChBP);
+)
+
+BP(\lowCh).free;
+Fact(\lowChBP) => BP(\lowCh);
+VC(\lpizz) => BP(\lowCh);
+0 => BP(\lowCh);
+
+Pfin(2, MacRh(\lowCh).asPattern) =>.macro BP(\lowCh);
+
+// well sumbitch, that done worked the first try

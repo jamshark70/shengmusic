@@ -596,4 +596,70 @@ make: { |name|
 }, type: \bp) => Fact(\trnspBP);
 
 
+
+// low chord
+
+MIDIRecBuf(\lowCh, [
+	#[33, 45, 54, 55, 62, 64,  35, 47, 54, 55, 61, 64, 69],
+	(0.1 ! 13).putEach(#[5, 12], 1),
+	1, 0.5
+].asNotes, (mode: \d, type: \ch)) => MBM(0);
+
+(Pwhite(17.0, 22.0, inf) + Ptuple([Pwhite(2.5, 4.5, inf), 0], inf)) => MacRh(\lowCh);
+
+{ |notes, ev|
+	var totalDur = ev[\length];
+	Pseq([0, Pexprand(0.8, 2.0, inf)], 1).collect { |delta|
+		[
+			delta,
+			// this is my evil hack to calculate a side effect and ignore its result
+			totalDur.value(totalDur = totalDur - (delta * rrand(1.4, 1.8))),
+			0.5
+		]
+	}
+} => MicRh(\lowCh);
+
+(
+make: { |name|
+	var p;
+	BP(name).free;
+	p = Func(\newCh).value(name, \arpeg1, \macroRh, MBM(0)[\lowCh], nil, MacRh(\lowCh), \lowCh, \up1, nil, \d);
+
+	p.child.event.eventKey = \voicerNoteKrBusLock;
+	p.recalcPropagateKeys;  // hack hack hack
+	p.child.argPairs = { |event|
+		[
+			\amp, Pgeom.fromEndpoints(3, 1.5, ~currentChord.notes.size),
+			\ffreq, { ~newFreq[0] * exprand(8.0, 11.0) },
+			\fbamp, 0.99,
+			\excamp, 0.4,
+			\excAtk, 0.08,
+			\excDcy, 0.12,
+			\baseDur, { ~lock.bus.asMap },
+			\retrigProb, 1,
+			\numCh, 1,
+			\timeScale, Pkey(\length) / Ptempo(),
+			\env, [Env(#[0, 1, 1, 0], #[0.12, 0.7, 0.18], #[2, 0, -4])],
+			\lpcEv, Pbind(
+				\instrument, \ctlEnv,
+				\connect, 0,
+				\env, Pfunc({ |ev|
+					Env(
+						#[0.31, 0.1, 0.31] * exprand(0.8, 1.25),
+						#[0.5, 0.5] * ev[\timeScale],
+						\sin
+					)
+				})
+			)
+		]
+	};
+	p.printStopMsg = false;
+
+	p
+},
+type: \bp
+) => Fact(\lowChBP);
+
+
+
 };
