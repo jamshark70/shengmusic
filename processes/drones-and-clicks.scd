@@ -57,7 +57,7 @@ protect {
 				level: 0.75,
 				outbus: ~master ? topEnvironment[\master],
 				completionFunc: { |chan|
-					chan.newPostSend(~rvb ? topEnvironment[\rvb], -4.75.dbamp);
+					chan.newPostSend(~rvbmc ? topEnvironment[\rvbmc], -4.75.dbamp);
 				};
 			);
 			~event.proto = (group: ~chan.synthgroup, out: ~chan.inbus.index);
@@ -262,7 +262,7 @@ protect {
 		~requiredKeys = #[sharedReady];
 
 		~userprep = {
-			~chan.newPostSend(~rvb ? topEnvironment[\rvb], -3.32.dbamp);
+			~chan.newPostSend(~rvbmc ? topEnvironment[\rvbmc], -3.32.dbamp);
 			BP(\shengShared).updateWhenReady(~collIndex);
 			currentEnvironment
 		};

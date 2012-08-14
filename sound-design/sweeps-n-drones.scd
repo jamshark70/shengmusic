@@ -548,9 +548,9 @@ p.isPlaying
 p.stop;
 
 
-(~rvb = MixerChannel(\rvb, s, 2, 2, outbus: ~master)) => MCG(6);
+(~rvbmc = MixerChannel(\rvb, s, 2, 2, outbus: ~master)) => MCG(6);
 
-z = ~rvb.playfx(Instr("busfx.freeverb2"), [0]); z.gui;
+z = ~rvbmc.playfx(Instr("busfx.freeverb2"), [0]); z.gui;
 
 FxPatch(
 	[ 'busfx', 'freeverb2' ], [ 22, 1.0, 0.96938775510204, 0.38265306122449, 1.0 ]
@@ -641,9 +641,7 @@ Patch("test.tuner",[
 
 // process tests
 
-(~rvb = MixerChannel(\rvb, s, 2, 2, outbus: ~master)) => MCG(6);
-
-z = ~rvb.playfx(Instr("busfx.freeverb2"), [22, 1.0, 0.96938775510204, 0.38265306122449, 1.0]);
+(~rvbmc = MixerChannel(\rvb, s, 2, 2, outbus: ~master, completionFunc: { |chan| z = ~rvbmc.playfx(Instr("busfx.freeverb2"), [22, 1.0, 0.96938775510204, 0.38265306122449, 1.0]); })) => MCG(6);
 
 (thisProcess.nowExecutingPath.dirname.dirname +/+ "processes/drones-and-clicks.scd").loadPath;
 
