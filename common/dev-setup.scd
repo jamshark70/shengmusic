@@ -6,7 +6,7 @@ var d = thisProcess.nowExecutingPath.dirname.dirname;
 BP.loadGui;
 
 NotificationCenter.registerOneShot(\chucklibGui, \ready, \devSetup, e {
-	~master = MixerChannel(\master, s, 2, 2, level: -20.dbamp);
+	~master = MixerChannel(\master, s, 2, 2/*, level: -20.dbamp*/);
 	~master => MCG(7);
 
 	[m, n].free;
