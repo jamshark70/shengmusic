@@ -409,3 +409,26 @@ setArgs: {
 },
 keysToPropagate: #[\instrument, \target, \bus, \midi, \mode, \timingOffset]
 ))) => ProtoEvent(\synthNoteKrBusLock);
+
+
+(
+parent: ProtoEvent(\voicerNote).parent,
+superPlay: ProtoEvent(\voicerNote).parent[\play],
+playExtraProcess: ProtoEvent(\polySynthKrBusLock).v[\playExtraProcess],
+lockKey: \busLock,
+play: {
+	var	chan = ~chan;
+	~numCh ?? { ~numCh = ~chan.inChannels };
+	~lock ?? { ~lock = PR(~lockKey).copy.prep((
+		numCh: ~numCh, server: ~chan.tryPerform(\server) ?? { Server.default }, rate: ~busRate ? \control
+	)) };
+	~superPlay.();
+	if(~nodes.notNil and: { (~nodes.tryPerform(\isEmpty) ? false).not }) {
+		~playExtraProcess.(chan);
+		~nodes.do { |node| ~lock.addNode(node.synth) };
+	} {
+		~lock.freeStuff;
+	};
+	if(~tempo.isNumber) { thisThread.clock.tempo = ~tempo }
+}
+) => ProtoEvent(\voicerNoteKrBusLock);
