@@ -8,7 +8,7 @@ TempoClock.tempo = 88/60;
 {
 	var c = MIDIPort.at(#[0, omni]).ccAllocator.available.detect { |ctl| ctl.type == \encoder and: ctl.index == 1 };
 	var state = false;
-	if(c.debug("control").notNil) {
+	if(c.notNil) {
 		~metroCtl.free;
 		~metroCtl = BasicMIDIControl(#[0, omni], c.buttonnum, {
 			state = state.not;
