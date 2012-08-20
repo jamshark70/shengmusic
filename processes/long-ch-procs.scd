@@ -689,12 +689,84 @@ make: { |name|
 		]
 	};
 	p.printStopMsg = false;
+	p.leadTime = 0.02;
 
 	p
 },
 type: \bp
 ) => Fact(\lowChBP);
 
+
+
+// high chord
+
+SynthDef(\noiselet, { |freq = 440, noisefreq = 60, beats = 0.5, noisebuf,
+	filtAttack = 0.02, filtDecay = 0.3,
+	attack = 1, decay = 0, susLevel = 1, release = 1, gate = 1,
+	pan = 0, amp = 0.1, out = 0|
+	var sig = COsc.ar(noisebuf, noisefreq, beats, amp),
+	eg = EnvGen.kr(Env.adsr(attack, decay, susLevel, release), gate, doneAction: 2);
+	sig = Formlet.ar(sig, freq, filtAttack, filtDecay);
+	sig = Limiter.ar(sig, 1, 0.006);  // harmonics can spike the level
+	Out.ar(out, Pan2.ar(sig, pan, eg));
+}).add;
+
+(
+type: \voicer,
+keys: #[master, rvbmc],
+initLevel: -14.dbamp,
+make: { |name|
+	var out;
+	~target = MixerChannel(name, s, 2, 2, outbus: ~master, level: ~initLevel,
+		completionFunc: { |chan|
+			chan.newPostSend(~rvbmc, 0.8);
+			chan.playfx(Instr("busfx.chorus"), [0, 2, 0.012257636323289, 0.12067926406393, 0.0077565879124374, 2.1478235488828, 0.5]);
+		}
+	);
+
+	out = Voicer(12, \noiselet, [attack: 1.5, decay: 1.0, susLevel: 0.7, release: 4.5], target: ~target);
+	out.mapGlobal(\filtAttack, nil, 0.05, #[0.001, 0.15, \exp]);
+	out.mapGlobal(\noisefreq, nil, 60, #[30, 120, \exp]);
+	out
+},
+free: { ~target.free }
+) => Fact(\noiseletVC);
+
+
+Ptuple([Pwhite(0.8, 1.7, inf), Pwhite(4.0, 9.0, inf), 0.5]) => MicRh(\highCh);
+
+Pfunc({ 
+	var d;
+	if(BP(\lowCh).isPlaying) {
+		d = BP(\lowCh).lastEvent.delta;
+		[d, d - rrand(8.0, 11.5)]
+	} { nil }
+}) => MacRh(\highCh);
+
+(
+quant: DelayTimeSpec(Pwhite(4.5, 7.0, inf)),
+make: { |name|
+	var p;
+	BP(name).free;
+	p = Func(\newCh).value(name, \arpeg1, \macroRh, MBM(0)[\pzch], nil, MacRh(\highCh).v, \highCh, \xrand, nil, \d);
+
+	p.child.argPairs = [
+		beats: Pwhite(0.3, 0.8, inf),
+		noisebuf: Prand(BP(\shengShared).noiseBufs, inf),
+		pan: Pwhite(-0.8, 0.8, inf)
+	];
+	// here, I *do* want closer spacing
+	p.child.fitFunc = \chordFitNotes;
+	p.bassID = \lowChBass;
+	p.topNote = PR(\patternTop).copy.make {
+		~deg = Pwhite(47, 55, inf);
+		~mode = \d;
+	};
+	~quant => p;
+	p.leadTime = 0;  // force later than \lowCh
+
+	p
+}, type: \bp) => Fact(\highChBP);
 
 
 };

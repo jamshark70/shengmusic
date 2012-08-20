@@ -1490,3 +1490,174 @@ Pfin(2, MacRh(\lowCh).asPattern) =>.macro BP(\lowCh);
 
 // well sumbitch, that done worked the first try
 
+();
+
+// high thing with low chords
+a = m.play {
+	var sig = COsc.ar(BP(\shengShared).noiseBufs[0], LFDNoise1.kr(1.0).exprange(50, 70), beats: 0.5);
+	// sig = HPF.ar(sig, 800);
+	Formlet.ar(sig, SinOsc.ar(0.05).exprange(60, 1200), attacktime: 0.02, decaytime: 0.3);
+};
+
+a.trace;
+
+a.free;
+
+
+(
+SynthDef(\noiselet, { |freq = 440, noisefreq = 60, beats = 0.5, noisebuf,
+	filtAttack = 0.02, filtDecay = 0.3,
+	attack = 1, decay = 0, susLevel = 1, release = 1, gate = 1,
+	pan = 0, amp = 0.1, out = 0|
+	var sig = COsc.ar(noisebuf, noisefreq, beats, amp),
+	eg = EnvGen.kr(Env.adsr(attack, decay, susLevel, release), gate, doneAction: 2);
+	sig = Formlet.ar(sig, freq, filtAttack, filtDecay);
+	sig = Limiter.ar(sig, 1, 0.006);  // harmonics can spike the level
+	Out.ar(out, Pan2.ar(sig, pan, eg));
+}).add;
+
+(
+type: \voicer,
+keys: #[master, rvbmc],
+initLevel: -14.dbamp,
+make: { |name|
+	var out;
+	~target = MixerChannel(name, s, 2, 2, outbus: ~master, level: ~initLevel,
+		completionFunc: { |chan|
+			chan.newPostSend(~rvbmc, 0.8);
+			chan.playfx(Instr("busfx.chorus"), [0, 2, 0.012257636323289, 0.12067926406393, 0.0077565879124374, 2.1478235488828, 0.5]);
+		}
+	);
+
+	out = Voicer(12, \noiselet, [attack: 1.5, decay: 1.0, susLevel: 0.7, release: 4.5], target: ~target);
+	out.mapGlobal(\filtAttack, nil, 0.05, #[0.001, 0.15, \exp]);
+	out.mapGlobal(\noisefreq, nil, 60, #[30, 120, \exp]);
+	out
+},
+free: { ~target.free }
+) => Fact(\noiseletVC);
+)
+
+VC(\nlet).free;
+Fact(\noiseletVC) => VC(\nlet);
+
+// filtAttack: 0.002 gets a little noise, almost disappears at 0.003
+e = n.play((instrument: \noiselet, noisebuf: BP(\shengShared).noiseBufs.choose, sustain: 2, root: 2, octave: 6, degree: #[0, 2, 4], noisefreq: 98.midicps / 32, filtAttack: 0.05));
+
+g = GenericGlobalControl(\filtAttack, nil, 0.05, #[0.001, 0.15, \exp]); g => VP(0);
+
+g.watch.automate {
+	DemandEnvGen.kr(
+		Dseq([Dwhite(0.007, 0.04, Diwhite(2, 4, inf)), Dwhite(0.001, 0.003, Diwhite(1, 3, inf))], inf),
+		Dwhite(1.7, 3.0, inf)
+	)
+};
+
+g.stopWatching.stopAuto;
+
+// modulating noisefreq is wicked cool
+h = GenericGlobalControl(\noisefreq, nil, 60, #[20, 120, \exp]); h => VP(0);
+
+h.watch.automate {
+	LFDNoise1.kr(LFDNoise1.kr(0.15).range(0.1, 2)).exprange(30, 90)
+};
+
+e = n.play((type: \on, instrument: \noiselet, noisebuf: BP(\shengShared).noiseBufs.choose, sustain: 10, root: 2, octave: 6, degree: #[0, 2, 4], noisefreq: h.asMap, /*98.midicps / 32,*/ filtAttack: g.asMap));
+
+e.release;
+
+
+h.stopWatching.stopAuto;
+
+
+VC(\nlet).globalControls[\noisefreq].watch.automate {
+	LFDNoise1.kr(LFDNoise1.kr(0.15).range(0.1, 2)).exprange(30, 90)
+};
+
+(type: \voicerNote, voicer: VC(\nlet).v, noisebuf: BP(\shengShared).noiseBufs.choose, sustain: 10, root: 2, octave: 6, degree: #[0, 2, 4]).play;
+
+p = Pbind(
+	\type, \voicerNote,
+	\voicer, VC(\nlet).v,
+	\noisebuf, Prand(BP(\shengShared).noiseBufs, inf),
+	\delta, Pwhite(1.0, 2.5, inf),
+	\sustain, 9,
+	\root, 2,
+	\octave, 6,
+	\degree, Pn(Pshuf((0..7), 1), inf)
+).play;
+
+p.stop;
+
+// a = VC(\nlet).env.target.playfx(Instr("busfx.chorus"), [0, 2]); a.gui;
+
+VC(\nlet).globalControls[\noisefreq].stopWatching.stopAuto;
+
+BP(\lowCh).prepareForPlay;
+
+BP(\lowCh).triggerOneEvent(0);
+Library.at(\lowChBass);
+
+MBM(0).v.bufs.collect(_.name);
+
+MBM(0)[\pzch].midiNotes.collect { |n| n.asInteger.asMIDINote }.postln;
+MBM(0)[\pzch].durs;
+
+
+Ptuple([Pwhite(0.8, 1.7, inf), Pwhite(4.0, 9.0, inf), 0.5]) => MicRh(\highCh);
+
+BP(\highCh).free;
+Func(\newCh).value(\highCh, \arpeg1, \macroRh, MBM(0)[\pzch], nil, Pwhite(10.0, 18.0, inf) - Ptuple([0, Pwhite(3.0, 5.0, inf)], inf), \highCh, \xrand, nil, \d);
+VC(\nlet) => BP(\highCh);
+0 => BP(\highCh);
+
+p = BP(\highCh);
+
+p.child.argPairs = [
+	beats: Pwhite(0.3, 0.8, inf),
+	noisebuf: Prand(BP(\shengShared).noiseBufs, inf),
+	pan: Pwhite(-0.8, 0.8, inf)
+];
+p.child.fitFunc = \chordFitNotes;
+p.bassID = \lowChBass;
+p.topNote = PR(\patternTop).copy.make {
+	~deg = Pwhite(47, 55, inf);
+	~mode = \d;
+};
+
+p.prepareForPlay;
+p.triggerOneEvent(0);
+
+
+BP(\lowCh).leadTime = 0.02;
+BP(\lowCh).reset;
+
+Pfunc({ var d;
+	if(BP(\lowCh).isPlaying) {
+		d = BP(\lowCh).lastEvent.delta;
+		[d, d - rrand(8.0, 11.5)]
+	} { nil }
+}) =>.macro BP(\highCh);
+
+0 => BP(\lowCh);
+DelayTimeSpec(Pwhite(4.0, 6.0, inf)) => BP(\highCh);
+
+BP(#[lowCh, highCh]).do(_.reset);
+BP(#[lowCh, highCh]).play;
+
+BP.all.stop
+
+
+// test proc
+
+BP(\highCh).free;
+Fact(\highChBP) => BP(\highCh);
+VC(\nlet) => BP(\highCh);
+
+
+BP(#[lowCh, highCh]).do(_.reset);
+BP(#[lowCh, highCh]).play;
+
+BP.all.stop
+
+0 => BP(\highCh);
