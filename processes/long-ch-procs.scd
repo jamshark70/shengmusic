@@ -655,7 +655,15 @@ make: { |name|
 	p.child.event.eventKey = \voicerNoteKrBusLock;
 	p.recalcPropagateKeys;  // hack hack hack
 	p.child.argPairs = { |event|
+		var shouldSetBass = true;
 		[
+			\saveBassNote, Pfunc({
+				if(shouldSetBass) {
+					Library.put(\lowChBass, ~currentChord.notes.minItem.asFloat);
+					shouldSetBass = false;
+				};
+				0
+			}),
 			\amp, Pgeom.fromEndpoints(3, 1.5, ~currentChord.notes.size),
 			\ffreq, { ~newFreq[0] * exprand(8.0, 11.0) },
 			\fbamp, 0.99,
