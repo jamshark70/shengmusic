@@ -71,16 +71,22 @@ WrapInstr("osc.ks_retrig", { |freq = 440, amp = 0.1, ffreq = 2000,
 
 (keys: #[master, rvbmc],
 initLevel: 0.75,
+trigFunc: nil,
+detectSilence: false,
+postMCCreation: nil,  // a function
 make: { |name|
 	var out;
 	~target = MixerChannel(name, s, 2, 2, ~initLevel, outbus: ~master, completionFunc: { |chan|
 		if(~rvbmc.notNil) { chan.newPostSend(~rvbmc, 0.4) };
+		~postMCCreation.value(chan);
 	});
 	out = Voicer(25, WrapInstr("osc.ks_retrig"), [
 		env: `{ NamedControl.kr(\env, (0 ! 20).overWrite(Env.asr.asArray)) },
 		firstbuf: `(BP(\shengShared).noiseBufs[0].bufnum),
 		numbufs: `(BP(\shengShared).noiseBufs.size),
-		amp: 1
+		amp: 1,
+		trigFunc: ~trigFunc,
+		detectSilence: ~detectSilence
 	], target: ~target);
 	out.mapGlobal(\retrigProb, nil, 0.12, #[0, 1]);
 	out
@@ -777,6 +783,69 @@ make: { |name|
 
 	p
 }, type: \bp) => Fact(\highChBP);
+
+
+
+// scotch snap
+
+Pseq([Pn(1, { #[1, 2, 3].wchoose(#[0.35, 0.45, 0.2]) }), Pwhite(2, 4, 1)], inf) => MacRh(\scotch);
+
+Pseq(#[0.8, 0.3], 1).collect { |gate, ev|
+	[0.25, 1, Array.fill(ev[\note].asFloat.size, gate).put(0, gate * 1.6)]
+} => MicRh(\scotch);
+
+{ |notes|
+	notes = notes.sort { |a, b| a.asFloat > b.asFloat };
+	Pseq(
+		[
+			notes[0..1],  // top 2 notes
+			notes[2..]    // rest of the notes
+			.scramble     // random order
+			.clump(roundUp((notes.size - 2) / 2))  // divide into two clumps
+		].flop.collect(_.flat),
+		1
+	)
+} => ArpegPat(\scotch);
+
+ModalSpec(#[0, 2, 4, 7, 9], 12, 2) => Mode(\dpent1);
+ModalSpec(#[0, 2, 5, 7, 9], 12, 2) => Mode(\dpent2);
+
+(
+make: { |name|
+	var p;
+	BP(name).free;
+	p = Func(\newCh).value(name, \arpeg1, \macroRh, MBM(0)[\pzch], nil, MacRh(\scotch).v, \scotch, \scotch, nil, \d);
+	p.child.fitFunc = \chordFitNotes;
+
+	p.child.argPairs = [
+		ffreq: { (~newFreq.asArray.maxItem * exprand(8.0, 12.0)).clip(1000, 12000) },
+		excamp: Pkey(\gate) * 5,
+		excAtk: 0.04,
+		excDcy: 0.09,
+		fbamp: Pwhite(0.996, 0.998, inf),
+		pan: Pseq(#[-1, 1], inf, { 2.rand }) * Pstutter(1000, Pwhite(0.7, 0.9, 1)),
+		env: [Env.one(20)]
+	];
+
+	p.topNote = PR(\patternTop).copy.make {
+		// \restart: each ascending scale segment uses one d-pentatonic variant
+		// the mode can switch only when a new segment starts
+		~deg = Pn(Pwhile1({ |ev, next| next <= 31 }, Pseries({ rrand(25, 30) }, 1, { rrand(2, 5) })), inf, \restart);
+		~mode = Pgate(Prand(#[dpent1, dpent2], inf), inf, \restart);
+		~asPattern = { 
+			Pbind(
+				\freq, BPStream(\deg),
+				\delta, BPStream(\delta),
+				\length, BPStream(\length),
+				\mode, BPStream(\mode),   // ugh, why not in the real proto?
+				\gate, BPStream(\gate)
+			);
+		};
+	};
+	0 => p;
+	p
+}, type: \bp) => Fact(\scotchBP);
+
 
 
 };

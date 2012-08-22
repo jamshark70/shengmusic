@@ -1685,3 +1685,50 @@ p.prepareForPlay;
 
 p.triggerOneEvent(0);
 
+
+// scotch snap
+
+VC(\onePizz).free;
+Fact(\pizz).chuck(VC(\onePizz), nil, (
+	initLevel: -17.dbamp,
+	postMCCreation: { |chan|
+		chan.playfx(Instr("busfx.chorus"), [0, 2, 0.0065907508688725, 0.091029817799152, 0.0015096530399363, 0.99376910470698, 0.5])
+	},
+	detectSilence: true,
+	trigFunc: { Impulse.ar(0) }
+));
+VC(\onePizz) => VP(0);
+
+VC(\onePizz).set([retrigProb: 1]);
+
+v = VC(\onePizz);
+
+o.free; o = OSCFunc({ |msg| { s.sendMsg(\n_trace, msg[1]) }.defer(0.1) }, '/n_go', s.addr).oneShot;
+
+(type: \voicerNote, voicer: v, freq: 440, ffreq: 2000, fbamp: 0.999, env: [Env.one(20)], pan: 0, amp: 1, excamp: 5, sustain: 5).play;
+
+
+Fact(\scotchBP) => BP(\scotch);
+p = BP(\scotch);
+p => VC(\onePizz);
+
+p.prepareForPlay;
+
+p.reset;
+p.triggerOneEvent(0);
+
+p.play;
+
+p.lastEvent
+
+32.unmapMode(\dpent1)
+
+TempoClock.default.tempo = 88/60;
+
+p.stop;
+
+
+a = VC(\onePizz).env.target.playfx(Instr("busfx.chorus"), [0, 2, 0.0065907508688725, 0.091029817799152, 0.0015096530399363, 0.99376910470698, 0.5]); a.gui;
+
+a.synth.run(false);
+a.synth.run(true);
