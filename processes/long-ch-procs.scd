@@ -727,6 +727,13 @@ make: { |name|
 	out = Voicer(12, \noiselet, [attack: 1.5, decay: 1.0, susLevel: 0.7, release: 4.5], target: ~target);
 	out.mapGlobal(\filtAttack, nil, 0.05, #[0.001, 0.15, \exp]);
 	out.mapGlobal(\noisefreq, nil, 60, #[30, 120, \exp]);
+
+	~target.doWhenReady {
+		out.globalControls[\noisefreq].automate({
+			LFDNoise1.kr(LFDNoise1.kr(0.15).range(0.1, 2)).exprange(30, 90)
+		}, target: ~target.fadergroup, addAction: \addToHead);
+	};
+
 	out
 },
 free: { ~target.free }
