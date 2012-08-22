@@ -752,6 +752,7 @@ Pfunc({
 
 (
 quant: DelayTimeSpec(Pwhite(4.5, 7.0, inf)),
+customizeHook: nil,
 make: { |name|
 	var p;
 	BP(name).free;
@@ -771,6 +772,8 @@ make: { |name|
 	};
 	~quant => p;
 	p.leadTime = 0;  // force later than \lowCh
+
+	~customizeHook.(p);
 
 	p
 }, type: \bp) => Fact(\highChBP);

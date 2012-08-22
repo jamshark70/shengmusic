@@ -1650,6 +1650,9 @@ BP.all.stop
 
 // test proc
 
+VC(\nlet).free;
+Fact(\noiseletVC) => VC(\nlet);
+
 BP(\highCh).free;
 Fact(\highChBP) => BP(\highCh);
 VC(\nlet) => BP(\highCh);
@@ -1660,4 +1663,25 @@ BP(#[lowCh, highCh]).play;
 
 BP.all.stop
 
-0 => BP(\highCh);
+
+// sustaining decaying thing - modify highCh
+
+BP(\susCh).free;
+Fact(\highChBP).chuck(BP(\susCh), nil, (
+	customizeHook: { |p|  // p === the new BP
+		0 => p;
+		Ptuple([Pwhite(8.0, 12.0, inf), Pwhite(0.9, 1.5, inf)]) =>.macro p;
+		\block =>.arpeg p;
+		\blockFollow =>.micro p;
+		p.child.argPairs = PbindProxy(*p.child.argPairs);
+		p.child.argPairs.set(\attack, 1.4, \decay, 0.8, \susLevel, 0.5, \release, 9.0);		
+	}
+));
+VC(\nlet) => BP(\susCh);
+
+p = BP(\susCh);
+
+p.prepareForPlay;
+
+p.triggerOneEvent(0);
+
