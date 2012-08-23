@@ -1,7 +1,7 @@
 (thisProcess.nowExecutingPath.dirname +/+ "../common/dev-setup.scd").loadPath;
 // (thisProcess.nowExecutingPath.dirname +/+ "../common/common-defs.scd").loadPath;
 
-// (thisProcess.nowExecutingPath.dirname +/+ "../processes/long-ch-procs.scd").loadPath;
+(thisProcess.nowExecutingPath.dirname +/+ "../processes/long-ch-procs.scd").loadPath;
 
 (thisProcess.nowExecutingPath.dirname +/+ "../processes/mid-fast-procs.scd").loadPath;
 
@@ -93,10 +93,18 @@ VC(\flzg).v.trace;
 o.free; o = OSCFunc({ |msg| { s.sendMsg(\n_trace, msg[1]) }.defer(0.1) }, '/n_go', s.addr).oneShot;
 
 
+// test factory
+\makeflzgVC.eval(\flzg);
+
+(type: \voicerNote, voicer: VC(\flzg).v, ffreq: 4000, rq: 0.4, holdtime: 1000, flzgrate: 28, flzgratio: 0.4, flzgdepth: 0.9, flzgtime: 0.8, sustain: 2).play;
+
+
+
 // fast stuff: need a bunch of sounds
 // some very pitched, some quasi- or un-pitched
 // FM can run that gamut
 
+// added 'pan' in the procs file
 WrapInstr("osc2.fm_monster", { arg freq, gate, car_env, mod_env, mod_lev,
 	freqInitRatio = 1, mod_ratio1 = 1, mod_ratio2 = 1, slideTime = 1,
 	detune, car_detune,
@@ -123,11 +131,16 @@ WrapInstr("osc2.fm_monster").listArgs;
 
 ~bufs.free;
 ~bufs = Buffer.allocConsecutive(8, s, 2048, 1, { |buf, i|
-	buf.sine1Msg(Array.fill(i+1, 0).put(0, 1).put(i, 1).debug)
-});
+	var amps;
+	i = i + 3;
+	amps = Array.fill(i+1, 0).put(0, 1).put(i, 1);
+	Pfin(i div: 2, Pshuf((1 .. i-2), 1)).do { |randIndex|
+		amps[randIndex] = rrand(0.2, 0.7);
+	};
+	buf.sine1Msg(amps.debug)
+}); ""
 
 // next: variable envelopes
-// or, more efficient to have separate voicers?
 v = Voicer(15, WrapInstr("osc2.fm_monster"), [basefreq: `440, car_vs: `0.8, mod_vs: `0.8, car_env: `{ NamedControl.kr(\car_env, (0 ! 40).overWrite(Env.adsr.asArray)) }, mod_env: `{ NamedControl.kr(\mod_env, (0 ! 40).overWrite(Env.adsr.asArray)) }], target: m);
 v => VP(0);
 
@@ -137,19 +150,33 @@ k = VoicerMIDISocket(0, v);
 
 v.mapGlobal(\mod_lev, nil, 3, #[1, 50, \exp]);
 
+v.globalControls[\mod_lev].spec = #[1, 150, \exp];
+
 k.mapGlobal(\mod_ratio1, 1, #[0.5, 12.5]);
 k.mapGlobal(\mod_ratio2, 1, #[1, 12, \lin, 1]);
 
 VP(0).v.controlProxies.do { |gcp| gcp.midiControl = nil };
 
+v.unmapGlobal(\mod_lev);
 
 k.noteOnArgsPat = Pbind(
 	\car_buf, Prand(~bufs, inf),
 	\mod_buf, Prand(~bufs, inf),
 	\car_detune, 1.006,
-	\car_env, Env.adsr(0.01, 0.8, 0.1, 0.2),
-	\mod_env, Env.adsr(0.01, 0.8, 0.6, 0.2),
-	\mod_ratio2, Pwhite(2, 7, inf),
-	\mod_ratio1, Pkey(\mod_ratio2) * (Pwhite(1.08, 1.26, inf) ** Prand(#[-1, 1], inf)),
-	\slideTime, Pwhite(0.07, 0.34, inf)
+	\car_env, [Env.adsr(0.01, 0.8, 0.1, 0.2)],
+	\mod_env, [Env.adsr(0.01, 0.8, 0.6, 0.2)],
+	// \mod_ratio2, Pwhite(2, 7, inf),
+	\mod_ratio2, Pwhite(2, 7, inf) * (Pwhite(1.08, 1.26, inf) ** Prand(#[-1, 1], inf)),
+	\mod_ratio1, Pkey(\mod_ratio2), // * (Pwhite(1.08, 1.26, inf) ** Prand(#[-1, 1], inf)),
+	\slideTime, Pwhite(0.07, 0.34, inf) //,
+	// \mod_lev, Pswitch1([
+	// 	Pwhite(3.0, 11.0, inf),
+	// 	Pwhite(19.0, 42.0, inf)
+	// ], Pwrand(#[0, 1], #[0.9, 0.1] ,inf)).trace
 );
+
+
+VC(\fm).free;
+Fact(\madfmVC) => VC(\fm);
+
+(type: \voicerNote, voicer: VC(\fm).v, freq: 440, sustain: 2, mod_ratio1: 3, mod_ratio2: 3, car_detune: 1.003, car_buf: VC(\fm).env.bufs.choose, mod_buf: VC(\fm).env.bufs.choose, car_env: Env.adsr(0.01, 0.8, 0.1, 0.2), mod_env: Env.adsr(0.01, 0.8, 0.6, 0.2)).play;
