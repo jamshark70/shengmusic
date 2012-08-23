@@ -215,6 +215,16 @@ keys: #[master, rvbmc],
 iMadeBufs: false,
 getBufs: { BP(\shengShared).oscBufs },
 env: Env.adsr(0.07, 0.12, 0.4, 0.12),
+instrName: "osc2.v3mappan",
+voicerArgs: { [
+	bufbase: `(~oscBufs.first.bufnum),
+	numbufs: `(~oscBufs.size),
+	basefreq: `(48.midicps),
+	topfreq: `(132.midicps),
+	env: ~env,
+	vsens: `1,
+	detune: 1.003
+] },
 make: { |name|
 	var out;
 	~oscBufs = ~getBufs.value;
@@ -231,15 +241,7 @@ make: { |name|
 			);
 		};
 	);
-	out = Voicer(20, WrapInstr("osc2.v3mappan"), [
-		bufbase: `(~oscBufs.first.bufnum),
-		numbufs: `(~oscBufs.size),
-		basefreq: `(48.midicps),
-		topfreq: `(132.midicps),
-		env: ~env,
-		vsens: `1,
-		detune: 1.003
-	], target: ~target);
+	out = Voicer(20, WrapInstr(~instrName), ~voicerArgs.value, target: ~target);
 	out
 },
 free: { ~target.free },
