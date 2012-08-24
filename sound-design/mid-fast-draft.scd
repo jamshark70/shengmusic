@@ -179,4 +179,68 @@ k.noteOnArgsPat = Pbind(
 VC(\fm).free;
 Fact(\madfmVC) => VC(\fm);
 
-(type: \voicerNote, voicer: VC(\fm).v, freq: 440, sustain: 2, mod_ratio1: 3, mod_ratio2: 3, car_detune: 1.003, car_buf: VC(\fm).env.bufs.choose, mod_buf: VC(\fm).env.bufs.choose, car_env: Env.adsr(0.01, 0.8, 0.1, 0.2), mod_env: Env.adsr(0.01, 0.8, 0.6, 0.2)).play;
+(type: \voicerNote, voicer: VC(\fm).v, freq: 440, sustain: 2, mod_ratio1: 3, mod_ratio2: 3, car_detune: 1.003, car_buf: VC(\fm).env.bufs.choose, mod_buf: VC(\fm).env.bufs.choose, car_env: [Env.adsr(0.01, 0.8, 0.1, 0.2)], mod_env: [Env.adsr(0.01, 0.8, 0.6, 0.2)]).play;
+
+
+// can I coax a splashy sound out of it?
+// not bad, maybe too obviously synthy
+// would like harder attack
+
+(type: \voicerNote, voicer: VC(\fm).v, freq: 440, sustain: 1, mod_ratio1: 3, mod_ratio2: 3, car_detune: 1.003, car_buf: VC(\fm).env.bufs[2], mod_buf: VC(\fm).env.bufs.last, car_env: [Env(#[0, 1, 0.5, 0, 0], #[0.01, 0.14, 8.0, 0.15], -4, releaseNode: 3)], mod_env: [Env(#[0, 1, 0.4, 0.1, 0], #[0.01, 0.1, 3.0, 10.0], -4)], mod_lev: 5).play;
+
+k = VoicerMIDISocket(0, VC(\fm).v);
+
+q = PbindProxy(\mod_ratio1, Pwhite(3.01, 3.07, inf));
+k.noteOnArgsPat = q <> (mod_ratio2: 3, slideTime: 2.5, car_detune: 1.006, car_buf: VC(\fm).env.bufs[2], mod_buf: VC(\fm).env.bufs.last, car_env: [Env(#[0, 1, 0.5, 0, 0], #[0.01, 0.14, 8.0, 0.15], -4, releaseNode: 3)], mod_env: [Env(#[0, 1, 0.25, 0.1, 0], #[0.01, 0.3, 3.0, 10.0], -4)], mod_lev: 9);
+
+q.set(\mod_ratio1, Pkey(\mod_ratio2) + Pkey(\velocity).linlin(30, 127, 0.01, 0.05));
+
+
+// smooth melody
+(
+SynthDef(\noiselet2, { |freq = 440, noisefreq = 60, beats = 0.5, noisebuf,
+	filtAttack = 0.02, filtDecay = 0.3,
+	attack = 1, decay = 0, susLevel = 1, release = 1, gate = 1,
+	pan = 0, amp = 0.1, out = 0, freqlag = 0, freqratio = 1.003|
+	var sig = COsc.ar(noisebuf, noisefreq, beats, amp),
+	eg = EnvGen.kr(Env.adsr(attack, decay, susLevel, release), gate, doneAction: 2);
+	sig = Formlet.ar(sig, Lag.kr(freq, freqlag) * [1, freqratio], filtAttack, filtDecay).sum;
+	sig = Limiter.ar(sig, 1, 0.006);  // harmonics can spike the level
+	Out.ar(out, Pan2.ar(sig, pan, eg));
+}).add;
+)
+
+k.free; VC(\nletmel).free;
+
+Fact(\noiseletVC).chuck(VC(\nletmel), nil, (
+	voicerClass: MonoPortaVoicer,
+	initLevel: -3.2.dbamp,
+	rvbLevel: -12.dbamp,
+	numVoices: 1,
+	defname: \noiselet2,
+	gcSpecs: [
+		\filtAttack -> #[0.01, 0.28, \exp, 0, 0.19],
+		\filtDecay -> #[0.1, 0.5, \exp, 0, 0.4],
+		\noisefreq -> #[30, 120, \exp, 0, 60]
+	],
+	customize: { |voicer|
+		voicer.portaTime = 0.2;
+		voicer.setArgDefaults([attack: 0.15, decay: 0.1, susLevel: 0.6, release: 0.2, freqratio: 0.5015]);
+	}
+));
+
+VC(\nletmel) => VP(0);
+
+v = VC(\nletmel).v;
+
+v.globalControls[\noisefreq].watch;
+
+k = VoicerMIDISocket(0, v);
+
+v.setArgDefaults([attack: 0.15, decay: 0.1, susLevel: 0.6, release: 0.2]);
+
+v.globalControls[\filtAttack].spec_(#[0.01, 0.28, \exp]);
+
+v.mapGlobal(\filtDecay, nil, 0.3, #[0.1, 0.5, \exp]);
+
+VC(\nletmel).env.target.postSettings

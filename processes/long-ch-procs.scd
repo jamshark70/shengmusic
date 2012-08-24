@@ -711,10 +711,10 @@ type: \bp
 SynthDef(\noiselet, { |freq = 440, noisefreq = 60, beats = 0.5, noisebuf,
 	filtAttack = 0.02, filtDecay = 0.3,
 	attack = 1, decay = 0, susLevel = 1, release = 1, gate = 1,
-	pan = 0, amp = 0.1, out = 0|
+	pan = 0, amp = 0.1, out = 0, freqlag = 0|
 	var sig = COsc.ar(noisebuf, noisefreq, beats, amp),
 	eg = EnvGen.kr(Env.adsr(attack, decay, susLevel, release), gate, doneAction: 2);
-	sig = Formlet.ar(sig, freq, filtAttack, filtDecay);
+	sig = Formlet.ar(sig, Lag.kr(freq, freqlag), filtAttack, filtDecay);
 	sig = Limiter.ar(sig, 1, 0.006);  // harmonics can spike the level
 	Out.ar(out, Pan2.ar(sig, pan, eg));
 }).add;
@@ -723,23 +723,35 @@ SynthDef(\noiselet, { |freq = 440, noisefreq = 60, beats = 0.5, noisebuf,
 type: \voicer,
 keys: #[master, rvbmc],
 initLevel: -14.dbamp,
+rvbLevel: 0.8,
+voicerClass: Voicer,
+numVoices: 20,
+defname: \noiselet,
+// now, customizing this factory is pushing into the absurd
+gcSpecs: [
+	\filtAttack -> #[0.001, 0.15, \exp, 0, 0.05],
+	\noisefreq -> #[30, 120, \exp, 0, 60]
+],
 make: { |name|
 	var out;
 	~target = MixerChannel(name, s, 2, 2, outbus: ~master, level: ~initLevel,
 		completionFunc: { |chan|
-			chan.newPostSend(~rvbmc, 0.8);
+			chan.newPostSend(~rvbmc, ~rvbLevel);
 			chan.playfx(Instr("busfx.chorus"), [0, 2, 0.012257636323289, 0.12067926406393, 0.0077565879124374, 2.1478235488828, 0.5]);
 		}
 	);
 
-	out = Voicer(12, \noiselet, [attack: 1.5, decay: 1.0, susLevel: 0.7, release: 4.5], target: ~target);
-	out.mapGlobal(\filtAttack, nil, 0.05, #[0.001, 0.15, \exp]);
-	out.mapGlobal(\noisefreq, nil, 60, #[30, 120, \exp]);
+	out = ~voicerClass.new(~numVoices, ~defname, [attack: 1.5, decay: 1.0, susLevel: 0.7, release: 4.5], target: ~target);
+	~gcSpecs.do { |assn|
+		assn.value = assn.value.asSpec;
+		out.mapGlobal(assn.key, nil, assn.value.default, assn.value);
+	};
 
 	~target.doWhenReady {
 		out.globalControls[\noisefreq].automate({
 			LFDNoise1.kr(LFDNoise1.kr(0.15).range(0.1, 2)).exprange(30, 90)
 		}, target: ~target.fadergroup, addAction: \addToHead);
+		~customize.value(out);
 	};
 
 	out

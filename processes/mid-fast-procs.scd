@@ -101,4 +101,36 @@ forkIfNeeded {
 	) => Fact(\madfmVC);
 
 
+	// smooth melody
+	SynthDef(\noiselet2, { |freq = 440, noisefreq = 60, beats = 0.5, noisebuf,
+		filtAttack = 0.02, filtDecay = 0.3,
+		attack = 1, decay = 0, susLevel = 1, release = 1, gate = 1,
+		pan = 0, amp = 0.1, out = 0, freqlag = 0, freqratio = 1.003|
+		var sig = COsc.ar(noisebuf, noisefreq, beats, amp),
+		eg = EnvGen.kr(Env.adsr(attack, decay, susLevel, release), gate, doneAction: 2);
+		sig = Formlet.ar(sig, Lag.kr(freq, freqlag) * [1, freqratio], filtAttack, filtDecay).sum;
+		sig = Limiter.ar(sig, 1, 0.006);  // harmonics can spike the level
+		Out.ar(out, Pan2.ar(sig, pan, eg));
+	}).add;
+
+	{ |name(\nletmel)|
+		Fact(\noiseletVC).chuck(VC(name), nil, (
+			voicerClass: MonoPortaVoicer,
+			initLevel: -3.2.dbamp,
+			rvbLevel: -12.dbamp,
+			numVoices: 1,
+			defname: \noiselet2,
+			gcSpecs: [
+				\filtAttack -> #[0.01, 0.28, \exp, 0, 0.19],
+				\filtDecay -> #[0.1, 0.5, \exp, 0, 0.4],
+				\noisefreq -> #[30, 120, \exp, 0, 60]
+			],
+			customize: { |voicer|
+				voicer.portaTime = 0.2;
+				voicer.setArgDefaults([attack: 0.15, decay: 0.1, susLevel: 0.6, release: 0.2, freqratio: 0.5015]);
+			}
+		));
+	} => Func(\makeNletMelVC);
+
+
 };
