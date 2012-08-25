@@ -432,3 +432,37 @@ play: {
 	if(~tempo.isNumber) { thisThread.clock.tempo = ~tempo }
 }
 ) => ProtoEvent(\voicerNoteKrBusLock);
+
+PR(\arpeg1).clone {
+	~initVoicerArgs = {
+		~voicerArgs = Proto.new.putAction_(e { |key, value, me|
+			~voicerArgStreams ?? { ~voicerArgStreams = IdentityDictionary.new };
+			~voicerArgStreams.put(key, value.asStream);
+		});
+		currentEnvironment
+	};
+	~voicerArgs_ = { |envir|
+		~voicerArgs.env.keys.do { |key| ~voicerArgs.removeAt(key) };
+		~voicerArgStreams = IdentityDictionary.new;
+		envir.keysValuesDo { |key, value|
+			~voicerArgs[key] = value;
+			~voicerArgStreams[key] = value.asStream;
+		};
+		currentEnvironment
+	};
+	~superAsPattern = ~asPattern;
+	~asPattern = { |inEvent|
+		~superAsPattern.(inEvent).collect { |ev|
+			var extraArgs;
+			if(ev[\vckey].notNil and: { VC.exists(ev[\vckey]) }) {
+				ev[\voicer] = VC(ev[\vckey]).v;
+				if(~voicerArgStreams[ev[\vckey]].notNil) {
+					ev = ~voicerArgStreams[ev[\vckey]].next(ev);
+				} {
+					ev = VC(ev[\vckey]).argStreams.next(ev);
+				};
+			};
+			ev
+		};
+	};
+} => PR(\arpegMultiVoicer);

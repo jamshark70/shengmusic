@@ -16,6 +16,7 @@ MixingBoard.at(0).postSettings;
 s.addr = ~debugAddr;
 s.addr = ~saveAddr;
 
+// SynthDescLib.global.browse;
 
 
 // fluttertongue attack
@@ -244,3 +245,81 @@ v.globalControls[\filtAttack].spec_(#[0.01, 0.28, \exp]);
 v.mapGlobal(\filtDecay, nil, 0.3, #[0.1, 0.5, \exp]);
 
 VC(\nletmel).env.target.postSettings
+
+
+// multiple voicer problem
+(
+PR(\arpeg1).clone {
+	~initVoicerArgs = {
+		~voicerArgs = Proto.new.putAction_(e { |key, value, me|
+			~voicerArgStreams ?? { ~voicerArgStreams = IdentityDictionary.new };
+			~voicerArgStreams.put(key, value.asStream);
+		});
+		currentEnvironment
+	};
+	~voicerArgs_ = { |envir|
+		~voicerArgs.env.keys.do { |key| ~voicerArgs.removeAt(key) };
+		~voicerArgStreams = IdentityDictionary.new;
+		envir.keysValuesDo { |key, value|
+			~voicerArgs[key] = value;
+			~voicerArgStreams[key] = value.asStream;
+		};
+		currentEnvironment
+	};
+	~superAsPattern = ~asPattern;
+	~asPattern = { |inEvent|
+		~superAsPattern.(inEvent).collect { |ev|
+			var extraArgs;
+			if(ev[\vckey].notNil and: { VC.exists(ev[\vckey]) }) {
+				ev[\voicer] = VC(ev[\vckey]).v;
+				if(~voicerArgStreams[ev[\vckey]].notNil) {
+					ev = ~voicerArgStreams[ev[\vckey]].next(ev);
+				} {
+					ev = VC(ev[\vckey]).argStreams.next(ev);
+				};
+			};
+			ev
+		};
+	};
+} => PR(\arpegMultiVoicer);
+)
+
+BP(\t).free;
+Func('newCh').value(\t, \arpegMultiVoicer, \macroRh, MBM(0)[\pzch], nil, Pwhite(3, 6, inf), '16th', \xrand, nil, \d);
+
+Fact(\triVC) => VC(\tri);
+Fact(\madfmVC) => VC(\fm);
+
+p = BP(\t);
+
+p.child.argPairs = Pbind(\vckey, Prand(#[tri, fm], inf).trace(prefix: "vckey: "));
+p.child.initVoicerArgs;
+0 => p;
+
+(
+p.child.voicerArgs.put(
+	\tri, Pbind(
+		\holdtime, Pkey(\length) + 1,
+		\ffreq, Pexprand(1500, 8000, inf),
+		\rq, Pwhite(0.1, 0.6, inf)
+	)
+);
+p.child.voicerArgs.put(
+	\fm, Pbind(
+		\car_buf, Prand(VC(\fm).env.bufs, inf),
+		\mod_buf, Prand(VC(\fm).env.bufs, inf),
+		\car_detune, 1.006,
+		\car_env, [Env.adsr(0.01, 0.8, 0.1, 0.2)],
+		\mod_env, [Env.adsr(0.01, 0.8, 0.6, 0.2)],
+		\mod_ratio2, Pwhite(2, 7, inf) * (Pwhite(1.08, 1.26, inf) ** Prand(#[-1, 1], inf)),
+		\mod_ratio1, Pkey(\mod_ratio2), // * (Pwhite(1.08, 1.26, inf) ** Prand(#[-1, 1], inf)),
+		\slideTime, Pwhite(0.07, 0.34, inf)
+	)
+);
+)
+
+p.child.voicerArgStreams.dump;
+
+p.child.voicerArgs.listVars
+p.child.voicerArgStreams;
+
