@@ -466,3 +466,103 @@ PR(\arpeg1).clone {
 		};
 	};
 } => PR(\arpegMultiVoicer);
+
+
+ProtoEvent(\voicerNote).copy.make {
+	~play = {
+		var	lag = ~lag ? 0,  // ~timingOffset !? { ~timingOffset / ~clock.tempo };
+		timingOffset = ~timingOffset ? 0,
+		clock = ~clock,
+		voicer = ~voicer,
+		bundle, releaseGate,
+		iMadeNodes = ~nodes.isNil or: {
+			~nodes.asArray.any { |obj| obj.isKindOf(SynthVoicerNode).not }
+		};
+		// ~prepNote expects ~nodes to be nil
+		// if you want it to obtain nodes from the voicer
+		if(iMadeNodes) { ~nodes = nil };
+		~prepNote.value;
+		~finish.value;	// user-definable
+		(~debug == true).if({
+			"\n".debug;
+			["voicerNote event", ~clock.beats, ~clock.tempo].debug;
+			currentEnvironment.collect({ |value| value.isFunction.not.if(value, nil) }).postcs;
+		});
+		releaseGate = (~releaseGate ? 0).asArray;
+		if(iMadeNodes) {
+			~nodes.do({ |node, i|
+				var	freq = ~newFreq.wrapAt(i), length = ~length.wrapAt(i);
+				Func(\schedEventBundleArray).doAction(lag, ~timingOffset, node.server,
+					node.server.makeBundle(false, {
+						node.trigger(freq, ~gate.wrapAt(i), ~args.wrapAt(i), node.server.latency);
+					}));
+				(length.notNil and: { length != inf }).if({
+					// can't use schedEventBundle
+					// because you must not release the VoicerNode
+					// until the proper time comes
+					thisThread.clock.sched(length + timingOffset, {
+						voicer.releaseNode(node, freq, releaseGate.wrapAt(i),
+							lag + (node.server.latency ? 0));
+					});
+				});
+			});
+		} {
+			~nodes.do({ |node, i|
+				var	freq = ~newFreq.wrapAt(i), length = ~length.wrapAt(i);
+				Func(\schedEventBundleArray).doAction(lag, ~timingOffset, node.server,
+					node.server.makeBundle(false, {
+						node.set([\freq, freq] ++ ~args.wrapAt(i), node.server.latency);
+						node.frequency = freq;
+					})
+				);
+			});
+		};
+	};
+	~releaseNote = {
+		var latency;
+		((~immediateOSC ? false) or: { ~voicer.target.server.latency.isNil }).if({
+			~nodes.do(_.release);
+		}, {
+			latency = (((~lag ? 0) + (~timingOffset ? 0)) / (~clock ?? { thisThread.clock }).tempo)
+			+ ~voicer.target.server.latency;
+			~nodes.do(_.release(nil, latency));
+		});
+	};
+} => ProtoEvent(\voicerNoteSlurs);
+
+PR(\arpeg1).clone {
+	~event = ~event.copy.put(\eventKey, \voicerNoteSlurs);
+	~asPatternHook = { |out|
+		if(~notifier.isNil) {
+			~notifier = NotificationCenter.register(
+				currentEnvironment, \childStop, \theChildItself, e {
+					~lastEvent.use { ~releaseNote.value };
+					// note, this assumes that child streams will not overlap
+					// this is the normal case in macroRh
+					~lastEvent = nil;
+					~notifier.remove;
+					~notifier = nil;
+				}
+			)
+		};
+		out.collect { |ev|
+			if(~lastEvent.notNil and: {
+				~lastEvent[\nodes].notNil and: {
+					~lastEvent[\nodes].every { |n| n.isPlaying and: { n.isReleasing.not } }
+				}
+			}) {
+				ev[\nodes] = ~lastEvent[\nodes];
+			};
+			~lastEvent = ev;
+			ev
+		};
+	};
+	~stopCleanup = {
+		~notifier.remove;
+		~notifier = nil;
+		if(~lastEvent.notNil) {
+			~lastEvent.use { ~releaseNote.value };
+		};
+	};
+} => PR(\arpeg1Slurs);
+

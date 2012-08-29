@@ -54,24 +54,24 @@ forkIfNeeded {
 	WrapInstr("osc2.fm_monster", { arg freq, gate, car_env, mod_env, mod_lev,
 		freqInitRatio = 1, mod_ratio1 = 1, mod_ratio2 = 1, slideTime = 1,
 		detune, car_detune,
-		car_buf, mod_buf, car_vs, mod_vs, basefreq, keyscale, pan;
+		car_buf, mod_buf, car_vs, mod_vs, basefreq, keyscale, pan, car_env_time = 1, mod_env_time = 1;
 		var sig, mod, mod_ratio, car_amp, mod_amp;
 		car_amp = Latch.kr(Sensitivity.kr(1, gate, car_vs), gate);
 		mod_amp = Latch.kr(Sensitivity.kr(1, gate, mod_vs), gate)
-		* EnvGen.kr(mod_env.dereference.value(slideTime), gate);
+		* EnvGen.kr(mod_env.dereference.value(slideTime), gate, timeScale: mod_env_time);
 		freq = freq * XLine.kr(max(0.001, freqInitRatio), 1.0, slideTime);
 		mod_lev = mod_lev * basefreq / ((keyscale * freq) + (basefreq * (1 - keyscale)));
 		mod_ratio = Line.kr(mod_ratio1, mod_ratio2, slideTime);
 		mod = Osc.ar(mod_buf, freq.madd(mod_ratio * [1, car_detune], detune * [1, -1]), 0, mod_amp * mod_lev);
 		freq = freq * [1, car_detune];
 		sig = Mix(Osc.ar(car_buf, freq + (mod * freq), 0, car_amp))
-		* EnvGen.kr(car_env.dereference.value(slideTime), gate, doneAction:2);
+		* EnvGen.kr(car_env.dereference.value(slideTime), gate, timeScale: car_env_time, doneAction:2);
 		Pan2.ar(sig, pan);
 	}, [
 		\freq, \amp, EnvSpec(Env.adsr(0.01, 1, 1, 0.05)), EnvSpec(Env.adsr(0.01, 1, 1, 1)), [0.01, 300, \exponential],
 		#[0.05, 20, \exp], [1, 12, \linear, 0, 1], [1, 12, \linear, 0, 1], #[0, 2],
 		[-5, 5, \linear, 0, 0], \mydetune,
-		\mybuf, \mybuf, nil, nil, \freq, [0.001, 1.0, \exp], \bipolar
+		\mybuf, \mybuf, nil, nil, \freq, [0.001, 1.0, \exp], \bipolar, #[0.05, 20, \exp], #[0.05, 20, \exp]
 	]);
 
 	// most args are left unset - be careful
@@ -132,5 +132,47 @@ forkIfNeeded {
 		));
 	} => Func(\makeNletMelVC);
 
+
+
+	// oscillate chords
+	{ |notes|
+		notes = notes.sort { |a, b| a.asFloat > b.asFloat };
+		Pseq(
+			[
+				notes[0, 2 ..],  // top 2 notes
+				notes[1, 3 ..]    // rest of the notes
+			],
+			inf
+		)
+	} => ArpegPat(\interleave);
+
+	{ |notes|
+		notes = notes.sort { |a, b| a.asFloat > b.asFloat };
+		Pseq(
+			notes.clump((notes.size + 1) div: 2),
+			inf
+		)
+	} => ArpegPat(\highLow);
+
+	{ |notepat| Pn(#[0.25, inf, 0.5], notepat.estimateLength) } => MicRh(\hold16th);
+	{ |notepat| Pn([1/6, inf, 0.5], notepat.estimateLength) } => MicRh(\hold6tuplet);
+
+	(
+		make: { |name|
+			var p;
+			BP(name).free;
+			p = Func(\newCh).value(name, \arpeg1Slurs, \macroRh, MBM(0)[\pzch], nil, Pwhite(3, 6, inf) * 0.5, \hold16th, \interleave, nil, \d);
+			0 => p;
+
+			p.child.argPairs = [ffreq: 3000, holdtime: 1000];
+			p.child.fitFunc = \chordFitInt;
+
+			p.topNote = PR(\patternTop).copy.make {
+				~deg = Pwhite(42, 53, inf);
+				~mode = \d;
+			};
+		},
+		type: \bp
+	) => Fact(\oscilBP);
 
 };

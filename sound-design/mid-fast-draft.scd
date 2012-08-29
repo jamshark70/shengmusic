@@ -5,6 +5,8 @@
 
 (thisProcess.nowExecutingPath.dirname +/+ "../processes/mid-fast-procs.scd").loadPath;
 
+TempoClock.tempo = 88/60;
+
 BP(\shengShared).free;
 PR(\shengShared) => BP(\shengShared);
 
@@ -56,11 +58,11 @@ WrapInstr("osc2.v3mappanflzg", { |freq, bufbase, numbufs, basefreq, topfreq,
 	flzgamp = VarSaw.ar(flzgspeed, width: 0.2).range(flzglow, 1);
 	Line.kr(0, 1, holdtime + 0.15, doneAction: 2);  // zombie killer
 	Pan2.ar(RLPF.ar(sig, ffreq, rq), pan, flzgamp);
-}, [
-	\freq, #[0, 1000, \linear, 1, 0], #[0, 20, \lin, 1, 0], \freq, \freq,
-	\freq, \rq,
-	\bipolar, #[0.01, 10], EnvSpec(Env.adsr),
-	/*#[0, 0.5],*/ #[1, 30], #[0.25, 4, \exp], nil
+	}, [
+		\freq, #[0, 1000, \linear, 1, 0], #[0, 20, \lin, 1, 0], \freq, \freq,
+		\freq, \rq,
+		\bipolar, #[0.01, 10], EnvSpec(Env.adsr),
+		/*#[0, 0.5],*/ #[1, 30], #[0.25, 4, \exp], nil
 ]);
 
 WrapInstr("osc2.v3mappanflzg").listArgs;
@@ -121,11 +123,11 @@ WrapInstr("osc2.fm_monster", { arg freq, gate, car_env, mod_env, mod_lev,
 	freq = freq * [1, car_detune];
 	sig = Mix(Osc.ar(car_buf, freq + (mod * freq), 0, car_amp))
 	* EnvGen.kr(car_env.dereference.value(slideTime), gate, doneAction:2)
-}, [
-	\freq, \amp, EnvSpec(Env.adsr(0.01, 1, 1, 0.05)), EnvSpec(Env.adsr(0.01, 1, 1, 1)), [0.01, 300, \exponential],
-	#[0.05, 20, \exp], [1, 12, \linear, 0, 1], [1, 12, \linear, 0, 1], #[0, 2],
-	[-5, 5, \linear, 0, 0], \mydetune,
-	\mybuf, \mybuf, nil, nil, \freq, [0.001, 1.0, \exp]
+	}, [
+		\freq, \amp, EnvSpec(Env.adsr(0.01, 1, 1, 0.05)), EnvSpec(Env.adsr(0.01, 1, 1, 1)), [0.01, 300, \exponential],
+		#[0.05, 20, \exp], [1, 12, \linear, 0, 1], [1, 12, \linear, 0, 1], #[0, 2],
+		[-5, 5, \linear, 0, 0], \mydetune,
+		\mybuf, \mybuf, nil, nil, \freq, [0.001, 1.0, \exp]
 ]);
 
 WrapInstr("osc2.fm_monster").listArgs;
@@ -177,6 +179,7 @@ k.noteOnArgsPat = Pbind(
 );
 
 
+k.free;
 VC(\fm).free;
 Fact(\madfmVC) => VC(\fm);
 
@@ -191,10 +194,70 @@ Fact(\madfmVC) => VC(\fm);
 
 k = VoicerMIDISocket(0, VC(\fm).v);
 
-q = PbindProxy(\mod_ratio1, Pwhite(3.01, 3.07, inf));
-k.noteOnArgsPat = q <> (mod_ratio2: 3, slideTime: 2.5, car_detune: 1.006, car_buf: VC(\fm).env.bufs[2], mod_buf: VC(\fm).env.bufs.last, car_env: [Env(#[0, 1, 0.5, 0, 0], #[0.01, 0.14, 8.0, 0.15], -4, releaseNode: 3)], mod_env: [Env(#[0, 1, 0.25, 0.1, 0], #[0.01, 0.3, 3.0, 10.0], -4)], mod_lev: 9);
+b = Buffer.alloc(s, 2048, 1, completionMessage: { |buf| buf.sine1Msg(#[1]) });
 
-q.set(\mod_ratio1, Pkey(\mod_ratio2) + Pkey(\velocity).linlin(30, 127, 0.01, 0.05));
+VC(\fm).v.mapGlobal(\mod_lev, nil, 9, #[2, 40, \exp]);
+VC(\fm).v.mapGlobal(\mod_env_time, nil, 1, #[0.1, 10, \exp]);
+VC(\fm).v.mapGlobal(\mod_ratio2, nil, 3, #[1, 12, \lin, 0.05]);
+VC(\fm).v.mapGlobal(\keyscale, nil, 0.001, #[0.001, 1, \exp]);
+
+VC(\fm).globalControls[\keyscale].spec = #[0.1, 20, \exp];
+
+VC(\fm).trace
+
+VC(\fm).v.unmapGlobal(\mod_ratio2);
+VC(\fm).v.unmapGlobal(\keyscale);
+
+q = PbindProxy(\mod_ratio2, 3, \mod_ratio1, Pwhite(3.01, 3.07, inf));
+k.noteOnArgsPat = q <> (slideTime: 2.5, car_detune: 1.006, car_buf: b /* VC(\fm).env.bufs[2] */, mod_buf: VC(\fm).env.bufs.last, car_env: [Env(#[0, 1, 0.5, 0, 0], #[0.01, 0.14, 8.0, 0.15], -4, releaseNode: 3)], mod_env: [Env(#[0, 1, 0.25, 0.1, 0], #[0.01, 0.3, 1.0, 10.0], -4)], mod_lev: 9);
+
+q.set(\mod_ratio1, Pwhite(4, 4.5, inf));
+
+q.set(\mod_ratio1, Pkey(\mod_ratio2) + Pkey(\velocity).linlin(30, 127, 0.07, 0.2));
+
+q.set(\mod_ratio2, VC(\fm).globalControls[\mod_ratio2].asMap, \mod_ratio1, VC(\fm).globalControls[\mod_ratio2].asMap);
+
+q.set(\mod_ratio2, Pwhite(2, 6, inf) + (Pwhite(0.12, 0.3, inf) * Prand(#[-1, 1], inf)), \mod_ratio1, Pkey(\mod_ratio2));
+
+q.set(\mod_ratio2, 3.8);
+
+q.set(\mod_buf, Prand(VC(\fm).env.bufs, inf));
+
+o.free; o = OSCFunc({ |msg| { s.sendMsg(\n_trace, msg[1]) }.defer(0.1) }, '/n_go', s.addr).oneShot;
+
+
+// how's the above for fast, low notes?
+
+
+
+p = PbindProxy(
+	\type, \voicerNote,
+	\voicer, VC(\fm).v,
+	\midinote, Pseed(Pstutter(Pwhite(1, 3, inf), Pwhite(0, 0x7FFFFFFF, inf)),
+		Pseries({ rrand(48, 55) }, Pwrand(#[-1, -2, -3, -4], #[0.2, 0.4, 0.3, 0.1], { rrand(4, 8) }))),
+	\dur, 0.15,
+	\car_buf, b,
+	\car_detune, 1.006,
+	\car_buf, b /* VC(\fm).env.bufs[2] */,
+	\mod_buf, Prand(VC(\fm).env.bufs, inf),
+	\car_env, [Env(#[0, 1, 0.5, 0, 0], #[0.01, 0.14, 8.0, 0.15], -4, releaseNode: 3)],
+	\mod_env, [Env(#[0, 1, 0.25, 0.1, 0], #[0.01, 0.3, 1.0, 10.0], -4)]
+);
+
+q = p.play;
+q.stop;
+
+VC(\fm).unmapGlobal(\mod_lev);
+p.set(\mod_lev, Pif(Pdiff(Pkey(\midinote)) > 0, Pwhite(25.0, 40.0, inf), Pwhite(8.0, 19.0, inf)));
+
+p.set(\legato, Pif(Pdiff(Pkey(\midinote)) > 0, Pwhite(2.5, 10.0, inf), 0.8));
+
+VC(\fm).playingNodes;
+
+VC(\fm).unmapGlobal(\mod_env_time);
+p.set(\mod_env_time, Pif(Pdiff(Pkey(\midinote)) > 0, Pwhite(2.0, 4.0, inf), Pwhite(0.5, 0.8, inf)));
+
+p.set(\mod_ratio2, Pwhite(1, 3, inf) * 2 + 1 + (Pwhite(0.12, 0.3, inf) * Prand(#[-1, 1], inf)), \mod_ratio1, Pkey(\mod_ratio2));
 
 
 // smooth melody
@@ -313,7 +376,7 @@ p.child.voicerArgs.put(
 		\mod_env, [Env.adsr(0.01, 0.8, 0.6, 0.2)],
 		\mod_ratio2, Pwhite(2, 7, inf) * (Pwhite(1.08, 1.26, inf) ** Prand(#[-1, 1], inf)),
 		\mod_ratio1, Pkey(\mod_ratio2), // * (Pwhite(1.08, 1.26, inf) ** Prand(#[-1, 1], inf)),
-		\slideTime, Pwhite(0.07, 0.34, inf)
+		\slideTime, Pwhite(0.07, 0.34, inf),
 	)
 );
 )
@@ -322,4 +385,34 @@ p.child.voicerArgStreams.dump;
 
 p.child.voicerArgs.listVars
 p.child.voicerArgStreams;
+
+
+
+// oscillating notes
+// oscillate not only notes, but chords
+
+VC(\oscil).free;
+Fact(\triVC).chuck(VC(\oscil), nil, (
+	env: Env(#[0, 1, 0.4, 0.05, 0], #[0.07, 0.12, 3, 0.12], #[-4, -4, -6.5, -4], releaseNode: 3)
+));
+
+Fact(\oscilBP) => BP(\oscil);
+p = BP(\oscil);
+VC(\oscil) => p;
+
+p => MT(1);
+
+
+Pwhite(3, 6, inf) * 0.5 =>.macro p;
+\hold16th =>.micro p;
+
+Pseq([Pwhite(3, 6, { rrand(2, 6) }) * 0.5, Pn(1, { 2.rand + 1 })], inf) =>.macro p;
+Pif(Pkey(\delta) <= 1, \hold6tuplet, \hold16th) =>.micro p;
+
+
+'16th' =>.micro p;
+
+\highLow =>.arpeg p;
+\up =>.arpeg p;
+\interleave =>.arpeg p;
 
