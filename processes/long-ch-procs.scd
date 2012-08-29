@@ -16,7 +16,7 @@ if(BP.exists(\shengShared).not) {
 
 // RAPID PIZZES
 
-WrapInstr("osc.ks_retrig", { |freq = 440, amp = 0.1, ffreq = 2000, 
+WrapInstr("osc.ks_retrig", { |freq = 440, amp = 0.1, ffreq = 2000,
 	excratio = 0.5, excamp = 1, excAtk = 0.005, excDcy = 0.03, retrigProb = 1,
 	fbamp = 1, pan = 0,
 	env, timeScale = 1,
@@ -28,7 +28,7 @@ WrapInstr("osc.ks_retrig", { |freq = 440, amp = 0.1, ffreq = 2000,
 	// exciter retriggering
 	trig = trigFunc.dereference.value() ?? {
 		Impulse.ar(EnvGen.kr(NamedControl.kr(
-			\trigFreqEnv, 
+			\trigFreqEnv,
 			(0 ! 40).overWrite(Env().asArray)
 		), timeScale: timeScale))
 	},
@@ -762,7 +762,7 @@ free: { ~target.free }
 
 Ptuple([Pwhite(0.8, 1.7, inf), Pwhite(4.0, 9.0, inf), 0.5]) => MicRh(\highCh);
 
-Pfunc({ 
+Pfunc({
 	var d;
 	if(BP(\lowCh).isPlaying) {
 		d = BP(\lowCh).lastEvent.delta;
@@ -846,7 +846,7 @@ make: { |name|
 		// the mode can switch only when a new segment starts
 		~deg = Pn(Pwhile1({ |ev, next| next <= 31 }, Pseries({ rrand(25, 30) }, 1, { rrand(2, 5) })), inf, \restart);
 		~mode = Pgate(Prand(#[dpent1, dpent2], inf), inf, \restart);
-		~asPattern = { 
+		~asPattern = {
 			Pbind(
 				\freq, BPStream(\deg),
 				\delta, BPStream(\delta),
