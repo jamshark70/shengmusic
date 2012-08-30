@@ -242,6 +242,7 @@ make: { |name|
 		};
 	);
 	out = Voicer(20, WrapInstr(~instrName), ~voicerArgs.value, target: ~target);
+	~customize.value(out);
 	out
 },
 free: { ~target.free },

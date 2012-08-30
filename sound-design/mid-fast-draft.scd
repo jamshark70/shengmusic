@@ -391,9 +391,13 @@ p.child.voicerArgStreams;
 // oscillating notes
 // oscillate not only notes, but chords
 
+
 VC(\oscil).free;
 Fact(\triVC).chuck(VC(\oscil), nil, (
-	env: Env(#[0, 1, 0.4, 0.05, 0], #[0.07, 0.12, 3, 0.12], #[-4, -4, -6.5, -4], releaseNode: 3)
+	env: Env(#[0, 1, 0.4, 0.05, 0], #[0.07, 0.12, 3, 0.12], #[-4, -4, -6.5, -4], releaseNode: 3),
+	customize: {
+		~target.doWhenReady { ~target.newPostSend(~rvbmc, -7.5.dbamp) };
+	}
 ));
 
 Fact(\oscilBP) => BP(\oscil);
@@ -401,6 +405,22 @@ p = BP(\oscil);
 VC(\oscil) => p;
 
 p => MT(1);
+
+p.child.notePct = GenericGlobalControl(\notePct, nil, 0.2, #[0.1, 1.0]);
+p.useGui = { |vpIndex| ~child.notePct => VP(vpIndex) };
+p[\userfree] = { ~child.notePct.free };
+
+p.event
+
+
+p.event.collIndex = p.collIndex;
+
+p.prepareForPlay;
+
+p.triggerOneEvent(0);
+
+p.child.fitFunc = \chordFitNotes;
+p.child.fitFunc = \chordFitInt;
 
 
 Pwhite(3, 6, inf) * 0.5 =>.macro p;
@@ -416,3 +436,12 @@ Pif(Pkey(\delta) <= 1, \hold6tuplet, \hold16th) =>.micro p;
 \up =>.arpeg p;
 \interleave =>.arpeg p;
 
+
+VC(\oscil).v.mapGlobal(\ffreq, nil, 3000, \freq);
+VC(\oscil).v.mapGlobal(\rq, nil, 1, \myrq);
+
+VC(\oscil).v.unmapGlobal(\ffreq);
+VC(\oscil).v.unmapGlobal(\rq);
+
+p.child.argPairs[1] = Ppatlace([Pexprand(3000, 9000, inf), Pexprand(800, 2500, inf)], inf);
+p.child.argPairs = p.child.argPairs ++ [rq: Pwhite(0.2, 0.8, inf)];

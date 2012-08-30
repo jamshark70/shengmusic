@@ -135,8 +135,11 @@ forkIfNeeded {
 
 
 	// oscillate chords
-	{ |notes|
+	{ |notes, inEvent|
 		notes = notes.sort { |a, b| a.asFloat > b.asFloat };
+		if(BP.exists(inEvent[\collIndex])) {
+			notes = notes.keep(max(2, (notes.size * BP(inEvent[\collIndex]).child.notePct.value).round.asInteger));
+		};
 		Pseq(
 			[
 				notes[0, 2 ..],  // top 2 notes
@@ -146,8 +149,11 @@ forkIfNeeded {
 		)
 	} => ArpegPat(\interleave);
 
-	{ |notes|
+	{ |notes, inEvent|
 		notes = notes.sort { |a, b| a.asFloat > b.asFloat };
+		if(BP.exists(inEvent[\collIndex])) {
+			notes = notes.keep(max(2, (notes.size * BP(inEvent[\collIndex]).child.notePct.value).round.asInteger));
+		};
 		Pseq(
 			notes.clump((notes.size + 1) div: 2),
 			inf
@@ -164,13 +170,22 @@ forkIfNeeded {
 			p = Func(\newCh).value(name, \arpeg1Slurs, \macroRh, MBM(0)[\pzch], nil, Pwhite(3, 6, inf) * 0.5, \hold16th, \interleave, nil, \d);
 			0 => p;
 
-			p.child.argPairs = [ffreq: 3000, holdtime: 1000];
+			p.child.ffreq = Ppatlace([Pexprand(3000, 9000, inf), Pexprand(800, 2500, inf)], inf);
+			p.child.rq = Pwhite(0.2, 0.8, inf);
+			p.child.argPairs = [ffreq: BPStream(\ffreq), rq: BPStream(\rq), holdtime: 1000];
 			p.child.fitFunc = \chordFitInt;
 
 			p.topNote = PR(\patternTop).copy.make {
 				~deg = Pwhite(42, 53, inf);
 				~mode = \d;
 			};
+
+			p.child.notePct = GenericGlobalControl(\notePct, nil, 0.2, #[0.1, 1.0]);
+			p.useGui = { |vpIndex| ~child.notePct => VP(vpIndex) };
+			p[\userfree] = { ~child.notePct.free };
+			p.event.collIndex = p.collIndex;
+
+			p
 		},
 		type: \bp
 	) => Fact(\oscilBP);
