@@ -2,6 +2,7 @@
 
 "~/share/SC/scd/simple-piano.scd".standardizePath.loadPath;
 
+(
 TempoClock.tempo = 88/60;
 ~tcgui = TempoClock.default.gui;
 
@@ -16,17 +17,14 @@ TempoClock.tempo = 88/60;
 		});
 	};
 }.value;
+)
 
 
 ~fingerctl.set(1)
 
 
 // spacer-rest summer
-z = "1*18
-2.
-2
-2.*4
-1*4
+z = "1*20
 2.
 1*9
 2.*2
@@ -35,10 +33,72 @@ z = "1*18
 1*2
 2.
 1*2
-1*2".split(Char.nl);
+1*3
+2.
+2
+2.
+1
+2.*3
+1*4
+1
+2.
+1*2
+2.
+1*2
+2.
+1*2
+2*2
+1".split(Char.nl);
 
-v = Dictionary[
-	"1" -> 4, "2" -> 2, "4" -> 1,
+z = "1
+2.
+1
+2
+2.
+1
+1
+4
+1*17
+2.
+1*2
+1
+4
+1*12
+1*14
+2.
+1*2
+2.
+1*9".split(Char.nl);
+
+z = "2.*3
+1*8
+2.
+4
+16
+4
+16
+1*5
+2.
+1*18
+2.
+1*2
+2
+2.
+1*15
+1*9
+1
+4
+1*2
+2.
+1*2
+2
+1
+1
+4
+1*4".split(Char.nl);
+
+d = Dictionary[
+	"1" -> 4, "2" -> 2, "4" -> 1, "8" -> 0.5, "16" -> 0.25,
 	"1." -> 6, "2." -> 3, "4." -> 1.5
 ];
 
@@ -46,7 +106,7 @@ a = 0;
 z.do { |line|
 	line = line.split($*);
 	if(line.size == 1) { line = line.add(1) };
-	a = a + (v[line[0]] * line[1].asInteger);
+	a = a + (d[line[0]] * line[1].asInteger);
 };
 a
 
@@ -148,8 +208,8 @@ WrapInstr(\quickypad, { |freq = 440, gate = 1, det = 1, amp = 0.1, env, pan = 0,
 	feg = EnvGen.kr(filt_env, gate, timeScale: time);
 	sig = RLPF.ar(sig, feg, rq);
 	Pan2.ar(sig, pan, eg);
-}, [\freq, \unipolar, \mydetune, \amp, EnvSpec(Env.adsr), \bipolar,
-	\freq, \freq, \myrq, #[0.1, 10, \exp], nil, ObjectSpec(nil)
+	}, [\freq, \unipolar, \mydetune, \amp, EnvSpec(Env.adsr), \bipolar,
+		\freq, \freq, \myrq, #[0.1, 10, \exp], nil, ObjectSpec(nil)
 ]);
 )
 
@@ -208,7 +268,7 @@ p = Penvir(
 	)
 ).play;
 
-p.stop;		
+p.stop;
 
 
 
