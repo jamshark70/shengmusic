@@ -16,6 +16,7 @@ s.addr = ~saveAddr;
 	Mode(key).v.transposeRoot(0) => Mode((key ++ "0").asSymbol);
 };
 
+// SynthDescLib.global.browse;
 
 
 // pitch from noise
@@ -96,7 +97,7 @@ a.free;
 
 
 
-WrapInstr("osc.ks_sustained", { |freq = 440, amp = 0.1, ffreq = 2000, 
+WrapInstr("osc.ks_sustained", { |freq = 440, amp = 0.1, ffreq = 2000,
 	excratio = 0.5, excamp = 1, fbamp = 1, pan = 0,
 	env, timeScale = 1,
 	bufselect, firstbuf = 1, numbufs = 2, detectSilence|
@@ -130,12 +131,12 @@ WrapInstr("osc.ks_sustained", { |freq = 440, amp = 0.1, ffreq = 2000,
 		DetectSilence.ar(feedback, 0.003, doneAction: 2);
 	};
 	Pan2.ar(feedback, pan, eg * amp)
-}, [
-	\freq, \amp, \freq,
-	#[0.1, 1, \exp], \amp, \amp, \bipolar,
-	EnvSpec(Env.adsr), #[0.01, 100, \exp],
-	ObjectSpec({ SinOsc.kr(Rand(0.08, 0.14)) }), \mybuf, StaticSpec(2, 16, \lin, 1, 2),
-	ObjectSpec(false)
+	}, [
+		\freq, \amp, \freq,
+		#[0.1, 1, \exp], \amp, \amp, \bipolar,
+		EnvSpec(Env.adsr), #[0.01, 100, \exp],
+		ObjectSpec({ SinOsc.kr(Rand(0.08, 0.14)) }), \mybuf, StaticSpec(2, 16, \lin, 1, 2),
+		ObjectSpec(false)
 ]);
 
 
@@ -389,7 +390,7 @@ p = n.play(Pspawner({ |sp|
 		sp.par(
 			Pfindur(dur, Pbind(
 				\instrument, \klinks,
-				\bufnum, b.choose,
+				\bufnum, BP(\shengShared).noiseBufs.choose,
 				\amp, Env(#[0.4, 0.8, 0.8, 0.2], [0.1, 0.5, 0.4] * dur, #[-4, 0, -2]),
 				\dur, rrand(0.09, 0.41) * Pwrand(#[1, 2], #[0.85, 0.15], inf),
 				\pan, 1.0.rand2,
@@ -894,3 +895,124 @@ p.gst = Pseq([
 		\dArpeg
 	])
 ], inf).trace;
+
+
+
+
+// get some low sounds out of klinks def
+
+// ok... multiband formlet, with periodic noise (including impulse-like transition)
+// starts to become formant-like
+n.play((instrument: \klinks, bufnum: BP(\shengShared).noiseBufs.choose, excfreq: exprand(25, 42), excAtk: 0.02, excDcy: 0.7, klAtk: 0.3, klDcy: 0.7, amp: 1, specs: [Array.fill(5, { exprand(80, 160) })]));
+
+// not sure about modulating the exciter frequency
+(
+n.play((
+	instrument: \klinks,
+	bufnum: BP(\shengShared).noiseBufs.choose,
+	excfreq: { ~lock.bus.asMap },
+	excAtk: 0.02,
+	excDcy: 0.7,
+	klAtk: 0.3,
+	klDcy: 0.7,
+	amp: 1,
+	specs: [Array.fill(5, { exprand(80, 160) })],
+	parent: ProtoEvent(\polySynthKrBusLock).parent,
+	numCh: 1,
+	lpcEv: (
+		instrument: \ctlEnv,
+		env: [Env([1, rrand(1.5, 2.5)].rotate(2.rand) * exprand(25, 42), #[0.7], \exp)],
+		connect: 0
+	)
+));
+)
+
+n.play((instrument: \klinks, bufnum: BP(\shengShared).noiseBufs.choose, excfreq: exprand(25, 42), excAtk: 0.02, excDcy: 0.7, klAtk: 0.3, klDcy: 0.7, amp: 1, specs: [Array.fill(5, { exprand(80, 160) })]));
+
+(
+SynthDef(\klinks2, { |out, bufnum = #[0, 0], amp = 0.1,
+	excfreq = 100, excDetune = 1, excAtk = 0.01, excDcy = 0.05,
+	klAtk = 0, klDcy = 1,
+	pan = 0|
+	var exc = Osc.ar(bufnum, excfreq * [1, excDetune], Rand(0, pi) + [0, pi], amp) * Decay2.ar(
+		Impulse.ar(0), excAtk, excDcy),
+	specs = NamedControl.kr(\specs, #[621.62188989246, 458.28750962083, 483.12690995039, 1341.4332586515, 229.71349364755, 0.1, 0.1, 0.1, 0.1, 0.1, 0.16730279340267, 0.039352280429134, 0.13997095946335, 0.030161787383422, 0.14313835788342]).clump(5),
+	sig = Klank.ar(`specs, exc, decayscale: klDcy) - Klank.ar(`specs, exc, decayscale: klAtk);
+	DetectSilence.ar(sig, doneAction: 2);
+	Out.ar(out, Balance2.ar(sig[0], sig[1], pan));
+}).add;
+)
+
+
+q = PbindProxy(
+	\instrument, \klinks2,
+	\bufnum, Pxrand(BP(\shengShared).noiseBufs, inf).clump(2).collect([_]),
+	\degree, Pwhite(0, 4, inf),
+	\octave, 3,
+	\root, 2,
+	\excfreq, Pfunc({ |ev| ev.use { ~detunedFreq.value } }),
+	\excAtk, 0.02,
+	\excDcy, 0.7,
+	\klAtk, 0.3,
+	\klDcy, 0.7,
+	\amp, 1,
+	\specs, Pexprand(80, 160, inf).clump(5).collect([_])
+);
+
+q.set(
+	\instrument, \klinks2,
+	\bufnum, Pxrand(BP(\shengShared).noiseBufs, inf).clump(2).collect([_])
+);
+
+p = n.play(q);
+
+q.set(\excDetune, 1.5);
+
+q.set(\octave, 5);
+q.set(\specs, [Array.fill(5, { exprand(80, 160) })]);
+
+g = GenericGlobalControl(\bufnum, nil, BP(\shengShared).noiseBufs.first.bufnum, [BP(\shengShared).noiseBufs.first.bufnum, BP(\shengShared).noiseBufs.first.bufnum + BP(\shengShared).noiseBufs.size - 1, \lin, 1]);
+
+g => VP(0);
+g.free;
+
+q.set(\bufnum, g);
+q.set(\excfreq, 80);
+q.set(\excfreq, Pfunc({ |ev| ev.use { ~detunedFreq.value } }));
+
+q.set(\octave, 3);
+
+q.set(\bufnum, Prand(BP(\shengShared).noiseBufs, inf));
+
+g.free;
+g = GenericGlobalControl(\detuneRatio, nil, 1, #[1, 1.5, \exp]);
+g => VP(0);
+
+q.set(\specs, (Pkey(\excfreq) * (2 ** (3 - Pkey(\octave))) * (1..5) * (Pexprand(g.reciprocal, g, inf).clump(5))).collect([_]));
+
+q.set(\octave, 7);
+q.set(\octave, Pn(Pseries(2, 1, 6), inf));
+
+q.set(\delta, Pwhite(1, 3, inf) * 0.5);
+
+q.set(\klAtk, 0.25, \klDcy, 7);  // long decay time sounds nice, careful of limiting
+
+q.postcs
+
+p.isPlaying;
+
+p = n.play(q);
+p.stop;
+
+e = q.source.endless.asStream.next(());
+
+source.source.asStream.next(());
+
+SynthDef(\osc, { |bufnum, excfreq, amp = 0.1, out|
+	Out.ar(out,
+		(Osc.ar(bufnum, excfreq, mul: amp) * EnvGen.kr(Env.perc(0.01, 0.5), doneAction: 2)) ! 2
+	)
+}).add;
+
+q.set(\instrument, \osc);
+q.set(\instrument, \klinks);
