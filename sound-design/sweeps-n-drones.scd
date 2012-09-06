@@ -1340,3 +1340,87 @@ p.restDur = Pwhite(3.0, 7.0, inf);
 
 
 
+
+// more perc (above was a useful sidetrack)
+
+a = m.play { SinOsc.ar(Lag.kr(LFNoise1.kr(5).exprange(200, 400), 0.1)) };
+a.free;
+
+a = m.play { SinOsc.ar(VarLag.kr(LFNoise1.kr(5).exprange(200, 400), 0.1)) };
+a.free;
+
+SynthDef(\zzipbpfModHp, { |out, bufnum, freq = 440, dtune = 1.003,
+	hpfreq = 800, hprq = 1,
+	amp = 0.1, gate = 1, pan = 0|
+	var sig = VOsc3.ar(bufnum, freq / dtune, freq, freq * dtune, amp),
+	env = NamedControl.kr(\env, Env.asr(0.02, 1, 0.02).asArray.extend(32, 0));
+	sig = BPF.ar(sig, hpfreq, hprq);
+	Out.ar(out, Pan2.ar(sig, pan, EnvGen.kr(env, gate, doneAction: 2)));
+}).add;
+
+SynthDef(\noise1TimesEnv, { |outbus, lfwidth1 = 1, lfwidth2 = 0, lfoSpeed = 5, time = 1|
+	var width = Line.kr(lfwidth1, lfwidth2, time),
+	envTemplate = Env.one.asArray.extend(40, 0),
+	lfoSpeedEnv = NamedControl.kr(\lfoSpeedEnv, envTemplate),
+	lfo = SinOsc/*LFDNoise1*/.kr(
+		lfoSpeed * EnvGen.kr(lfoSpeedEnv, timeScale: time)
+	).exprange(width.reciprocal, width),
+	env = NamedControl.kr(\env, envTemplate),
+	eg = EnvGen.kr(env, timeScale: time, doneAction: 2),
+	sig = eg * lfo;
+	Out.kr(outbus, sig);
+}).add;
+
+// maybe
+
+(n.play((
+	parent: ProtoEvent(\polySynthKrBusLock).parent,
+	instrument: \zzipbpfModHp,
+	numCh: 1,
+	bufnum: BP(\shengShared).noiseBufs.choose,
+	freq: rrand(25.0, 50.0),
+	hpfreq: { ~lock.bus.asMap },
+	hprq: 0.01,
+	amp: 3,
+	sustain: inf,
+	// env: [Env.linen(0.01, 0.33, 0.01)],
+	env: [Env.perc(0.01, 0.15, curve: -3)],
+	lpcEv: (
+		instrument: \noise1TimesEnv,
+		// env: [Env([exprand(400, 1000), exprand(2200, 3600)].rotate(2.rand), [1], \exp).postcs],
+		env: [Env(rrand(250, 300.0) ! 2, #[1])],
+		lfwidth1: 2, lfwidth2: 1,
+		lfoSpeed: 38,
+		time: 0.15
+	)
+	// lpcEv: (
+	// 	instrument: \ctlEnv,
+	// 	connect: 0,
+	// 	env: [Env(Array.fill(8, { exprand(1000, 2500) }), Array.fill(7, { rrand(1.0, 3.0) }).normalizeSum)]
+	// )
+)));
+
+
+// interesting but cheezy? how to uncheeze it?
+
+(n.play((
+	parent: ProtoEvent(\polySynthKrBusLock).parent,
+	instrument: \zzipbpfModHp,
+	numCh: 1,
+	bufnum: BP(\shengShared).noiseBufs.choose,
+	freq: rrand(25.0, 50.0),
+	hpfreq: { ~lock.bus.asMap },
+	hprq: 0.01,
+	amp: 3,
+	sustain: inf,
+	// env: [Env.linen(0.01, 0.33, 0.01)],
+	env: [Env.perc(0.01, 4, curve: -3)],
+	lpcEv: (
+		instrument: \noise1TimesEnv,
+		env: [Env([exprand(2200, 3600), exprand(400, 1000)], [1], \exp).postcs],
+		lfwidth1: 2, lfwidth2: 2,
+		lfoSpeed: 27,
+		lfoSpeedEnv: [Env([1, 0.05], [1])],
+		time: 4.01
+	)
+)));
