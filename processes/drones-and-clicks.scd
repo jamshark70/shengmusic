@@ -7,7 +7,7 @@ protect {
 	// a modified karplus-strong approach
 	// note the crazy hackery needed for tuning based on filter frequency :O
 
-	WrapInstr("osc.ks_sustained", { |freq = 440, amp = 0.1, ffreq = 2000, 
+	WrapInstr("osc.ks_sustained", { |freq = 440, amp = 0.1, ffreq = 2000,
 		excratio = 0.5, excamp = 1, fbamp = 1, pan = 0,
 		env, timeScale = 1,
 		bufselect, firstbuf = 1, numbufs = 2, detectSilence|
@@ -396,6 +396,164 @@ protect {
 		~prepareArgsForOneDef = nil;
 		~getUserArgs = nil;
 	} => PR(\clicks);
+
+	SynthDef(\klinks2, { |out, bufnum = #[0, 0], amp = 0.1,
+		excfreq = 100, excDetune = 1, excAtk = 0.01, excDcy = 0.05,
+		klAtk = 0, klDcy = 1,
+		pan = 0|
+		var exc = Osc.ar(bufnum, excfreq * [1, excDetune], Rand(0, pi) + [0, pi], amp) * Decay2.ar(
+			Impulse.ar(0), excAtk, excDcy),
+		specs = NamedControl.kr(\specs, #[621.62188989246, 458.28750962083, 483.12690995039, 1341.4332586515, 229.71349364755, 0.1, 0.1, 0.1, 0.1, 0.1, 0.16730279340267, 0.039352280429134, 0.13997095946335, 0.030161787383422, 0.14313835788342]).clump(5),
+		sig = Klank.ar(`specs, exc, decayscale: klDcy) - Klank.ar(`specs, exc, decayscale: klAtk);
+		DetectSilence.ar(sig, doneAction: 2);
+		Out.ar(out, Balance2.ar(sig[0], sig[1], pan));
+	}).add;
+
+	PR(\abstractProcess).clone {
+		~event = (eventKey: \polySynthPlayer);
+
+		~prep = {
+			~chan = MixerChannel(~collIndex, s, 2, 2/*, completionFunc: nil*/);
+			~event[\chan] = ~chan;
+			~event[\instrument] = \klinks2;
+
+			~detuneCtl = GenericGlobalControl(\detuneRatio, nil, 1, #[1, 2, \exp]);
+
+			currentEnvironment
+		};
+
+		~freeCleanup = { [~chan, ~detuneCtl].free };
+		~useGui = { |vpi| ~detuneCtl => VP(vpi) };
+
+		~instrument = \klinks2;
+		~delta = Pwhite(1, 3, inf);
+		~bufnum = Plazy({ Pxrand(BP(\shengShared).noiseBufs, inf).clump(2).collect([_]) });
+		~degree = Pxrand([0, 4, Pwhite(9, 10, 1)], inf).clump(2); //Pwhite(0, 4, inf);
+		~octave = 2;
+		~filtOctave = 3;
+		~mode = \d;
+		~excfreq = Pfunc({ |ev|
+			var mode = ev[\mode].asMode;
+			mode.cps(ev[\degree] + (mode.scale.size * ev[\octave]))
+		});
+		~excAtk = 0.002;
+		~excDcy = 1.5;
+		~klAtk = 0.25;
+		~klDcy = 7;
+		~amp = 0.1;
+		~detuneRatio = Plazy({ ~detuneCtl.asPattern });
+		~specs = (Pkey(\excfreq) * (2 ** (Pkey(\filtOctave) - Pkey(\octave))) * (1..5) * (Pexprand(Pkey(\detuneRatio).reciprocal, Pkey(\detuneRatio), inf).clump(5))).collect([_]);
+
+		~asPattern = {
+			Pbind(
+				\bufnum, BPStream(\bufnum),
+				\degree, BPStream(\degree),
+				\octave, BPStream(\octave),
+				\mode, BPStream(\mode),
+				\excfreq, BPStream(\excfreq),
+				\excAtk, BPStream(\excAtk),
+				\excDcy, BPStream(\excDcy),
+				\klAtk, BPStream(\klAtk),
+				\klDcy, BPStream(\klDcy),
+				\amp, BPStream(\amp),
+				\filtOctave, BPStream(\filtOctave),
+				\detuneRatio, BPStream(\detuneRatio),
+				\specs, BPStream(\specs),
+				\delta, BPStream(\delta)
+			);
+		};
+	} => PR(\lowbells);
+
+
+	SynthDef(\zzipbpf, { |out, bufnum, freq = 440, dtune = 1.003,
+		hpfreq = 800, hprq = 1, hptime = 0.002,
+		amp = 0.1, gate = 1, pan = 0|
+		var f = VarLag.kr(freq, hptime),
+		sig = VOsc3.ar(bufnum, f / dtune, f, f * dtune, amp),
+		env = NamedControl.kr(\env, Env.asr(0.02, 1, 0.02).asArray.extend(32, 0));
+		sig = BPF.ar(sig, VarLag.kr(hpfreq, hptime), VarLag.kr(hprq, hptime));
+		Out.ar(out, Pan2.ar(sig, pan, EnvGen.kr(env, gate, doneAction: 2)));
+	}).add;
+
+	PR(\abstractProcess).clone {
+		~alwaysReset = true;
+		~event = (eventKey: \default);
+		~prep = {
+			~chan = MixerChannel(~collIndex, s, 2, 2, ~initLevel, outbus: ~master, completionFunc: nil);
+			~event.put(\out, ~chan.inbus).put(\group, ~chan.synthgroup);
+			~makePMonoWrapper.();
+			~makeOneChirpPattern.();
+			currentEnvironment
+		};
+		~freeCleanup = { ~chan.free	};
+
+		~defname = \zzipbpf;
+
+		~chirpDur = Pwhite(1.0, 3.2, inf);
+		~restDur = Pwhite(3.0, 7.0, inf);
+		~phrase = Pfunc({ ~phrases.keys.choose });
+
+		// Plazy: don't access shengShared until play time
+		~bufnum = Plazy({ Prand(BP(\shengShared).noiseBufs, inf) });
+		~freq = Pexprand(25, 50, inf);
+		~hprq = 0.01;
+		~amp = 3;
+		// ~sendGate = false;
+		// ~env = Env.linen(0.05, 0.08, 0.05);
+
+		~phrases = (
+			saw: Pbind(
+				\hpfreq, Plazy({ Pseq([exprand(3000, 5000), exprand(1000, 2000)], rrand(3, 6), 2.rand) }),
+				\delta, Plazy({ Pseq([rrand(0.08, 0.12), 0.01], inf) })
+			),
+			sqr: Pbind(
+				\hpfreq, Plazy({ Pseq([exprand(3000, 5000), exprand(1000, 2000)], rrand(3, 6), 2.rand) }),
+				\delta, Plazy({ rrand(0.06, 0.11).loop }),
+				\hptime, Pkey(\delta) * 0.25
+			),
+			randHi: Pbind(
+				\hpfreq, Pfin(
+					{ rrand(5, 11) },
+					Pseq([
+						Pwhite(2, 3, { rrand(1, 2) }),
+						1
+					], inf) *.x Pexprand(800, 3000, { rrand(1, 2) })
+				),
+				\delta, Pexprand(0.05, 0.15, inf)
+			)
+		);
+
+		~makeOneChirpPattern = {
+			~oneChirpPattern = Pfindur(BPStream(\chirpDur).asStream, Psym(BPStream(\phrase), ~phrases));
+		};
+
+		~makePMonoWrapper = {
+			~pmonoWrapper = Pmono(
+				~defname,
+				\hptime, Pfunc({ |ev|
+					if(ev[\hptime].isNil) { ev.delta } { ev[\hptime] }
+				}),
+				\amp, BPStream(\amp)
+			);
+		};
+
+		~asPattern = {
+			~restDurStream ?? { ~makeStreamForKey.(\restDur) };
+			Pseq([
+				Pchain(
+					Plazy({ ~pmonoWrapper }),  // in case you change the wrapper
+					Plazy({ ~oneChirpPattern }),  // likewise
+					Pbind(
+						\bufnum, BPStream(\bufnum),
+						\freq, BPStream(\freq),
+						\hprq, BPStream(\hprq),
+					)
+				),
+				Plazy({ |inval| Event.silent(~restDurStream.next(inval), inval) })
+			], inf)
+		};
+	} => PR(\birds);
+
 } {
 	AbstractChuckArray.defaultSubType = saveSubType;
 };

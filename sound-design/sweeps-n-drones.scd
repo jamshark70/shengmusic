@@ -17,6 +17,7 @@ s.addr = ~saveAddr;
 };
 
 // SynthDescLib.global.browse;
+// s.queryAllNodes;
 
 
 // pitch from noise
@@ -944,19 +945,22 @@ SynthDef(\klinks2, { |out, bufnum = #[0, 0], amp = 0.1,
 )
 
 
+g = GenericGlobalControl(\detuneRatio, nil, 1.18, #[1, 1.5, \exp]);
+g => VP(0);
+
 q = PbindProxy(
 	\instrument, \klinks2,
 	\bufnum, Pxrand(BP(\shengShared).noiseBufs, inf).clump(2).collect([_]),
 	\degree, Pwhite(0, 4, inf),
-	\octave, 3,
+	\octave, 2,
 	\root, 2,
 	\excfreq, Pfunc({ |ev| ev.use { ~detunedFreq.value } }),
-	\excAtk, 0.02,
-	\excDcy, 0.7,
-	\klAtk, 0.3,
-	\klDcy, 0.7,
+	\excAtk, 0.002,
+	\excDcy, 1.5,
+	\klAtk, 0.25,
+	\klDcy, 7,
 	\amp, 1,
-	\specs, Pexprand(80, 160, inf).clump(5).collect([_])
+	\specs, (Pkey(\excfreq) * (2 ** (3 - Pkey(\octave))) * (1..5) * (Pexprand(g.reciprocal, g, inf).clump(5))).collect([_])
 );
 
 q.set(
@@ -990,11 +994,15 @@ g => VP(0);
 
 q.set(\specs, (Pkey(\excfreq) * (2 ** (3 - Pkey(\octave))) * (1..5) * (Pexprand(g.reciprocal, g, inf).clump(5))).collect([_]));
 
-q.set(\octave, 7);
+q.set(\octave, 7);  // that's actually pretty cool with the low filters
+q.set(\octave, 6);  // 6 is even better! and 5
+q.set(\octave, 2);  // 2 is closer to pitched but with kick-ass harmonics w/ long decay time
 q.set(\octave, Pn(Pseries(2, 1, 6), inf));
 
 q.set(\delta, Pwhite(1, 3, inf) * 0.5);
 
+q.set(\excDcy, 1.5);
+q.set(\excAtk, 0.002);
 q.set(\klAtk, 0.25, \klDcy, 7);  // long decay time sounds nice, careful of limiting
 
 q.postcs
@@ -1004,7 +1012,17 @@ p.isPlaying;
 p = n.play(q);
 p.stop;
 
-e = q.source.endless.asStream.next(());
+
+q.set(\degree, #[0, 4]);
+
+q.set(\degree, #[4]);
+
+// this is quite cool with octave == 2 and detuneRatio == 1
+// higher detuneRatio is nice too but totally different effect, clunkier
+q.set(\degree, Pxrand([0, 4, Pwhite(9, 10, 1)], inf).clump(2));
+
+e = q.asStream.next(Event.default);
+n.play(e.copy);
 
 source.source.asStream.next(());
 
@@ -1016,3 +1034,309 @@ SynthDef(\osc, { |bufnum, excfreq, amp = 0.1, out|
 
 q.set(\instrument, \osc);
 q.set(\instrument, \klinks);
+
+
+
+// try to convince \zzip to make a squeaky, almost animal-like sound
+
+e = n.play((instrument: \zzip, bufnum: BP(\shengShared).noiseBufs.choose, freq: 48, hpfreq: (69 + 24).midicps, hprq: 0.02, sustain: inf, sendGate: false, env: Env.linen(0.05, 0.08, 0.05)));
+
+// \hprq makes it whistly, not right
+
+(p = n.play(
+	q = PbindProxy(
+		\instrument, \zzip,
+		\bufnum, Prand(BP(\shengShared).noiseBufs, inf),
+		\freq, Pexprand(25, 50, inf),
+		\hpfreq, (PdegreeToKey(Pwhite(0, 9, inf), Scale.major.semitones, 12) + 86).midicps,
+		\hprq, 0.02,
+		\sendGate, false,
+		\env, [Env.linen(0.05, 0.08, 0.05)],
+		\delta, Pwhite(1, 4, inf) * 0.25
+	)
+));
+
+g = GenericGlobalControl(\hprq, nil, 0.02, #[0.5, 0.01, \exp]);
+g => VP(0);
+q.set(\hprq, g);
+
+q.set(\hpfreq, (PdegreeToKey(Pwhite(0, 9, inf), Scale.major.semitones, 12) + 98).midicps);
+
+// hmm, try fast lfo on filter
+q.set(
+	\delta, Pwhite(0.6, 0.9, inf) *.x Pseq([Pn(1, { rrand(2, 5) }), 2], 1),
+	// \env, [Env.linen(0.05, 0.08, 0.05)]
+);
+
+h = GenericGlobalControl(\lfofreq, nil, 10, #[3, 80, \exp]);
+h => VP(0);
+
+h.automate { SinOsc.kr(LFDNoise1.kr(LFNoise1.kr(0.1)).exprange(0.05, 0.4)).range(14, 30) };
+
+h.autoSynth.trace;
+
+j = GenericGlobalControl(\hpfreq, nil, 2000, \freq);
+
+j.automate {
+	var center = SinOsc.kr(0.075).exprange(300, 3000),
+	width = SinOsc.kr(0.085).range(1.1, 2.0);
+	SinOsc.kr(h.kr).exprange(center / width, center * width)
+};
+
+j.autoSynth.trace;
+
+q.set(\hpfreq, j.asMap);
+
+// some of these are pretty convincing bird chirps
+(
+SynthDef(\zzipbpf, { |out, bufnum, freq = 440, dtune = 1.003,
+	hpfreq = 800, hprq = 1, hptime = 0.002,
+	amp = 0.1, gate = 1, pan = 0|
+	var f = VarLag.kr(freq, hptime),
+	sig = VOsc3.ar(bufnum, f / dtune, f, f * dtune, amp),
+	env = NamedControl.kr(\env, Env.asr(0.02, 1, 0.02).asArray.extend(32, 0));
+	sig = BPF.ar(sig, VarLag.kr(hpfreq, hptime), VarLag.kr(hprq, hptime));
+	Out.ar(out, Pan2.ar(sig, pan, EnvGen.kr(env, gate, doneAction: 2)));
+}).add;
+)
+
+q.set(\instrument, \zzipbpf);
+q.set(\amp, 2);
+
+// doesn't make a difference
+k = GenericGlobalControl(\oscfreq, nil, 40, #[20, 800, \exp]);
+k => VP(0);
+
+q.set(\freq, k.asMap);
+
+p = n.play(q);
+p.stop;
+
+
+// see synthdef above
+
+(d = (
+	saw: Pbind(
+		// \hpfreq, Pfin(
+		// 	{ rrand(3, 6) * 2 },
+		// 	Ppatlace([Pexprand(3000, 5000, inf), Pexprand(1000, 2000, inf)], inf, { 2.rand })
+		// ),
+		\hpfreq, Plazy({ Pseq([exprand(3000, 5000), exprand(1000, 2000)], rrand(3, 6), 2.rand) }),
+		\delta, Plazy({ Pseq([rrand(0.08, 0.12), 0.01], inf) })
+	),
+	sqr: Pbind(
+		// \hpfreq, Pfin(
+		// 	{ rrand(3, 6) * 2 },
+		// 	Ppatlace([Pexprand(3000, 5000, inf), Pexprand(1000, 2000, inf)], inf, { 2.rand })
+		// ),
+		\hpfreq, Plazy({ Pseq([exprand(3000, 5000), exprand(1000, 2000)], rrand(3, 6), 2.rand) }),
+		\delta, Plazy({ rrand(0.06, 0.11).loop }),
+		\hptime, 0.003
+	),
+	randHi: Pbind(
+		\hpfreq, Pexprand(1800, 3300, { rrand(3, 9) }),
+		\delta, Pexprand(0.05, 0.15, inf)
+	)
+));
+
+(q = PbindProxy(
+	\bufnum, Plazy({ BP(\shengShared).noiseBufs.choose.loop }),
+	\freq, Pexprand(25, 200, inf),
+	// \hpfreq, Pexprand(200, 3000, inf),
+	\hprq, 0.05,
+	// \env, [],  // use default Env.asr
+	// \delta, Pexprand(0.05, 0.15, inf),
+	// \hptime, Pkey(\delta)
+));
+
+Pdefn(\fkey, Pfunc({ d.keys.choose }));
+Pdefn(\fkey, \randHi);
+
+(d.sqr = Pbind(
+	// \hpfreq, Pfin(
+	// 	{ rrand(3, 6) * 2 },
+	// 	Ppatlace([Pexprand(3000, 5000, inf), Pexprand(1000, 2000, inf)], inf, { 2.rand })
+	// ),
+	\hpfreq, Plazy({ Pseq([exprand(3000, 5000), exprand(1000, 2000)], rrand(3, 6), 2.rand) }),
+	\delta, Plazy({ rrand(0.06, 0.11).loop }),
+	\hptime, Pkey(\delta) * 0.25
+));
+
+(d.randHi = Pbind(
+	\hpfreq, Pfin(
+		{ rrand(5, 11) },
+		Pseq([
+			Pwhite(2, 3, { rrand(1, 2) }),
+			1
+		], inf) *.x Pexprand(800, 3000, { rrand(1, 2) })
+	),
+	\delta, Pexprand(0.05, 0.15, inf)
+));
+
+
+(
+var k = Bus.control(s, 1), ampSynth,
+mono = Pchain(
+	Pmono(
+		\zzipbpf,
+		\hptime, Pfunc({ |ev|
+			if(ev[\hptime].isNil) { ev.delta } { ev[\hptime] }
+		}),
+		\amp, k.asMap
+	),
+	Psym(Pdefn(\fkey), d),
+	q
+),
+updater;
+// var debugosc = ['/n_go', '/n_end'].collect { |cmd|
+// 	OSCFunc({ |msg|
+// 		if(ampSynth.notNil and: { msg[1] == ampSynth.nodeID }) { msg.postln };
+// 	}, cmd, s.addr);
+// };
+
+p = n.play(Pspawner({ |sp|
+	var ampEvents = Pbind(\instrument, \ampCut, \out, k, \latency, s.latency, \density, Pdefn(\density)).asStream;
+	loop {
+		ampSynth = ampEvents.next(()).synth.play;
+		sp.seq(Pfindur(rrand(1.0, 3.2), mono));
+		ampSynth.free;
+		sp.wait(rrand(1.6, 3.5));
+	};
+}));
+updater = SimpleController(p).put(\stopped, {
+	// debugosc.do(_.free);
+	[ampSynth, k].debug("freed").free;
+	updater.remove;
+});
+);
+
+p.stop;
+
+Pdefn(\density, Pwhite(3.0, 5.0, inf));
+
+~ampEvents = Pbind(\instrument, \ampCut, /*\out, k,*/ \latency, s.latency, \density, Pwhite(2.0, 7.0, inf)).asStream;
+a = ~ampEvents.next(()).synth.play;
+
+a.free;
+
+(SynthDef(\ampCut, { |out, density = 3|
+	var trig = Dust.kr(density),
+	sig = EnvGen.kr(Env.perc(0.01, TRand.kr(0.05, 0.11, trig), 3), trig);
+	Out.kr(out, sig);
+}).add);
+
+(1458, 1460 .. 1460).do(s.sendMsg(\n_free, _));
+s.sendMsg(\n_free, 1463);
+
+q.set(\amp, 3);
+
+q.set(\hprq, 0.01);
+
+q.set(\hpfreq, Pxrand([
+	Pexprand(400, 1000, { rrand(1, 2) }).trace(prefix: "0: "),
+	Pexprand(1800, 3300, { rrand(3, 9) }).trace(prefix: "1: "),
+	Pfin({ rrand(3, 6) * 2 }, Ppatlace([Pexprand(3000, 5000, inf), Pexprand(1000, 2000, inf)], inf)).trace(prefix: "2: ")
+], inf));
+
+
+
+
+(
+SynthDef(\zzipbpf, { |out, bufnum, freq = 440, dtune = 1.003,
+	hpfreq = 800, hprq = 1, hptime = 0.002,
+	amp = 0.1, gate = 1, pan = 0|
+	var f = VarLag.kr(freq, hptime),
+	sig = VOsc3.ar(bufnum, f / dtune, f, f * dtune, amp),
+	env = NamedControl.kr(\env, Env.asr(0.02, 1, 0.02).asArray.extend(32, 0));
+	sig = BPF.ar(sig, VarLag.kr(hpfreq, hptime), VarLag.kr(hprq, hptime));
+	Out.ar(out, Pan2.ar(sig, pan, EnvGen.kr(env, gate, doneAction: 2)));
+}).add;
+
+PR(\abstractProcess).clone {
+	~alwaysReset = true;
+	~event = (eventKey: \default);
+	~prep = {
+		~chan = MixerChannel(~collIndex, s, 2, 2, ~initLevel, outbus: ~master, completionFunc: nil);
+		~event.put(\out, ~chan.inbus).put(\group, ~chan.synthgroup);
+		~makePMonoWrapper.();
+		~makeOneChirpPattern.();
+		currentEnvironment
+	};
+	~freeCleanup = { ~chan.free	};
+
+	~defname = \zzipbpf;
+
+	~chirpDur = Pwhite(1.0, 3.2, inf);
+	~restDur = Pwhite(3.0, 7.0, inf);
+	~phrase = Pfunc({ ~phrases.keys.choose });
+
+	// Plazy: don't access shengShared until play time
+	~bufnum = Plazy({ Prand(BP(\shengShared).noiseBufs, inf) });
+	~freq = Pexprand(25, 50, inf);
+	~hprq = 0.01;
+	~amp = 3;
+	// ~sendGate = false;
+	// ~env = Env.linen(0.05, 0.08, 0.05);
+
+	~phrases = (
+		saw: Pbind(
+			\hpfreq, Plazy({ Pseq([exprand(3000, 5000), exprand(1000, 2000)], rrand(3, 6), 2.rand) }),
+			\delta, Plazy({ Pseq([rrand(0.08, 0.12), 0.01], inf) })
+		),
+		sqr: Pbind(
+			\hpfreq, Plazy({ Pseq([exprand(3000, 5000), exprand(1000, 2000)], rrand(3, 6), 2.rand) }),
+			\delta, Plazy({ rrand(0.06, 0.11).loop }),
+			\hptime, Pkey(\delta) * 0.25
+		),
+		randHi: Pbind(
+			\hpfreq, Pfin(
+				{ rrand(5, 11) },
+				Pseq([
+					Pwhite(2, 3, { rrand(1, 2) }),
+					1
+				], inf) *.x Pexprand(800, 3000, { rrand(1, 2) })
+			),
+			\delta, Pexprand(0.05, 0.15, inf)
+		)
+	);
+
+	~makeOneChirpPattern = {
+		~oneChirpPattern = Pfindur(BPStream(\chirpDur).asStream, Psym(BPStream(\phrase), ~phrases));
+	};
+
+	~makePMonoWrapper = {
+		~pmonoWrapper = Pmono(
+			~defname,
+			\hptime, Pfunc({ |ev|
+				if(ev[\hptime].isNil) { ev.delta } { ev[\hptime] }
+			}),
+			\amp, BPStream(\amp)
+		);
+	};
+
+	~asPattern = {
+		~restDurStream ?? { ~makeStreamForKey.(\restDur) };
+		Pseq([
+			Pchain(
+				Plazy({ ~pmonoWrapper }),  // in case you change the wrapper
+				Plazy({ ~oneChirpPattern }),  // likewise
+				Pbind(
+					\bufnum, BPStream(\bufnum),
+					\freq, BPStream(\freq),
+					\hprq, BPStream(\hprq),
+				)
+			),
+			Plazy({ |inval| Event.silent(~restDurStream.next(inval), inval) })
+		], inf)
+	};
+} => PR(\birds);
+)
+
+p = BP(\birds);
+p.amp = 3;
+0 => p;
+
+p.restDur = Pwhite(3.0, 7.0, inf);
+
+
+
