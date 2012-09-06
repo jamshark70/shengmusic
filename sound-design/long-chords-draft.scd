@@ -26,7 +26,7 @@ s.addr = ~saveAddr;
 // timescale is not applied to the trig freq env
 
 (
-WrapInstr("osc.ks_retrig", { |freq = 440, amp = 0.1, ffreq = 2000, 
+WrapInstr("osc.ks_retrig", { |freq = 440, amp = 0.1, ffreq = 2000,
 	excratio = 0.5, excamp = 1, excAtk = 0.005, excDcy = 0.03, retrigProb = 1,
 	fbamp = 1, pan = 0,
 	env, timeScale = 1,
@@ -37,7 +37,7 @@ WrapInstr("osc.ks_retrig", { |freq = 440, amp = 0.1, ffreq = 2000,
 	firstbufnum = firstbuf.asUGenInput,  // .bufnum if a Buffer, 'this' if a number
 	// exciter retriggering
 	trigFreqEnv = NamedControl.kr(
-		\trigFreqEnv, 
+		\trigFreqEnv,
 		(0 ! 40).overWrite(Env().asArray)
 	),
 	trig = Impulse.ar(EnvGen.kr(trigFreqEnv, timeScale: timeScale)),
@@ -874,7 +874,7 @@ SynthDef(\overlapEnv, { |out|
 	Out.kr(out, EnvGen.kr(
 		Env(
 			[Rand(3.0, 3.2), Rand(8.0, 8.5), Rand(3.7, 4.2), 3],
-			[Rand(7, 9), Rand(10, 14), Rand(5, 7)], 
+			[Rand(7, 9), Rand(10, 14), Rand(5, 7)],
 			#[2, 5, -3]
 		),
 		doneAction: 2
@@ -972,7 +972,7 @@ q.freeCleanup = nil;
 
 
 // PR(\arpeg1).clone {
-	
+
 // } => PR(\arpegFlipFlop);
 )
 
@@ -1674,7 +1674,7 @@ Fact(\highChBP).chuck(BP(\susCh), nil, (
 		\block =>.arpeg p;
 		\blockFollow =>.micro p;
 		p.child.argPairs = PbindProxy(*p.child.argPairs);
-		p.child.argPairs.set(\attack, 1.4, \decay, 0.8, \susLevel, 0.5, \release, 9.0);		
+		p.child.argPairs.set(\attack, 1.4, \decay, 0.8, \susLevel, 0.5, \release, 9.0);
 	}
 ));
 VC(\nlet) => BP(\susCh);
