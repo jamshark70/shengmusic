@@ -133,6 +133,115 @@ forkIfNeeded {
 	} => Func(\makeNletMelVC);
 
 
+	// cantus firmus
+	// MIDI notes = bloody mess
+	{
+		var t = 1/3, d, sl = 0.05, ns = -0.05, g = 0.11 / 2;
+		MIDIRecBuf(\shMel,
+			[
+				[	79, 81, 79, 81, 79,
+					79, 81, 78, 79, 81, 83, 81,
+					88, 81,  83, 81, 78, 79, 81,  71, 88,  85, 86, 79,
+					79, 81, 79,
+					79, 81, 79, 83, 81, 79, 78, 76, 74, 76, 78, 71, 74, 76,  74, 78, 76
+				],
+				d = [1, 1.5, 0.5, 1.5, 0.5,
+					1, 1, 0.5, 0.5, 0.5, 1, 0.5,
+					g, 2-g,  0.5 + (t*2), t, t, t, t+1, g, 1.5-g, 1, 0.5, 1.5,
+					0.5, 2, 0.75,
+					0.5, 1+t, t, t, 1 + (t*2), t, t, t, t, 0.25, 0.25, 0.25, 0.25, 2, g, g, 2-(2*g)
+				] * 2,
+				(d + [sl, ns, sl, sl, 0,
+					sl, ns, sl, sl, ns, sl, 0,
+					sl, ns, sl, ns, sl, sl, ns, sl, ns, sl, ns, ns - 0.5,
+					sl, sl, 0,
+					sl, ns, sl, sl, sl, sl, sl, sl, ns, sl, sl, sl, sl, ns, sl, sl, ns
+				]).putEach(#[4, 11, 25], #[0.7, 0.7, 0.9]),
+				0.5
+			].asNotes, (
+				mode: \d, type: \mel, splitFunc: \userSplit, segFunc: \noSplit,
+				phrSplits: #[5, 7, 10, 3, 17]  // note, these are indices *after* .parse
+			)
+		).parse(0.19, 0.19) => MBM(0);
+	}.value;
+
+	#{ |source, cross|	// absolute splice
+		var	s1, s2, newSeg, splice, spl2size, spl2;
+		s1 = source.notes;		// not worrying about weighting b/c poor adaptations
+		s2 = cross.notes;		// will die after a few generations
+		splice = ((s1.size-2).rand + 1).max(1);	// splice coordinates
+		spl2size = rrand(3, (s2.size * 0.7).roundUp.asInteger);
+		spl2 = (s2.size - spl2size).rand;
+		newSeg = s1.copyRange(0, splice-1);
+		newSeg = newSeg ++ s2.copyRange(spl2, spl2 + spl2size - 1);
+		newSeg ++ s1.copyRange(splice, s1.size - 1);
+	} => Func(\absSpliceFix);
+
+	#{ |source, cross|
+		// diatonic splice -- take part of s1 as is, insert intervals from part of s2,
+		// and finish with s1
+		var s1, s2, temp, s1ang, splice, current, new, spl2, spl2size;
+		splice = ((source.notes.size-2).rand + 1).max(1);
+		spl2size = rrand(3, (cross.notes.size * 0.7).round.asInteger);
+		spl2 = (cross.notes.size - spl2size).rand.max(1);
+		(spl2size + spl2 >= cross.notes.size).if({ spl2size = cross.notes.size - spl2 });
+
+		(spl2size >= 2).if({
+			new = source.notes.copyRange(0, splice-1);
+			// last diatonically mapped note + first spliced interval - s2 dia map note
+			current = (source.notes[splice-1] + cross.intervals[spl2 - 1] -
+				cross.notes[spl2].freq).asFloat;
+			new = new ++ (cross.notes.copyRange(spl2, spl2 + spl2size - 1) + current);
+			// last note copied + transposition + next interval from source - next note (source)
+			// algebraically simplifies to last note(s2) + transposition - last note (source)
+			current = cross.notes[spl2 + spl2size - 1].freq + current - source.notes[splice-1].freq;
+			new ++ (source.notes.copyRange(splice, source.notes.size - 1) + current);
+		});
+	} => Func(\intSpliceFix);
+
+	(
+		make: { |name|
+			var p;
+			BP(name).free;
+			PR(\aiMel) => BP(name);
+
+			p = BP(name);
+			// p => VC(\nletmel);
+			1 => p;
+
+			MBM(0)[\shMelb] => p;
+			MBM(0)[\shMelb] =>.adapt p;
+			Pwrand([\absSpliceFix, \intSpliceFix, \delete], #[0.2, 0.5, 0.3], inf) =>.adapt p;
+			p.eugTest = \dummyEugTest;
+
+			// set phrase order
+			p.mel.use {
+				~phraseOrder = Plazy({ Pxrand(~mel, inf) });
+
+				~makePhrPattern = { |passIn|
+					passIn = passIn ?? { ~passInValue };
+					~phrPattern = if(passIn[\repeats].isNil or: { passIn[\repeats] == inf }) {
+						BPStream(\phraseOrder)
+					} {
+						Pfin(passIn[\repeats], BPStream(\phraseOrder))
+					}
+				};
+			};
+			p.repeats = 1;
+
+			p.args = Pbind(
+				\freqLag, Pfunc({ |ev|
+					if(ev[\note].notNil and: { ev[\note].dur < 0.2 }) { 0.06 } { 0.2 }
+				}),
+				\ctranspose, 12
+			);
+
+			// p.macro = Pwhite(3, 6, inf) * 0.5;  // rests between phrases
+
+			p
+		},
+		type: \bp
+	) => Fact(\slowMelBP);
 
 	// oscillate chords
 	{ |notes, inEvent|

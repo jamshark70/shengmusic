@@ -229,7 +229,7 @@ o.free; o = OSCFunc({ |msg| { s.sendMsg(\n_trace, msg[1]) }.defer(0.1) }, '/n_go
 // how's the above for fast, low notes?
 
 
-
+// this snip assumes global controls above and 'b' (single sine partial)
 p = PbindProxy(
 	\type, \voicerNote,
 	\voicer, VC(\fm).v,
@@ -257,7 +257,12 @@ VC(\fm).playingNodes;
 VC(\fm).unmapGlobal(\mod_env_time);
 p.set(\mod_env_time, Pif(Pdiff(Pkey(\midinote)) > 0, Pwhite(2.0, 4.0, inf), Pwhite(0.5, 0.8, inf)));
 
+// don't care for this
 p.set(\mod_ratio2, Pwhite(1, 3, inf) * 2 + 1 + (Pwhite(0.12, 0.3, inf) * Prand(#[-1, 1], inf)), \mod_ratio1, Pkey(\mod_ratio2));
+
+p.removeAt(\mod_ratio1); p.removeAt(\mod_ratio2);
+
+p.set(\mod_ratio2, nil);
 
 
 // smooth melody
@@ -265,10 +270,12 @@ p.set(\mod_ratio2, Pwhite(1, 3, inf) * 2 + 1 + (Pwhite(0.12, 0.3, inf) * Prand(#
 SynthDef(\noiselet2, { |freq = 440, noisefreq = 60, beats = 0.5, noisebuf,
 	filtAttack = 0.02, filtDecay = 0.3,
 	attack = 1, decay = 0, susLevel = 1, release = 1, gate = 1,
-	pan = 0, amp = 0.1, out = 0, freqlag = 0, freqratio = 1.003|
+	// workaround: MonoPortaVoicer can't override freqlag per note
+	// so, call it something else
+	pan = 0, amp = 0.1, out = 0, freqLag = 0, freqratio = 1.003|
 	var sig = COsc.ar(noisebuf, noisefreq, beats, amp),
 	eg = EnvGen.kr(Env.adsr(attack, decay, susLevel, release), gate, doneAction: 2);
-	sig = Formlet.ar(sig, Lag.kr(freq, freqlag) * [1, freqratio], filtAttack, filtDecay).sum;
+	sig = Formlet.ar(sig, Lag.kr(freq, freqLag) * [1, freqratio], filtAttack, filtDecay).sum;
 	sig = Limiter.ar(sig, 1, 0.006);  // harmonics can spike the level
 	Out.ar(out, Pan2.ar(sig, pan, eg));
 }).add;
@@ -298,6 +305,7 @@ VC(\nletmel) => VP(0);
 v = VC(\nletmel).v;
 
 v.globalControls[\noisefreq].watch;
+v.globalControls[\noisefreq].stopWatching;
 
 k = VoicerMIDISocket(0, v);
 
@@ -307,8 +315,182 @@ v.globalControls[\filtAttack].spec_(#[0.01, 0.28, \exp]);
 
 v.mapGlobal(\filtDecay, nil, 0.3, #[0.1, 0.5, \exp]);
 
-VC(\nletmel).env.target.postSettings
+VC(\nletmel).env.target.postSettings;
 
+
+(
+var t = 1/3, d, sl = 0.05, ns = -0.05, g = 0.11 / 2;
+MIDIRecBuf(\shMel,
+	[
+		[	79, 81, 79, 81, 79,// #[],
+			79, 81, 78, 79, 81, 83, 81, // #[],
+			/*#[],*/ 88, 81,  83, 81, 78, 79, 81,  71, 88,  85, 86, 79,
+			79, 81, 79, // #[],
+			/*#[],*/ 79, 81, 79, 83, 81, 79, 78, 76, 74, 76, 78, 71, 74, 76,  74, 78, 76
+		],
+		d = [1, 1.5, 0.5, 1.5, 0.5, // + 3,
+			1, 1, 0.5, 0.5, 0.5, 1, 0.5, // + 1 + 0.5,
+			g, 2-g,  0.5 + (t*2), t, t, t, t+1, g, 1.5-g, 1, 0.5, 1.5,
+			0.5, 2, 0.75, // + 2.25 + 0.5,
+			0.5, 1+t, t, t, 1 + (t*2), t, t, t, t, 0.25, 0.25, 0.25, 0.25, 2, g, g, 2-(2*g)
+		] * 2,
+		(d + [sl, ns, sl, sl, 0,
+			sl, ns, sl, sl, ns, sl, 0,
+			sl, ns, sl, ns, sl, sl, ns, sl, ns, sl, ns, ns - 0.5,
+			sl, sl, 0,
+			sl, ns, sl, sl, sl, sl, sl, sl, ns, sl, sl, sl, sl, ns, sl, sl, ns
+		]).putEach(#[4, 11, 25], #[0.7, 0.7, 0.9]),
+		0.5
+	].asNotes, (
+		mode: \d, type: \mel, splitFunc: \userSplit, segFunc: \noSplit,
+		phrSplits: #[5, 7, 10, 3, 17]
+	)
+).parse(0.19, 0.19) => MBM(0);
+)
+
+MBM(0)[\shMelb].dumpSeq;
+
+Event.default[\eventTypes].keys.select { |key| key.asString.containsi("voicer") };
+
+b = MBM(0)[\shMelb];
+
+c = b.notes.select(_.isKindOf(SequenceItem));
+
+c[0].inspect;
+
+[c[0].graceNotes[0].tryPerform(\args)].tryPerform(\flatten, 1)
+
+b.notes.do { |note|
+	note.args = #[gate, 0.5, freqLag, 0.2];
+	if(note.isKindOf(SequenceItem)) {
+		note.graceNotes.do { |gn| gn.args = #[gate, 0.5, freqLag, 0.06] }
+	};
+}; ""
+
+c[0].asPattern.asStream.all.do(_.postcs); ""
+
+Pdrop(14, Pseq(MBM(0)[\shMelb].notes, 1)).asStream.nextN(5).do(_.postcs); ""
+
+// ok now I have really f*cking had it with these arguments getting lost
+// FINE. F*CKING FINE. I'll regenerate them in the pattern.
+
+(p = Pbind(
+	// \type, \voicerNote,
+	\voicer, v,
+	\midi, true,
+	// \clock, TempoClock.default,
+	// \debug, true,
+	\note, Pdrop(14, Pseq(MBM(0)[\shMelb].notes, 1)),
+	// damn it's stupid I have to do this
+	\freqLag, Pfunc({ |ev|
+		if(ev[\note].dur < 0.2) { 0.06 } { 0.2 }
+	}).trace
+	// \freqLag, Pfunc({ |ev|
+	// 	var note = ev[\note], argi;
+	// 	if(note.postcs.args.debug("args").size > 0) {
+	// 		argi = note.args.indexOf(\freqLag).debug("argi");
+	// 		if(argi.notNil) { note.args[argi+1] } { 0.06 }
+	// 	} { 0.2 };
+	// }).trace
+).play(protoEvent: ProtoEvent(\voicerNote)));
+
+p.stop;
+
+
+// so... having done that, I can work on melody adaptations
+
+BP(\m).free;
+PR(\aiMel) => BP(\m);
+
+p = BP(\m);
+p => VC(\nletmel);
+0 => p;
+
+MBM(0)[\shMelb] => p;
+MBM(0)[\shMelb] =>.adapt p;
+
+Prand([\absSplice, \intSplice, \delete], inf).trace(prefix: "adaptfunc: ") =>.adapt p;
+
+Pwrand([\absSplice, \intSplice, \delete], #[0.2, 0.5, 0.3], inf).trace(prefix: "adaptfunc: ") =>.adapt p;
+
+p.eugTest = \dummyEugTest;
+
+p.listVars
+p.mel.listVars
+
+p.listMethods
+p[\bindPattern].postcs
+
+p.mel[\makePhrPattern].postcs;
+p.mel[\makePhrPattern] = { |passIn|
+	passIn = passIn ?? { ~passInValue };
+	~phrPattern = Pxrand(~mel, passIn[\repeats] ? inf);
+};
+
+p.mel[\makePhrPattern] = { |passIn|
+	passIn = passIn ?? { ~passInValue };
+	~phrPattern = Pseq(~mel, passIn[\repeats] ? inf);
+};
+
+p.args = Pbind(
+	\freqLag, Pfunc({ |ev|
+		if(ev[\note].notNil and: { ev[\note].dur < 0.2 }) { 0.06 } { 0.2 }
+	}),
+	\ctranspose, 12
+);
+
+(#{ |source, cross|	// absolute splice
+	var	s1, s2, newSeg, splice, spl2size, spl2;
+	s1 = source.notes;		// not worrying about weighting b/c poor adaptations
+	s2 = cross.notes;		// will die after a few generations
+	splice = ((s1.size-2).rand + 1).max(1);	// splice coordinates
+	spl2size = rrand(3, (s2.size * 0.7).roundUp.asInteger);
+	spl2 = (s2.size - spl2size).rand;
+	newSeg = s1.copyRange(0, splice-1);
+	newSeg = newSeg ++ s2.copyRange(spl2, spl2 + spl2size - 1);
+	"\n\nabssplice result".postln;
+	(newSeg ++ s1.copyRange(splice, s1.size - 1)).do(_.postcs);
+} => Func(\absSplice);
+
+#{ |source, cross|
+	// diatonic splice -- take part of s1 as is, insert intervals from part of s2,
+	// and finish with s1
+	var s1, s2, temp, s1ang, splice, current, new, spl2, spl2size;
+	splice = ((source.notes.size-2).rand + 1).max(1);
+	spl2size = rrand(3, (cross.notes.size * 0.7).round.asInteger);
+	spl2 = (cross.notes.size - spl2size).rand.max(1);
+	(spl2size + spl2 >= cross.notes.size).if({ spl2size = cross.notes.size - spl2 });
+
+	(spl2size >= 2).if({
+		new = source.notes.copyRange(0, splice-1);
+			// last diatonically mapped note + first spliced interval - s2 dia map note
+		current = (source.notes[splice-1] + cross.intervals[spl2 - 1] -
+			cross.notes[spl2].freq).asFloat;
+		new = new ++ (cross.notes.copyRange(spl2, spl2 + spl2size - 1) + current);
+			// last note copied + transposition + next interval from source - next note (source)
+			// algebraically simplifies to last note(s2) + transposition - last note (source)
+		current = cross.notes[spl2 + spl2size - 1].freq + current - source.notes[splice-1].freq;
+		"\n\nintsplice result".postln;
+		(new ++ (source.notes.copyRange(splice, source.notes.size - 1) + current)).do(_.postcs);
+	});
+} => Func(\intSplice));
+
+p.clearAdapt; MBM(0)[\shMelb] =>.adapt p;
+p.macro = Pwhite(3, 6, inf) * 0.5;
+
+p.reset;
+p.play;
+p.stop;
+
+p.listMethods
+
+p.dumpSegments;
+
+
+
+p.event[\debug] = false;
+
+p =>.adapt
 
 // multiple voicer problem
 (
