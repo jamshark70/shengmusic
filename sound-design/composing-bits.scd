@@ -50,21 +50,22 @@ z = "1*20
 2*2
 1".split(Char.nl);
 
-z = "1
-2.
-1
-2
-2.
-1
+z = "1*2
 1
 4
-1*17
+1*4
+1
+4
+1*9
 2.
 1*2
 1
 4
-1*12
-1*14
+1*2
+1
+4
+1*6
+1*13
 2.
 1*2
 2.
@@ -104,7 +105,7 @@ d = Dictionary[
 
 a = 0;
 z.do { |line|
-	line = line.split($*);
+	line = line.split($*).postln;
 	if(line.size == 1) { line = line.add(1) };
 	a = a + (d[line[0]] * line[1].asInteger);
 };

@@ -3,6 +3,7 @@ v = MIDIPort.at(0).sockets[0].destination;
 m = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/fast-sketch1.midi");
 m = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/long-chords-after-intro2.midi");
 m = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/middle-fast-1c.midi");
+m = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/climax-rewrite-tester.midi");
 
 p = m.p;
 p = Pbindf(m.p, \midinote, Pkey(\midinote) - v.globalControls[\transpose]);
@@ -16,13 +17,18 @@ SynthDef(\tri, { |out, freq = 440, det = 1.003, width = 0.5, gate = 1, amp = 0.1
 	Out.ar(out, LPF.ar(sig, ExpRand(2000, 5000), eg) ! 2)
 }).add;
 
-w = Voicer(25, \tri);
+// w = Voicer(25, \tri);
 w = Voicer(25, \tri, target: MixingBoard.at(0).mixers[0].mixer);
 
-q = Pchain(Pbind(\type, \voicerNote, \voicer, w, \delta, Pkey(\delta) * Ptempo(), \sustain, (Pkey(\sustain) * 0.9) * Ptempo()), p);
+q = Pchain(Pbind(\type, \voicerNote, \voicer, w, \delta, Pkey(\delta) * (m.tempo.round/60), \sustain, (Pkey(\sustain) * 0.9) * (m.tempo.round/60)), p);
 
 a = q.play(quant: 1);
 a.stop;
+
+r = q.asStream;
+while { (e = r.next(())).delta <= 0 }; e
+
+
 
 TempoClock.default.tempo = 88/60
 
@@ -33,9 +39,9 @@ m.noteOnEvents;
 192*2 == 384  // 384 ticks/qtr
 
 m.noteEvents
-m.noteOffEvents
+m.noteOffEvents;
 
-Proto {
+(Proto {
 	~canEmbed = true;
 	~asStream = { Routine({ |inval| ~embedInStream.(inval) }) };
 	~prep = { |dur, pattern, tolerance = 0.001|
@@ -60,12 +66,12 @@ Proto {
 		};
 		stream.embedInStream(inval)
 	};
-} => PR(\dropdur);
+} => PR(\dropdur));
 
 a = Pchain(
 	(type: \voicerNote, voicer: w),
 	// don't need to scale tempo here: q already does it
-	PR(\dropdur).copy.prep(160, q)
+	PR(\dropdur).copy.prep(([13, 4, 2] * [4, 3, 1.25]).sum, q)
 ).play;
 
 a.stop;
