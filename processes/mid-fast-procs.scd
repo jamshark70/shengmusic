@@ -106,6 +106,76 @@ forkIfNeeded {
 		type: \voicer
 	) => Fact(\madfmVC);
 
+	{ |name(\fmlow)|
+		VC(name).free;
+		Fact(\madfmVC).chuck(VC(name), nil, (
+			makeBufs: {
+				Fact(\madfmVC).v[\makeBufs].value;  // I want the usual bufs
+				~sineBuf = Buffer.alloc(s, 2048, 1, { |buf| buf.sine1Msg(#[1]) });
+			},
+			defaultCarrierBuf: { ~sineBuf.bufnum },  // and another buf
+			free: Fact(\madfmVC).v[\free].addFunc({ ~sineBuf.free })  // make a functionlist
+		));
+	} => Func(\makeFMLowVC);
+
+	PR(\abstractProcess).clone {
+		~event = (eventKey: \voicerNote);
+
+		~mode = Pxrand(Mode.keys.select { |key| key.asString.last == $0 }.asArray, inf);
+		~seed = Pwhite(0, 0x7FFFFFFF, inf);
+		~topnote = \patRejectLastN.eval(
+			Pseries({ rrand(24, 30) }, Pwhite(1, 3, inf) * Prand(#[-1, 1], inf), inf).fold(24, 30),
+			1
+		);
+		~car_env = [Env(#[0, 1, 0.5, 0, 0], #[0.01, 0.14, 8.0, 0.15], -4, releaseNode: 3)];
+		~mod_env = [Env(#[0, 1, 0.25, 0.1, 0], #[0.01, 0.3, 1.0, 10.0], -4)];
+		~gate = 0.5;
+
+		~freq = Pseed(
+			Pfin({ rrand(3, 6) }, Pkey(\seed)),
+			Pwhile1(
+				{ |in, next| next >= 18 },
+				Pseries(
+					{ |inevent| inevent[\topnote] },
+					Pwrand(#[-1, -2, -3], #[0.5, 0.4, 0.1], { rrand(4, 8) })
+				)
+			)
+		);
+		~dur = 0.25;
+		~car_detune = 1.006;
+		~mod_buf = Prand(VC(\fmlow).env.bufs, inf);
+		~mod_lev = Pif(Pdiff(Pkey(\freq)) > 0, Pwhite(25.0, 40.0, inf), Pwhite(8.0, 19.0, inf));
+		~legato = Pif(Pdiff(Pkey(\freq)) > 0, Pwhite(2.5, 10.0, inf), 0.8);
+		~length = Pkey(\dur) * Pkey(\legato);
+
+		~outerPattern = {
+			Pbind(
+				\mode, BPStream(\mode),
+				\seed, BPStream(\seed),
+				\topnote, BPStream(\topnote),
+				\car_env, BPStream(\car_env),
+				\mod_env, BPStream(\mod_env),
+				\gate, BPStream(\gate)
+			)
+		};
+
+		~innerPattern = {
+			Pbind(
+				\freq, Plazy({ ~freq }),
+				\dur, BPStream(\dur),
+				\car_detune, BPStream(\car_detune),
+				\mod_buf, BPStream(\mod_buf),
+				\mod_lev, BPStream(\mod_lev),
+				\legato, BPStream(\legato),
+				\length, BPStream(\length)
+			)
+		};
+
+		~asPattern = {
+			PR(\psetp2).copy.prep(~outerPattern.(), ~innerPattern.(), currentEnvironment)
+			.outerOverridesInner_(false)
+		};
+	} => PR(\fastlow);
 
 	// smooth melody
 	SynthDef(\noiselet2, { |freq = 440, noisefreq = 60, beats = 0.5, noisebuf,
