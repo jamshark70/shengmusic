@@ -5,7 +5,7 @@
 
 (thisProcess.nowExecutingPath.dirname +/+ "../processes/mid-fast-procs.scd").loadPath;
 
-TempoClock.tempo = 88/60;
+TempoClock.tempo = 100/60;
 
 BP(\shengShared).free;
 PR(\shengShared) => BP(\shengShared);
@@ -228,18 +228,94 @@ o.free; o = OSCFunc({ |msg| { s.sendMsg(\n_trace, msg[1]) }.defer(0.1) }, '/n_go
 
 // how's the above for fast, low notes?
 
+(VC(\fmlow).free;
+Fact(\madfmVC).chuck(VC(\fmlow), nil, (
+	makeBufs: {
+		Fact(\madfmVC).v[\makeBufs].value;  // I want the usual bufs
+		~sineBuf = Buffer.alloc(s, 2048, 1, { |buf| buf.sine1Msg(#[1]) });
+	},
+	defaultCarrierBuf: { ~sineBuf.bufnum },  // and another buf
+	free: Fact(\madfmVC).v[\free].addFunc({ ~sineBuf.free })  // make a functionlist
+)));
+
+(PR(\abstractProcess).clone {
+	~event = (eventKey: \voicerNote);
+
+	~mode = Pxrand(Mode.keys.select { |key| key.asString.last == $0 }.asArray, inf);
+	~seed = Pwhite(0, 0x7FFFFFFF, inf);
+	~topnote = \patRejectLastN.eval(
+		Pseries({ rrand(24, 30) }, Pwhite(1, 3, inf) * Prand(#[-1, 1], inf), inf).fold(24, 30),
+		1
+	);
+	~car_env = [Env(#[0, 1, 0.5, 0, 0], #[0.01, 0.14, 8.0, 0.15], -4, releaseNode: 3)];
+	~mod_env = [Env(#[0, 1, 0.25, 0.1, 0], #[0.01, 0.3, 1.0, 10.0], -4)];
+	~gate = 0.5;
+
+	~freq = Pseed(
+		Pfin({ rrand(3, 6) }, Pkey(\seed)),
+		Pwhile1(
+			{ |in, next| next >= 18 },
+			Pseries(
+				{ |inevent| inevent[\topnote] },
+				Pwrand(#[-1, -2, -3], #[0.5, 0.4, 0.1], { rrand(4, 8) })
+			)
+		)
+	);
+	~dur = 0.25;
+	~car_detune = 1.006;
+	~mod_buf = Prand(VC(\fmlow).env.bufs, inf);
+	~mod_lev = Pif(Pdiff(Pkey(\freq)) > 0, Pwhite(25.0, 40.0, inf), Pwhite(8.0, 19.0, inf));
+	~legato = Pif(Pdiff(Pkey(\freq)) > 0, Pwhite(2.5, 10.0, inf), 0.8);
+	~length = Pkey(\dur) * Pkey(\legato);
+
+	~outerPattern = {
+		Pbind(
+			\mode, BPStream(\mode),
+			\seed, BPStream(\seed),
+			\topnote, BPStream(\topnote),
+			\car_env, BPStream(\car_env),
+			\mod_env, BPStream(\mod_env),
+			\gate, BPStream(\gate)
+		)
+	};
+
+	~innerPattern = {
+		Pbind(
+			\freq, Plazy({ ~freq }),
+			\dur, BPStream(\dur),
+			\car_detune, BPStream(\car_detune),
+			\mod_buf, BPStream(\mod_buf),
+			\mod_lev, BPStream(\mod_lev),
+			\legato, BPStream(\legato),
+			\length, BPStream(\length)
+		)
+	};
+
+	~asPattern = {
+		PR(\psetp2).copy.prep(~outerPattern.(), ~innerPattern.(), currentEnvironment)
+		.outerOverridesInner_(false)
+	};
+} => PR(\fastlow));
+
+BP(\fastlow).free;
+PR(\fastlow) => BP(\fastlow);
+BP(\fastlow) => VC(\fmlow);
+
+p = BP(\fastlow);
+1 => p;
+
+p.car_detune = 0.15.midiratio;
 
 // this snip assumes global controls above and 'b' (single sine partial)
 p = PbindProxy(
 	\type, \voicerNote,
-	\voicer, VC(\fm).v,
+	\voicer, VC(\fmlow).v,
 	\midinote, Pseed(Pstutter(Pwhite(1, 3, inf), Pwhite(0, 0x7FFFFFFF, inf)),
 		Pseries({ rrand(48, 55) }, Pwrand(#[-1, -2, -3, -4], #[0.2, 0.4, 0.3, 0.1], { rrand(4, 8) }))),
 	\dur, 0.15,
-	\car_buf, b,
 	\car_detune, 1.006,
-	\car_buf, b /* VC(\fm).env.bufs[2] */,
-	\mod_buf, Prand(VC(\fm).env.bufs, inf),
+	// \car_buf, b /* VC(\fm).env.bufs[2] */,
+	\mod_buf, Prand(VC(\fmlow).env.bufs, inf),
 	\car_env, [Env(#[0, 1, 0.5, 0, 0], #[0.01, 0.14, 8.0, 0.15], -4, releaseNode: 3)],
 	\mod_env, [Env(#[0, 1, 0.25, 0.1, 0], #[0.01, 0.3, 1.0, 10.0], -4)]
 );
@@ -264,6 +340,73 @@ p.removeAt(\mod_ratio1); p.removeAt(\mod_ratio2);
 
 p.set(\mod_ratio2, nil);
 
+
+// modal?
+(o = PbindProxy(
+	\mode, Pxrand(Mode.keys.select { |key| key.asString.last == $0 }.asArray, inf),
+	\seed, Pwhite(0, 0x7FFFFFFF, inf),
+	\topnote, \patRejectLastN.eval(
+		Pseries({ rrand(24, 30) }, Pwhite(1, 3, inf) * Prand(#[-1, 1], inf), inf).fold(24, 30),
+		1
+	),
+	\car_env, [Env(#[0, 1, 0.5, 0, 0], #[0.01, 0.14, 8.0, 0.15], -4, releaseNode: 3)],
+	\mod_env, [Env(#[0, 1, 0.25, 0.1, 0], #[0.01, 0.3, 1.0, 10.0], -4)],
+	\gate, 0.5
+);
+
+p = PbindProxy(
+	// \type, \voicerNote,
+	\voicer, VC(\fmlow).v,
+	\freq, Pseed(
+		Pfin({ rrand(3, 6) }, Pkey(\seed)),
+		Pwhile1(
+			{ |in, next| next >= 18 },
+			Pseries(
+				{ |inevent| inevent[\topnote] },
+				Pwrand(#[-1, -2, -3], #[0.5, 0.4, 0.1], { rrand(4, 8) })
+			)
+		)
+	),
+	// Pseed(Pfin({ rrand(3, 6) }, Pkey(\seed)),
+	// Pseries({ rrand(29, 36) }, Pwrand(#[-1, -2, -3, -4], #[0.2, 0.4, 0.3, 0.1], { rrand(4, 8) }))),
+	\dur, 0.25,
+	\car_detune, 1.006,
+	\mod_buf, Prand(VC(\fmlow).env.bufs, inf),
+	\mod_lev, Pif(Pdiff(Pkey(\freq)) > 0, Pwhite(25.0, 40.0, inf), Pwhite(8.0, 19.0, inf)),
+	\legato, Pif(Pdiff(Pkey(\freq)) > 0, Pwhite(2.5, 10.0, inf), 0.8),
+	\length, Pkey(\dur) * Pkey(\legato)
+);
+
+a = PR(\psetp2).copy.prep(o, p);
+a.outerOverridesInner = false;
+);
+
+q = a.asPattern.play(protoEvent: ProtoEvent(\voicerNote).copy);
+q.stop;
+
+o.set(\topnote, o[\topnote].source.pattern.fold(24, 30).trace(prefix: "top: "));
+
+o.set(\topnote, \patRejectLastN.eval(Pseries({ rrand(24, 30) }, Pwhite(1, 3, inf) * Prand(#[-1, 1], inf), inf).fold(24, 30), 1));
+
+o[\topnote].source.asStream.nextN(15);
+
+\patRejectLastN.eval(Pseries({ rrand(24, 30) }, Pwhite(1, 3, inf) * Prand(#[-1, 1], inf), inf).fold(24, 30), 1).asStream.nextN(15)
+
+\d0.asMode.cps((18..21))
+
+(p.set(\freq, Pseed(
+	Pfin({ rrand(3, 6) }, Pkey(\seed)),
+	Pwhile1(
+		{ |in, next| next >= 18 },
+		Pseries(
+			.asStream
+			Pwrand(#[-1, -2, -3], #[0.5, 0.4, 0.1], { rrand(4, 8) })
+		)
+	)
+)));
+
+
+q.isPlaying
 
 // smooth melody
 (
@@ -627,3 +770,5 @@ VC(\oscil).v.unmapGlobal(\rq);
 
 p.child.argPairs[1] = Ppatlace([Pexprand(3000, 9000, inf), Pexprand(800, 2500, inf)], inf);
 p.child.argPairs = p.child.argPairs ++ [rq: Pwhite(0.2, 0.8, inf)];
+
+

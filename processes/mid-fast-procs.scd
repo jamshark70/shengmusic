@@ -77,9 +77,7 @@ forkIfNeeded {
 	// most args are left unset - be careful
 	(	keys: #[master, rvbmc],
 		initLevel: 0.75,
-		make: { |name|
-			~target = MixerChannel(name, s, 2, 2, ~initLevel, outbus: ~master, completionFunc: nil);
-
+		makeBufs: {
 			~bufs = Buffer.allocConsecutive(8, s, 2048, 1, { |buf, i|
 				var amps;
 				i = i + 3;
@@ -89,11 +87,19 @@ forkIfNeeded {
 				};
 				buf.sine1Msg(amps)
 			});
+		},
+		defaultCarrierBuf: { ~bufs.first.bufnum },
+		defaultModBuf: { ~bufs.first.bufnum },
+		make: { |name|
+			~target = MixerChannel(name, s, 2, 2, ~initLevel, outbus: ~master, completionFunc: nil);
+			~makeBufs.();
 
 			Voicer(15, WrapInstr("osc2.fm_monster"), [
 				basefreq: `440, car_vs: `0.8, mod_vs: `0.8,
 				car_env: `{ NamedControl.kr(\car_env, (0 ! 40).overWrite(Env.adsr.asArray)) },
-				mod_env: `{ NamedControl.kr(\mod_env, (0 ! 40).overWrite(Env.adsr.asArray)) }
+				mod_env: `{ NamedControl.kr(\mod_env, (0 ! 40).overWrite(Env.adsr.asArray)) },
+				car_buf: ~defaultCarrierBuf.(),
+				mod_buf: ~defaultModBuf.(),
 			], target: ~target);
 		},
 		free: { [~target, ~bufs].free },
