@@ -772,3 +772,30 @@ p.child.argPairs[1] = Ppatlace([Pexprand(3000, 9000, inf), Pexprand(800, 2500, i
 p.child.argPairs = p.child.argPairs ++ [rq: Pwhite(0.2, 0.8, inf)];
 
 
+
+// 16ths with accents
+
+\makeOnePizzVC.eval;
+
+Pwhite(5, 11) * 0.25 => MacRh(\rpt16);
+
+{ |notes, inEvent|
+	Pseq([notes.asChord, Pn(62.mapMode(inEvent[\mode]), inf)], 1)
+} => ArpegPat(\rpt16);
+
+(
+BP(\rp).free;
+Func('newCh').value(\rp, \arpeg1 /* \arpegMultiVoicer */, \macroRh, MBM(0)[\pzch], nil, MacRh(\rpt16), '16th', \rpt16, nil, \d);
+)
+
+VC(\onePizz) => BP(\rp);
+0 => BP(\rp);
+
+p = BP(\rp);
+
+p.topNote = PR(\patternTop).copy.make {
+	~mode = \d;
+	~deg = Pwhite(35, 42, inf);
+};
+
+// son of a b---------- that worked! Refine it tomorrow
