@@ -803,6 +803,20 @@ make: { |name|
 
 // scotch snap
 
+	{ |name(\onePizz)|
+		VC(name).free;
+		Fact(\pizz).chuck(VC(name), nil, (
+			initLevel: -17.dbamp,
+			postMCCreation: { |chan|
+				chan.playfx(Instr("busfx.chorus"), [0, 2, 0.0065907508688725, 0.091029817799152, 0.0015096530399363, 0.99376910470698, 0.5])
+			},
+			detectSilence: true,
+			trigFunc: { Impulse.ar(0) }
+		));
+		VC(name).set([retrigProb: 1]);
+		VC(name)
+	} => Func(\makeOnePizzVC);
+
 Pseq([Pn(1, { #[1, 2, 3].wchoose(#[0.35, 0.45, 0.2]) }), Pwhite(2, 4, 1)], inf) => MacRh(\scotch);
 
 Pseq(#[0.8, 0.3], 1).collect { |gate, ev|
