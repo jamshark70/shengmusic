@@ -143,7 +143,7 @@ forkIfNeeded {
 		);
 		~dur = 0.25;
 		~car_detune = 1.006;
-		~mod_buf = Prand(VC(\fmlow).env.bufs, inf);
+		~mod_buf = Plazy({ Prand(VC(\fmlow).env.bufs, inf) });
 		~mod_lev = Pif(Pdiff(Pkey(\freq)) > 0, Pwhite(25.0, 40.0, inf), Pwhite(8.0, 19.0, inf));
 		~legato = Pif(Pdiff(Pkey(\freq)) > 0, Pwhite(2.5, 10.0, inf), 0.8);
 		~length = Pkey(\dur) * Pkey(\legato);
