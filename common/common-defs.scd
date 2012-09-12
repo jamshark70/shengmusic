@@ -434,6 +434,7 @@ play: {
 ) => ProtoEvent(\voicerNoteKrBusLock);
 
 PR(\arpeg1).clone {
+	~resetArgsOnChord = false;
 	~initVoicerArgs = {
 		~voicerArgs = Proto.new.putAction_(e { |key, value, me|
 			~voicerArgStreams ?? { ~voicerArgStreams = IdentityDictionary.new };
@@ -450,8 +451,12 @@ PR(\arpeg1).clone {
 		};
 		currentEnvironment
 	};
+	~resetArgStreams = {
+		~voicerArgStreams.do(_.reset);
+	};
 	~superAsPattern = ~asPattern;
 	~asPattern = { |inEvent|
+		if(~resetArgsOnChord ? false) { ~resetArgStreams.() };
 		~superAsPattern.(inEvent).collect { |ev|
 			var extraArgs;
 			if(ev[\vckey].notNil and: { VC.exists(ev[\vckey]) }) {
