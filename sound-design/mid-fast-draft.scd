@@ -777,6 +777,7 @@ p.child.argPairs = p.child.argPairs ++ [rq: Pwhite(0.2, 0.8, inf)];
 
 \makeOnePizzVC.eval;
 Fact(\triVC) => VC(\tri);
+Fact(\madfmVC) => VC(\fm);
 
 
 
@@ -795,30 +796,49 @@ Func('newCh').value(\rp, /* \arpeg1 */ \arpegMultiVoicer, \macroRh, MBM(0)[\pzch
 
 p = BP(\rp);
 
-p.topNote = PR(\patternTop).copy.make {
+(p.topNote = PR(\patternTop).copy.make {
 	~mode = \d0;
 	~deg = Pwhite(35, 42, inf);
-	~rpt = Pfunc({ |ev| 62.mapMode(ev[\mode]) }) + Ptuple([
-		0,
-		Pwhite(1, 4, inf) * Prand(#[-1, 1], inf)
-	]);
-	~superPattern = ~asPattern;
+	~rpt = Pn(Pwhile1(
+		{ |in, next| next.unmapMode(in[\mode]) <= 74 },
+		Pseries({ rrand(-6, -2) }, Pwrand(#[1, 2, 3], #[0.5, 0.45, 0.05], inf), { rrand(3, 7) })
+	), inf);
+	// above may be 0: ensure a unique array
+	~repeatNotes = Pfunc({ |ev| 62.mapMode(ev[\mode]) }) + Ptuple([0, BPStream(\rpt)]).collect({ |pair|
+		if(pair[0] == pair[1]) { pair[0] } { pair }
+	});
 	~asPattern = {
-		(Pbind(\repeatNotes, BPStream(\rpt)) <> ~superPattern.()).trace(prefix: "top event: ")
+		// don't like copy/paste programming
+		// but I stupidly don't let you choose a mode per top event
+		Pbind(
+			\freq, BPStream(\deg),
+			\delta, BPStream(\delta),
+			\length, BPStream(\length),
+			\mode, BPStream(\mode),
+			\gate, BPStream(\gate),
+			\repeatNotes, BPStream(\repeatNotes)
+		)
 	};
-};
+});
 
-p.topNote.rpt = Pfunc({ |ev| 62.mapMode(ev[\mode]) }) + Ptuple([
-		0,
-		Pwhite(1, 4, inf) * Prand(#[-1, 1], inf)
-	]);
+// p.topNote.asPattern = {
+// 	(Pbind(\repeatNotes, BPStream(\repeatNotes)) <> ~superPattern.())
+// };
+
+// maybe a disaster -- um, NO! IT'S COOL!!!
+p.topNote.mode = Pxrand(Mode.keys.asArray.select { |key| key.asString.last == $0 }, inf);
+
+// p.topNote.rpt = Pfunc({ |ev| 62.mapMode(ev[\mode]) }) + Ptuple([
+// 	0,
+// 	Pwhite(1, 4, inf) * Prand(#[-1, 1], inf)
+// ]);
 
 { |top, topMode, mode, topEvent|
 	// crappo workaround b/c this gets called multiple times
 	if(topEvent[\origRepeatNotes].isNil) {
 		topEvent[\origRepeatNotes] = topEvent[\repeatNotes];
 	};
-	topEvent[\repeatNotes] = \convertMode.eval(topEvent[\origRepeatNotes].debug("original rptnotes"), topMode, mode).debug("converted");
+	topEvent[\repeatNotes] = \convertMode.eval(topEvent[\origRepeatNotes], topMode, mode);
 	\convertMode.eval(top, topMode, mode)
 } => Func(\convertModeRpt);
 
@@ -828,39 +848,50 @@ p.child.initVoicerArgs;
 
 p.child.voicerArgs = (
 	onePizz: Pbind(
-		\ffreq, Pexprand(2000, 7000, inf)
+		\ffreq, Pseq([Pexprand(6000, 9400, 1), Pexprand(4000, 7000, inf)]),
+		\amp, 4
 	),
 	tri: Pbind(
 		\holdtime, Pkey(\length) + 1,
-		\ffreq, Pexprand(1500, 8000, inf),
-		\rq, Pwhite(0.1, 0.6, inf)
+		\ffreq, Pseq([Pexprand(5000, 9000, 1), Pexprand(1500, 8000, inf)]),
+		\rq, Pwhite(0.1, 0.6, inf),
+		\gate, Pseq([0.23, Pn(0.18, inf)]),
+		\detune, Pwhite(1.002, 1.02, inf)
+	),
+	fm: Pbind(
+		\mod_lev, Pwhite(7.0, 11.0, inf),
+		\mod_ratio1, Pwhite(1, 4, inf),
+		\mod_ratio2, Pkey(\mod_ratio1),
+		\car_detune, Pwhite(1.002, 1.02, inf),
+		\car_buf, Prand(VC(\fm).env.bufs, inf),
+		\mod_buf, Prand(VC(\fm).env.bufs, inf),
+		\mod_env, Plazy({
+			[Env.adsr(0.01, rrand(0.07, 0.9), rrand(0.1, 0.3), 1.0)].loop
+		}),
+		\car_env, [Env.adsr(0.01, 0.7, 0, 0.2)]
 	)
 );
 
-p.child.voicerArgs[\onePizz] = Pbind(
-	\ffreq, Pseq([Pexprand(6000, 9400, 1), Pexprand(4000, 7000, inf)]),
-	\amp, 4
-);
-
-(p.child.voicerArgs[\tri] = Pbind(
-	\holdtime, Pkey(\length) + 1,
-	\ffreq, Pseq([Pexprand(5000, 9000, 1), Pexprand(1500, 8000, inf)]),
-	\rq, Pwhite(0.1, 0.6, inf),
-	\gate, Pseq([0.27, Pn(0.18, inf)])
-));
-
-
 p.child[\argPairs] = [vckey: Pseq(#[onePizz, tri], inf)];
 
-p.child.vckey = Pseq(#[onePizz, tri], inf);
+p.child.vckey = Prand(#[onePizz, tri, fm], inf);
 // p.child[\vckeyStream]  // good
 
+p.child.vckey = \fm;
+
 p.child.argPairs = [vckey: Plazy({ |inval| ~vckeyStream.next(inval).loop })];
+
+p.child.argPairs = [vckey: \fm];
+
+// this is also pretty badass
+p.child.argPairs = [vckey: Prand(#[onePizz, tri, fm], inf)];
 
 p.child.voicerArgs.listVars
 
 p.child.makeChordPattern = { Pxrand(~chords, inf) };
 p.child.fitFunc = \chordFitInt;
+
+p.child.fitFunc = \chordFitNotes;
 
 p.child.resetArgsOnChord = true;
 
@@ -869,9 +900,3 @@ Ptuple([0.25, Pseq([Pwhite(0.2, 0.33, 1), Pn(0.08, inf)], 1), 0.5]) => MicRh(\rp
 \rpt16 =>.micro p;
 
 
-
-
-VC(\onePizz) => BP(\rp);
-
-
-// son of a b---------- that worked! Refine it tomorrow

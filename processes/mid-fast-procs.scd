@@ -30,11 +30,11 @@ forkIfNeeded {
 		flzgamp = VarSaw.ar(flzgspeed, width: 0.2).range(flzglow, 1);
 		Line.kr(0, 1, holdtime + 0.15, doneAction: 2);  // zombie killer
 		Pan2.ar(RLPF.ar(sig, ffreq, rq), pan, flzgamp);
-	}, [
-		\freq, #[0, 1000, \linear, 1, 0], #[0, 20, \lin, 1, 0], \freq, \freq,
-		\freq, \rq,
-		\bipolar, #[0.01, 10], EnvSpec(Env.adsr),
-		/*#[0, 0.5],*/ #[1, 30], #[0.25, 4, \exp], nil
+		}, [
+			\freq, #[0, 1000, \linear, 1, 0], #[0, 20, \lin, 1, 0], \freq, \freq,
+			\freq, \rq,
+			\bipolar, #[0.01, 10], EnvSpec(Env.adsr),
+			/*#[0, 0.5],*/ #[1, 30], #[0.25, 4, \exp], nil
 	]);
 
 	// can't 'make' a Factory inside another Factory
@@ -67,11 +67,11 @@ forkIfNeeded {
 		sig = Mix(Osc.ar(car_buf, freq + (mod * freq), 0, car_amp))
 		* EnvGen.kr(car_env.dereference.value(slideTime), gate, timeScale: car_env_time, doneAction:2);
 		Pan2.ar(sig, pan);
-	}, [
-		\freq, \amp, EnvSpec(Env.adsr(0.01, 1, 1, 0.05)), EnvSpec(Env.adsr(0.01, 1, 1, 1)), [0.01, 300, \exponential],
-		#[0.05, 20, \exp], [1, 12, \linear, 0, 1], [1, 12, \linear, 0, 1], #[0, 2],
-		[-5, 5, \linear, 0, 0], \mydetune,
-		\mybuf, \mybuf, nil, nil, \freq, [0.001, 1.0, \exp], \bipolar, #[0.05, 20, \exp], #[0.05, 20, \exp]
+		}, [
+			\freq, \amp, EnvSpec(Env.adsr(0.01, 1, 1, 0.05)), EnvSpec(Env.adsr(0.01, 1, 1, 1)), [0.01, 300, \exponential],
+			#[0.05, 20, \exp], [1, 12, \linear, 0, 1], [1, 12, \linear, 0, 1], #[0, 2],
+			[-5, 5, \linear, 0, 0], \mydetune,
+			\mybuf, \mybuf, nil, nil, \freq, [0.001, 1.0, \exp], \bipolar, #[0.05, 20, \exp], #[0.05, 20, \exp]
 	]);
 
 	// most args are left unset - be careful
@@ -374,5 +374,100 @@ forkIfNeeded {
 		},
 		type: \bp
 	) => Fact(\oscilBP);
+
+
+	// repeating 16ths
+	Pwhite(5, 11) * 0.25 => MacRh(\rpt16);
+
+	{ |notes, inEvent|
+		Pseq([notes.asChord, Pn(inEvent[\top][\repeatNotes] ?? { 62.mapMode(inEvent[\mode]) }, inf)], 1)
+	} => ArpegPat(\rpt16);
+
+	Ptuple([0.25, Pseq([Pwhite(0.2, 0.33, 1), Pn(0.08, inf)], 1), 0.5]) => MicRh(\rpt16);
+
+	{ |top, topMode, mode, topEvent|
+		// crappo workaround b/c this gets called multiple times
+		if(topEvent[\origRepeatNotes].isNil) {
+			topEvent[\origRepeatNotes] = topEvent[\repeatNotes];
+		};
+		topEvent[\repeatNotes] = \convertMode.eval(topEvent[\origRepeatNotes], topMode, mode);
+		\convertMode.eval(top, topMode, mode)
+	} => Func(\convertModeRpt);
+
+	(
+		make: { |name|
+			var p;
+			BP(name).free;
+			\newCh.eval(name, \arpegMultiVoicer, \macroRh, MBM(0)[\pzch], nil, MacRh(\rpt16), \rpt16, \rpt16, nil, \d);
+			p = BP(\rp);
+
+			p.topNote = PR(\patternTop).copy.make {
+				~mode = \d0;
+				~deg = Pwhite(35, 42, inf);
+				~rpt = Pn(Pwhile1(
+					{ |in, next| next.unmapMode(in[\mode]) <= 74 },
+					Pseries({ rrand(-6, -2) }, Pwrand(#[1, 2, 3], #[0.5, 0.45, 0.05], inf), { rrand(3, 7) })
+				), inf);
+				// above may be 0: ensure a unique array
+				~repeatNotes = Pfunc({ |ev| 62.mapMode(ev[\mode]) }) + Ptuple([0, BPStream(\rpt)]).collect({ |pair|
+					if(pair[0] == pair[1]) { pair[0] } { pair }
+				});
+				~asPattern = {
+					// don't like copy/paste programming
+					// but I stupidly don't let you choose a mode per top event
+					Pbind(
+						\freq, BPStream(\deg),
+						\delta, BPStream(\delta),
+						\length, BPStream(\length),
+						\mode, BPStream(\mode),
+						\gate, BPStream(\gate),
+						\repeatNotes, BPStream(\repeatNotes)
+					)
+				};
+			};
+			p.convertTopFunc = \convertModeRpt;
+
+			// maybe a disaster -- um, NO! IT'S COOL!!!
+			// p.topNote.mode = Pxrand(Mode.keys.asArray.select { |key| key.asString.last == $0 }, inf);
+
+			p.child.initVoicerArgs;
+			p.child.voicerArgs = (
+				onePizz: Pbind(
+					\ffreq, Pseq([Pexprand(6000, 9400, 1), Pexprand(4000, 7000, inf)]),
+					\amp, 4
+				),
+				tri: Pbind(
+					\holdtime, Pkey(\length) + 1,
+					\ffreq, Pseq([Pexprand(5000, 9000, 1), Pexprand(1500, 8000, inf)]),
+					\rq, Pwhite(0.1, 0.6, inf),
+					\gate, Pseq([0.23, Pn(0.18, inf)]),
+					\detune, Pwhite(1.002, 1.02, inf)
+				),
+				fm: Pbind(
+					\mod_lev, Pwhite(7.0, 11.0, inf),
+					\mod_ratio1, Pwhite(1, 4, inf),
+					\mod_ratio2, Pkey(\mod_ratio1),
+					\car_detune, Pwhite(1.002, 1.02, inf),
+					\car_buf, Plazy({ Prand(VC(\fm).env.bufs, inf) }),
+					\mod_buf, Plazy({ Prand(VC(\fm).env.bufs, inf) }),
+					\mod_env, Plazy({
+						[Env.adsr(0.01, rrand(0.07, 0.9), rrand(0.1, 0.3), 1.0)].loop
+					}),
+					\car_env, [Env.adsr(0.01, 0.7, 0, 0.2)]
+				)
+			);
+
+			p.child.resetArgsOnChord = true;
+
+			p.child.vckey = Prand(#[onePizz, tri, fm], inf);
+			p.child.argPairs = [vckey: Plazy({ |inval| ~vckeyStream.next(inval).loop })];
+
+			p.child.makeChordPattern = { Pxrand(~chords, inf) };
+			p.child.fitFunc = \chordFitNotes;
+
+			1 => p;
+
+			p
+	}, type: \bp) => Fact(\rpt16BP);
 
 };
