@@ -606,12 +606,12 @@ p.args = Pbind(
 
 	(spl2size >= 2).if({
 		new = source.notes.copyRange(0, splice-1);
-			// last diatonically mapped note + first spliced interval - s2 dia map note
+		// last diatonically mapped note + first spliced interval - s2 dia map note
 		current = (source.notes[splice-1] + cross.intervals[spl2 - 1] -
 			cross.notes[spl2].freq).asFloat;
 		new = new ++ (cross.notes.copyRange(spl2, spl2 + spl2size - 1) + current);
-			// last note copied + transposition + next interval from source - next note (source)
-			// algebraically simplifies to last note(s2) + transposition - last note (source)
+		// last note copied + transposition + next interval from source - next note (source)
+		// algebraically simplifies to last note(s2) + transposition - last note (source)
 		current = cross.notes[spl2 + spl2size - 1].freq + current - source.notes[splice-1].freq;
 		"\n\nintsplice result".postln;
 		(new ++ (source.notes.copyRange(splice, source.notes.size - 1) + current)).do(_.postcs);
@@ -776,26 +776,102 @@ p.child.argPairs = p.child.argPairs ++ [rq: Pwhite(0.2, 0.8, inf)];
 // 16ths with accents
 
 \makeOnePizzVC.eval;
+Fact(\triVC) => VC(\tri);
+
+
 
 Pwhite(5, 11) * 0.25 => MacRh(\rpt16);
 
 { |notes, inEvent|
-	Pseq([notes.asChord, Pn(62.mapMode(inEvent[\mode]), inf)], 1)
+	Pseq([notes.asChord, Pn(inEvent[\top][\repeatNotes] ?? { 62.mapMode(inEvent[\mode]) }, inf)], 1)
 } => ArpegPat(\rpt16);
+
 
 (
 BP(\rp).free;
-Func('newCh').value(\rp, \arpeg1 /* \arpegMultiVoicer */, \macroRh, MBM(0)[\pzch], nil, MacRh(\rpt16), '16th', \rpt16, nil, \d);
+Func('newCh').value(\rp, /* \arpeg1 */ \arpegMultiVoicer, \macroRh, MBM(0)[\pzch], nil, MacRh(\rpt16), '16th', \rpt16, nil, \d);
+1 => BP(\rp);
 )
-
-VC(\onePizz) => BP(\rp);
-0 => BP(\rp);
 
 p = BP(\rp);
 
 p.topNote = PR(\patternTop).copy.make {
-	~mode = \d;
+	~mode = \d0;
 	~deg = Pwhite(35, 42, inf);
+	~rpt = Pfunc({ |ev| 62.mapMode(ev[\mode]) }) + Ptuple([
+		0,
+		Pwhite(1, 4, inf) * Prand(#[-1, 1], inf)
+	]);
+	~superPattern = ~asPattern;
+	~asPattern = {
+		(Pbind(\repeatNotes, BPStream(\rpt)) <> ~superPattern.()).trace(prefix: "top event: ")
+	};
 };
+
+p.topNote.rpt = Pfunc({ |ev| 62.mapMode(ev[\mode]) }) + Ptuple([
+		0,
+		Pwhite(1, 4, inf) * Prand(#[-1, 1], inf)
+	]);
+
+{ |top, topMode, mode, topEvent|
+	// crappo workaround b/c this gets called multiple times
+	if(topEvent[\origRepeatNotes].isNil) {
+		topEvent[\origRepeatNotes] = topEvent[\repeatNotes];
+	};
+	topEvent[\repeatNotes] = \convertMode.eval(topEvent[\origRepeatNotes].debug("original rptnotes"), topMode, mode).debug("converted");
+	\convertMode.eval(top, topMode, mode)
+} => Func(\convertModeRpt);
+
+p.convertTopFunc = \convertModeRpt;
+
+p.child.initVoicerArgs;
+
+p.child.voicerArgs = (
+	onePizz: Pbind(
+		\ffreq, Pexprand(2000, 7000, inf)
+	),
+	tri: Pbind(
+		\holdtime, Pkey(\length) + 1,
+		\ffreq, Pexprand(1500, 8000, inf),
+		\rq, Pwhite(0.1, 0.6, inf)
+	)
+);
+
+p.child.voicerArgs[\onePizz] = Pbind(
+	\ffreq, Pseq([Pexprand(6000, 9400, 1), Pexprand(4000, 7000, inf)]),
+	\amp, 4
+);
+
+(p.child.voicerArgs[\tri] = Pbind(
+	\holdtime, Pkey(\length) + 1,
+	\ffreq, Pseq([Pexprand(5000, 9000, 1), Pexprand(1500, 8000, inf)]),
+	\rq, Pwhite(0.1, 0.6, inf),
+	\gate, Pseq([0.27, Pn(0.18, inf)])
+));
+
+
+p.child[\argPairs] = [vckey: Pseq(#[onePizz, tri], inf)];
+
+p.child.vckey = Pseq(#[onePizz, tri], inf);
+// p.child[\vckeyStream]  // good
+
+p.child.argPairs = [vckey: Plazy({ |inval| ~vckeyStream.next(inval).loop })];
+
+p.child.voicerArgs.listVars
+
+p.child.makeChordPattern = { Pxrand(~chords, inf) };
+p.child.fitFunc = \chordFitInt;
+
+p.child.resetArgsOnChord = true;
+
+Ptuple([0.25, Pseq([Pwhite(0.2, 0.33, 1), Pn(0.08, inf)], 1), 0.5]) => MicRh(\rpt16);
+
+\rpt16 =>.micro p;
+
+
+
+
+VC(\onePizz) => BP(\rp);
+
 
 // son of a b---------- that worked! Refine it tomorrow
