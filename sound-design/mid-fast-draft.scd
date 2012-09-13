@@ -6,6 +6,7 @@
 (thisProcess.nowExecutingPath.dirname +/+ "../processes/mid-fast-procs.scd").loadPath;
 
 TempoClock.tempo = 100/60;
+TempoClock.default.gui;
 
 BP(\shengShared).free;
 PR(\shengShared) => BP(\shengShared);
@@ -900,3 +901,89 @@ Ptuple([0.25, Pseq([Pwhite(0.2, 0.33, 1), Pn(0.08, inf)], 1), 0.5]) => MicRh(\rp
 \rpt16 =>.micro p;
 
 
+
+// slurred 16th-note sextuplets
+// rhythm is TOTALLY WRONG
+
+Fact(\triVC) => VC(\tri);
+
+
+{ |notes, inEvent|
+	// .collect{} runs in the context of the arpeggiator,
+	// so I must keep a reference to the chord object (in which this function runs)
+	var curChord = currentEnvironment, topEvent;
+	// topnote comes from inEvent -- don't modify inEvent, just a copy
+	inEvent = inEvent.copy;
+	topEvent = inEvent[\top].copy;
+	inEvent[\top] = topEvent;
+	Pseries(topEvent[\freq], BP(inEvent[\collIndex]).child.topIntervals, inf).collect { |aTop, inval|
+		topEvent[\freq] = aTop + (inval[\xpose] ?? { 0 });
+		Func(\chordFitInt).doAction(curChord, inEvent,
+			inEvent[\fitnessOverride] ?? { Library.at(\fitFactors) })
+		.asChord
+	}
+} => ArpegPat(\sxt);
+
+{ |notepat, inEvent|
+	var sixth = 1/6, count = 0;
+	Ptuple([
+		sixth,
+		Pseq([Pn(inf /*sixth + 0.01*/, inEvent[\length] / sixth - 1), sixth * 0.2], 1),
+		Pgeom(rrand(0.35, 0.5), rrand(0.8, 0.92), inf)
+	])
+} => MicRh(\sxt);
+
+(
+BP(\sxt).free;
+Func('newCh').value(\sxt, \arpeg1Slurs, \macroRh, MBM(0)[\tripletCh], nil, Pwhite(3, 7, inf) * (1/6), \sxt, \sxt, nil, \d);
+1 => BP(\sxt);
+)
+
+p = BP(\sxt);
+VC(\tri) => p;
+
+Pwhite(1, 3, inf) * 0.5 =>.macro p;
+
+p.topNote = PR(\patternTop).copy.make {
+	~deg = Pwhite(32, 40, inf);
+	~mode = \d;
+};
+
+p.topNote.deg = Pwhite(28, 35, inf);
+
+p.child.topIntervals = Pwrand(#[1, 2, 3], #[0.75, 0.2, 0.05], inf);
+
+p.child.topIntervals = Pwrand(#[-1, -2, -3], #[0.75, 0.2, 0.05], inf).collect { |int, ev|
+	ev[\xpose] = 14;
+	int
+};
+
+p.child.topIntervals = Pwrand(#[1, 2, 3], #[0.75, 0.2, 0.05], inf) * Pstutter(Pwhite(1, 3, inf), Pseq(#[-1, 1], inf, { 2.rand }));
+
+p.child.topIntervals = Prand([
+	Pwrand(#[1, 2, 3], #[0.75, 0.2, 0.05], inf),
+	Pwrand(#[-1, -2, -3], #[0.75, 0.2, 0.05], inf).collect { |int, ev|
+		ev[\xpose] = 14;
+		int
+	},
+	Pwrand(#[1, 2, 3], #[0.75, 0.2, 0.05], inf) * Pstutter(Pwhite(1, 3, inf), Pseq(#[-1, 1], inf, { 2.rand }))
+]);
+
+p.child.argPairs = Pbind(
+	\pan, Plazy({ |ev|
+		var size = ev[\note].asFloat.size;
+		if(size > 1) { Array.series(size, -1.0, 2.0 / (size-1)).scramble.loop } { 0.loop }
+	})
+);
+
+(p.child.argPairs = Pbind(
+	\pan, Plazy({ |ev|
+		Array.fill(ev[\note].asFloat.size, { 1.0.rand2 }).loop
+	}),
+	\ffreq, Plazy({ |ev|
+		Ptuple(
+			Array.fill(ev[\note].asFloat.size, { exprand(1200, 1800) })
+			.put(0, Pn(Pgeom(exprand(2500, 5000), rrand(0.7, 0.81), 3), inf))
+		)
+	})
+));
