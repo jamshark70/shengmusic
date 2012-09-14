@@ -87,6 +87,7 @@ Fact(\triVC).chuck(VC(\flzg), nil, (
 VC(\flzg) => VP(0);
 VC(\flzg).mapGlobal(\ffreq, nil, 3400, \freq);
 VC(\flzg).mapGlobal(\rq, nil, 0.7, \myrq);
+
 k = VoicerMIDISocket(0, VC(\flzg).v);
 k.noteOnArgsPat = Pbind(\holdtime, 1000, \flzgtime, 0.8, \flzgrate, 28, \flzgratio, 0.4, \flzgdepth, 0.9);
 
@@ -100,7 +101,33 @@ o.free; o = OSCFunc({ |msg| { s.sendMsg(\n_trace, msg[1]) }.defer(0.1) }, '/n_go
 // test factory
 \makeflzgVC.eval(\flzg);
 
-(type: \voicerNote, voicer: VC(\flzg).v, ffreq: 4000, rq: 0.4, holdtime: 1000, flzgrate: 28, flzgratio: 0.4, flzgdepth: 0.9, flzgtime: 0.8, sustain: 2).play;
+(type: \voicerNote, voicer: VC(\flzg).v, ffreq: 4000, rq: 0.4, holdtime: 1000, flzgrate: 28, flzgratio: 0.4, flzgdepth: 0.9, flzgtime: 0.8, sustain: 2, root: 2, degree: #[0, 1, 4, 6]).play;
+
+
+// ok, that's got some more physicality
+
+(
+var e = Env(#[0, 0.3, 1, 0.4, 0], #[0.5, 0.02, 0.08, 1.5], #[1, 1, 1, -6]);
+
+(parent: ProtoEvent(\voicerNoteKrBusLock).parent, voicer: VC(\flzg).v,
+ffreq: { ~lock.bus.asMap }, rq: 0.6, holdtime: 1000,
+flzgrate: 28, flzgratio: 0.4, flzgdepth: 0.9, flzgtime: 0.8,
+dur: 2, gate: 0.5, length: 1, mode: \d, freq: 35 + #[0, 1, 4, 6],
+// env: [Env.perc(0.5, 0.8, curve: #[1, -6])],
+env: [e],
+numCh: 1, lpcEv: (instrument: \ctlEnv, connect: 0, env: e.copy.levels_(#[1200, 4000, 12000, 6000, 2000])/*.curves_()*/)
+).play;
+)
+
+ProtoEvent.composite(#[voicerNote, voicerNoteKrBusLock, dummy]) => ProtoEvent(\flzg);
+
+Pwhite()
+
+(
+BP(\flz).free;
+Func(\newCh).value(\flz, \arpegMultiVoicer, \macroRh, MBM(0)[\tripletCh], nil, , microrhythmSelector, arpegPatSelector, adaptKeysForTopMelody, mode, parms);
+)
+;
 
 
 
@@ -820,7 +847,8 @@ p = BP(\rp);
 			\repeatNotes, BPStream(\repeatNotes)
 		)
 	};
-});
+})
+;
 
 // p.topNote.asPattern = {
 // 	(Pbind(\repeatNotes, BPStream(\repeatNotes)) <> ~superPattern.())
@@ -828,6 +856,8 @@ p = BP(\rp);
 
 // maybe a disaster -- um, NO! IT'S COOL!!!
 p.topNote.mode = Pxrand(Mode.keys.asArray.select { |key| key.asString.last == $0 }, inf);
+
+p.topNote.mode = \d;
 
 // p.topNote.rpt = Pfunc({ |ev| 62.mapMode(ev[\mode]) }) + Ptuple([
 // 	0,
@@ -873,6 +903,49 @@ p.child.voicerArgs = (
 	)
 );
 
+p.child.event;
+
+(
+var e = Env(#[0, 0.3, 1, 0.4, 0], #[0.15, 0.02, 0.08, 0.7], #[1, 1, 1, -6]);
+p.child.voicerArgs[\flzg] = Pbind(
+	\protoEvent, \voicerNoteKrBusLock, // Pseq([\voicerNoteKrBusLock, Pn(\voicerNote, inf)], 1),
+	\ffreq, { ~lock.bus.asMap },
+	\rq, 0.6,
+	\holdtime, 1000,
+	\flzgrate, Pwhite(24.0, 31.0, inf),
+	\flzgratio, 0.4,
+	\flzgdepth, 0.9,
+	\flzgtime, 0.3,
+	// \dur, 2,
+	// \gate, 0.5,
+	// \length, 1,
+	// \mode, \d,
+	// \freq, 35 + #[0, 1, 4, 6],
+	\env, [e],
+	\numCh, 1,
+	\lpcEv, (instrument: \ctlEnv, connect: 0, env: e.copy.levels_(#[1200, 4000, 12000, 6000, 2000]))
+))
+;
+
+p.child.voicerArgs[\dummy] = Pbind(\eventKey, \dummy);
+
+p.child.event[\eventKey] = \flzg;
+p.reset;
+
+// test flzg
+p.child.argPairs = [vckey: Pseq([\flzg, \dummy, Pn(\tri, inf)], 1)];
+
+p.child.gestures = [
+	\onePizz.loop, \tri.loop, \fm.loop,
+	Pseq([\flzg, \dummy, Pn(\tri, inf)], 1)
+];
+
+Plazy({ p.child.gestures.choose.asStream }).asStream.nextN(3)
+
+Symbol.findRespondingMethodFor(\asStream);
+
+p.child.argPairs = [vckey: Plazy({ ~gestures.choose })];
+
 p.child[\argPairs] = [vckey: Pseq(#[onePizz, tri], inf)];
 
 p.child.vckey = Prand(#[onePizz, tri, fm], inf);
@@ -903,7 +976,6 @@ Ptuple([0.25, Pseq([Pwhite(0.2, 0.33, 1), Pn(0.08, inf)], 1), 0.5]) => MicRh(\rp
 
 
 // slurred 16th-note sextuplets
-// rhythm is TOTALLY WRONG
 
 Fact(\triVC) => VC(\tri);
 

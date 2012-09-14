@@ -41,12 +41,15 @@ forkIfNeeded {
 	{ |name(\flzg)|
 		Fact(\triVC).chuck(VC(\flzg), nil, (
 			instrName: "osc2.v3mappanflzg",
-			env: `{ Env.adsr(
+			env: `{
+				var envctl = NamedControl.kr(\env,
+					Env.adsr(-2500, 0.15, 0.5, 0.3, curve: #[2, -3, -4]).asArray.extend(20, 0)
+				);
 				// the instr already made a \flzgtime NamedControl
 				// so this reuses the same one
-				NamedControl.kr(\flzgtime) * 0.4,
-				0.15, 0.5, 0.3, curve: #[2, -3, -4]
-			) }
+				envctl[5] = Select.kr(envctl[5] < 0, [envctl[5], NamedControl.kr(\flzgtime) * 0.4]);
+				envctl
+			}
 		));
 	} => Func(\makeflzgVC);
 
