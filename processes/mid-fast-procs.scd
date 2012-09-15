@@ -399,6 +399,8 @@ forkIfNeeded {
 		\convertMode.eval(top, topMode, mode)
 	} => Func(\convertModeRpt);
 
+	ProtoEvent.composite(#[voicerNote, voicerNoteKrBusLock, dummy]) => ProtoEvent(\flzg);
+
 	(
 		make: { |name|
 			var p;
@@ -443,13 +445,13 @@ forkIfNeeded {
 				),
 				tri: Pbind(
 					\holdtime, Pkey(\length) + 1,
-					\ffreq, Pseq([Pexprand(5000, 9000, 1), Pexprand(1500, 8000, inf)]),
+					\ffreq, Pseq([Pexprand(4500, 7500, 1), Pexprand(2700, 8000, inf)]),
 					\rq, Pwhite(0.1, 0.6, inf),
-					\gate, Pseq([0.23, Pn(0.18, inf)]),
+					\gate, Pseq([0.3, Pn(0.25, inf)]),
 					\detune, Pwhite(1.002, 1.02, inf)
 				),
 				fm: Pbind(
-					\mod_lev, Pwhite(7.0, 11.0, inf),
+					\mod_lev, Pwhite(5.0, 8.0, inf),
 					\mod_ratio1, Pwhite(1, 4, inf),
 					\mod_ratio2, Pkey(\mod_ratio1),
 					\car_detune, Pwhite(1.002, 1.02, inf),
@@ -458,14 +460,40 @@ forkIfNeeded {
 					\mod_env, Plazy({
 						[Env.adsr(0.01, rrand(0.07, 0.9), rrand(0.1, 0.3), 1.0)].loop
 					}),
-					\car_env, [Env.adsr(0.01, 0.7, 0, 0.2)]
-				)
+					\car_env, [Env.adsr(0.01, 0.7, 0, 0.2)],
+					\gate, Pfunc({ |ev|
+						if(ev[\note].asFloat.size > 2) { 0.4 } { 0.22 }
+					})
+				),
+				// this function is only a trick to declare a temporary variable
+				flzg: {
+					var e = Env(#[0, 0.3, 1, 0.4, 0], #[0.15, 0.02, 0.08, 0.7], #[1, 1, 1, -6]);
+					Pbind(
+						\protoEvent, \voicerNoteKrBusLock, // Pseq([\voicerNoteKrBusLock, Pn(\voicerNote, inf)], 1),
+						\ffreq, { ~lock.bus.asMap },
+						\rq, 0.6,
+						\holdtime, 1000,
+						\flzgrate, Pwhite(24.0, 31.0, inf),
+						\flzgratio, 0.4,
+						\flzgdepth, 0.9,
+						\flzgtime, 0.3,
+						\env, [e],
+						\numCh, 1,
+						\lpcEv, (instrument: \ctlEnv, connect: 0, env: e.copy.levels_(#[1200, 4000, 12000, 6000, 2000]))
+					)
+				}.value,
+				dummy: Pbind(\eventKey, \dummy)
 			);
-
 			p.child.resetArgsOnChord = true;
+			p.child.event[\eventKey] = \flzg;
 
-			p.child.vckey = Prand(#[onePizz, tri, fm], inf);
-			p.child.argPairs = [vckey: Plazy({ |inval| ~vckeyStream.next(inval).loop })];
+			p.child.gestures = [
+				\onePizz.loop, \tri.loop, \fm.loop,
+				Pseq([\flzg, \dummy, Pn(\tri, inf)], 1)
+			];
+			// #1 and #3 repeat the same basic voicer
+			// so cut their probabilities in half
+			p.child.argPairs = [vckey: Plazy({ ~gestures.wchoose(#[0.33333333333333, 0.16666666666667, 0.33333333333333, 0.16666666666667]) })];
 
 			p.child.makeChordPattern = { Pxrand(~chords, inf) };
 			p.child.fitFunc = \chordFitNotes;

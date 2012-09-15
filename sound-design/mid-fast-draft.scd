@@ -806,8 +806,101 @@ p.child.argPairs = p.child.argPairs ++ [rq: Pwhite(0.2, 0.8, inf)];
 \makeOnePizzVC.eval;
 Fact(\triVC) => VC(\tri);
 Fact(\madfmVC) => VC(\fm);
+\makeflzgVC.eval(\flzg);
+
+VC(#[onePizz, tri, fm, flzg]).do { |vc, i| vc => MCG(i+2) };
+
+Fact(\rpt16BP) => BP(\rp);
+
+p = BP(\rp);
+
+p.topNote.mode = Pxrand(Mode.keys.asArray.select { |key| key.asString.last == $0 }, inf);
+
+// #1 and #3 repeat the same basic voicer
+p.child.argPairs = [vckey: Plazy({ ~gestures.wchoose(#[0.33333333333333, 0.16666666666667, 0.33333333333333, 0.16666666666667]) })];
+
+p.child.argPairs = [vckey: Plazy({ ~gestures[2] })];
+
+x = Pseq([0, 1, 2, 3], inf).asStream;
+
+x = Pseq([0, 1, 2], inf).asStream;
+p.child.argPairs = [vckey: Plazy({ ~gestures[x.next] })];
+
+// this is also pretty badass
+(p.child.argPairs = [
+	vckey: Pseq([
+		Prand([Pseq(#[flzg, dummy]), \onePizz, \tri, \fm], 1),
+		Prand(#[onePizz, tri, fm], inf)
+	], 1)
+])
+;
+
+p.macro = 4;
+
+// level fixing
+q.set(\gate, 0.5);
+
+(q.set(\gate, Pfunc({ |ev|
+	if(ev[\note].asFloat.size > 2) { 0.4 } { 0.22 }
+})))
+;
+
+q.set(\mod_lev, Pwhite(5.0, 8.0, inf));
+
+/*
+MixerChannel(onePizz, localhost, 2, 2)
+ Synthgroup: Group(19)
+Effectgroup: Group(20)
+Fader synth: Synth("mixers/Mxb2x2" : 21)
+Destination: MixerChannel(master, localhost, 2, 2)
+          level: 0.141 (-17 dB)
+            pan: 0
+Post-fader sends:
+	 Send synth: Synth("mixers/Send2" : 34)
+	Destination: MixerChannel(rvb, localhost, 2, 2)
+	      Level: 0.4 (-7.959 dB)
 
 
+MixerChannel(tri, localhost, 2, 2)
+ Synthgroup: Group(23)
+Effectgroup: Group(24)
+Fader synth: Synth("mixers/Mxb2x2" : 25)
+Destination: MixerChannel(master, localhost, 2, 2)
+          level: 0.75 (-2.499 dB)
+            pan: 0
+Post-fader sends:
+	 Send synth: Synth("mixers/Send2" : 36)
+	Destination: MixerChannel(rvb, localhost, 2, 2)
+	      Level: 0.371 (-8.624 dB)
+
+
+MixerChannel(fm, localhost, 2, 2)
+ Synthgroup: Group(27)
+Effectgroup: Group(28)
+Fader synth: Synth("mixers/Mxb2x2" : 29)
+Destination: MixerChannel(master, localhost, 2, 2)
+          level: 0.278 (-11.109 dB)
+            pan: 0
+Post-fader sends:
+	 Send synth: Synth("mixers/Send2" : 37)
+	Destination: MixerChannel(rvb, localhost, 2, 2)
+	      Level: 0.25 (-12.041 dB)
+
+
+MixerChannel(flzg, localhost, 2, 2)
+ Synthgroup: Group(31)
+Effectgroup: Group(32)
+Fader synth: Synth("mixers/Mxb2x2" : 33)
+Destination: MixerChannel(master, localhost, 2, 2)
+          level: 0.75 (-2.499 dB)
+            pan: 0
+Post-fader sends:
+	 Send synth: Synth("mixers/Send2" : 38)
+	Destination: MixerChannel(rvb, localhost, 2, 2)
+	      Level: 0.612 (-4.258 dB)
+*/
+
+// development
 
 Pwhite(5, 11) * 0.25 => MacRh(\rpt16);
 
