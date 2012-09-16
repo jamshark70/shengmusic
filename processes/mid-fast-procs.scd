@@ -503,4 +503,53 @@ forkIfNeeded {
 			p
 	}, type: \bp) => Fact(\rpt16BP);
 
+
+	// fluttertongue overlaps
+	// this is pretty cool!
+	(Pwhite(2, 5, inf) * Ptuple([0.5, Pwhite(0.7, 1.6, inf)], inf)) => MacRh(\flzg);
+
+	(
+		make: { |name|
+			var p;
+			BP(name).free;
+			Func(\newCh).value(name, \arpegMultiVoicer, \macroRh, MBM(0)[\pzch], nil, MacRh(\flzg).v, \blockFollow, \block, nil, \d);
+
+			p = BP(name);
+			p.child.event.eventKey = \voicerNoteKrBusLock;
+
+			p.child.argPairs = Pbind(
+				\ffreq, { ~lock.bus.asMap },
+				\pan, { ("c" ++ (~lock.bus.index+1)).asSymbol },
+				\rq, 0.6,
+				\holdtime, 1000,
+				\env, Pfunc({ |ev|
+					// above envelope, but times array is normalizeSum'med
+					[Env(#[0, 0.3, 1, 0.4, 0], #[0.23809523809524, 0.0095238095238095, 0.038095238095238, 0.71428571428571] * ev[\length], #[1, 1, 1, -6])]
+				}),
+				\flzgrate, 25, \flzgratio, 0.4, \flzgdepth, 0.9,
+				\flzgtime, Pfunc({ |ev| 1.4 * ev[\env][0].times[0] }),
+				\gate, 0.8,
+				\numCh, 2,
+				\lpcEv, Pbind(
+					\instrument, \ffreqpan,
+					\env, Pfunc({ |ev| [ev[\env][0].copy.levels_(#[1200, 4000, 12000, 6000, 2000])/*.curves_()*/] }),
+					\time, 1,
+					// pan1: p = /*rrand(0.7, 1.0) * */ #[-1, 1].choose, pan2: /*rrand(0.7, 1.0) * */ p.sign.neg
+					\panenv, Pfunc({ |ev|
+						var p, e = ev[\env][0];
+						[Env(p = #[-1, 1].rotate(2.rand).insert(1, 0), [e.times[0], e.times.sum - e.times[0]], #[-4, 4] * p[0].sign)]
+					})
+				)
+			);
+
+			p.topNote = PR(\patternTop).copy.make {
+				~mode = \d;
+				~deg = Pwhite(40, 55, inf);
+			};
+			p.child.fitFunc = \chordFitInt;
+
+			p
+		},
+		type: \bp
+	) => Fact(\flzgBP);
 };

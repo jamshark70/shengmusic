@@ -107,28 +107,148 @@ o.free; o = OSCFunc({ |msg| { s.sendMsg(\n_trace, msg[1]) }.defer(0.1) }, '/n_go
 // ok, that's got some more physicality
 
 (
-var e = Env(#[0, 0.3, 1, 0.4, 0], #[0.5, 0.02, 0.08, 1.5], #[1, 1, 1, -6]);
+SynthDef(\ffreqpan, { |outbus, time = 1/*, pan1 = 0, pan2 = 0*/|
+	var ffreqenv = NamedControl.kr(\fenv, Env(#[4000, 4000], #[1]).asArray.extend(40, 0)),
+	ffreq = EnvGen.kr(ffreqenv, 1, 1, 0, time, 2),
+	panenv = NamedControl.kr(\panenv, Env.zero(1).asArray.extend(20, 0)),
+	pan = EnvGen.kr(panenv, timeScale: time); // Line.kr(pan1, pan2, time);
+	Out.kr(outbus, [ffreq, pan]);
+}).add
+)
+
+(
+var e = Env(#[0, 0.3, 1, 0.4, 0], #[0.5, 0.02, 0.08, 1.5] * 3, #[1, 1, 1, -6]), p;
 
 (parent: ProtoEvent(\voicerNoteKrBusLock).parent, voicer: VC(\flzg).v,
-ffreq: { ~lock.bus.asMap }, rq: 0.6, holdtime: 1000,
+ffreq: { ~lock.bus.asMap }, pan: { ("c" ++ (~lock.bus.index+1)).asSymbol }, rq: 0.6, holdtime: 1000,
 flzgrate: 28, flzgratio: 0.4, flzgdepth: 0.9, flzgtime: 0.8,
-dur: 2, gate: 0.5, length: 1, mode: \d, freq: 35 + #[0, 1, 4, 6],
+dur: 2, gate: 0.8, length: 1, mode: \d, freq: 35 + #[0, 1, 4, 6], amp: 1,
 // env: [Env.perc(0.5, 0.8, curve: #[1, -6])],
 env: [e],
-numCh: 1, lpcEv: (instrument: \ctlEnv, connect: 0, env: e.copy.levels_(#[1200, 4000, 12000, 6000, 2000])/*.curves_()*/)
+numCh: 2,
+lpcEv: (
+	instrument: \ffreqpan,
+	fenv: e.copy.levels_(#[1200, 4000, 12000, 6000, 2000])/*.curves_()*/,
+	time: 1,
+	// pan1: p = /*rrand(0.7, 1.0) * */ #[-1, 1].choose, pan2: /*rrand(0.7, 1.0) * */ p.sign.neg
+	panenv: Env(#[-1, 1].rotate(2.rand), [e.times.sum], \sin)
+)
 ).play;
+)
+
+VC(\flzg).env.chorus.synth.run(false);
+VC(\flzg).env.chorus.synth.run(true);
+
+
+// omg it was SO HARD to tune this effect
+
+(
+var e = Env(#[0, 0.3, 1, 0.4, 0], #[0.5, 0.02, 0.08, 1.5] * 3, #[1, 1, 1, -6]), p;
+
+(parent: ProtoEvent(\voicerNoteKrBusLock).parent, voicer: VC(\flzg).v,
+ffreq: { ~lock.bus.asMap }, pan: { ("c" ++ (~lock.bus.index+1)).asSymbol }, rq: 0.6, holdtime: 1000,
+flzgrate: 25, flzgratio: 0.4, flzgdepth: 0.9, flzgtime: 0.7*3,
+dur: 2, gate: 0.8, length: 1, mode: \d, freq: 35 + #[0, 1, 4, 6],
+// env: [Env.perc(0.5, 0.8, curve: #[1, -6])],
+env: [e],
+numCh: 2,
+lpcEv: (
+	instrument: \ffreqpan,
+	fenv: e.copy.levels_(#[1200, 4000, 12000, 6000, 2000])/*.curves_()*/,
+	time: 1,
+	// pan1: p = /*rrand(0.7, 1.0) * */ #[-1, 1].choose, pan2: /*rrand(0.7, 1.0) * */ p.sign.neg
+	panenv: Env(p = #[-1, 1].rotate(2.rand).insert(1, 0), [1.5, e.times.sum - 1.5], #[-4, 4] * p[0].sign).postcs
+)
+).play;
+
+// { VC(\flzg).v.playingNodes.choose.trace }.defer(0.5);
 )
 
 ProtoEvent.composite(#[voicerNote, voicerNoteKrBusLock, dummy]) => ProtoEvent(\flzg);
 
-Pwhite()
+(Pwhite(2, 5, inf) * Ptuple([0.5, Pwhite(0.7, 1.6, inf)], inf)) => MacRh(\flzg);
 
 (
 BP(\flz).free;
-Func(\newCh).value(\flz, \arpegMultiVoicer, \macroRh, MBM(0)[\tripletCh], nil, , microrhythmSelector, arpegPatSelector, adaptKeysForTopMelody, mode, parms);
+Func(\newCh).value(\flz, \arpegMultiVoicer, \macroRh, MBM(0)[\pzch], nil, MacRh(\flzg).v, \blockFollow, \block, nil, \d);
 )
 ;
 
+p = BP(\flz);
+
+MacRh(\flzg) => p;
+VC(\flzg) => p;
+
+p.child.event.eventKey = \voicerNoteKrBusLock;
+
+(
+p.child.argPairs = Pbind(
+	\ffreq, { ~lock.bus.asMap },
+	\pan, { ("c" ++ (~lock.bus.index+1)).asSymbol },
+	\rq, 0.6,
+	\holdtime, 1000,
+	\env, Pfunc({ |ev|
+		// above envelope, but times array is normalizeSum'med
+		[Env(#[0, 0.3, 1, 0.4, 0], #[0.23809523809524, 0.0095238095238095, 0.038095238095238, 0.71428571428571] * ev[\length], #[1, 1, 1, -6])]
+	}),
+	\flzgrate, 25, \flzgratio, 0.4, \flzgdepth, 0.9,
+	\flzgtime, Pfunc({ |ev| 1.4 * ev[\env][0].times[0] }),
+	\gate, 0.8,
+	\numCh, 2,
+	\lpcEv, Pbind(
+		\instrument, \ffreqpan,
+		\env, Pfunc({ |ev| [ev[\env][0].copy.levels_(#[1200, 4000, 12000, 6000, 2000])/*.curves_()*/] }),
+		\time, 1,
+		// pan1: p = /*rrand(0.7, 1.0) * */ #[-1, 1].choose, pan2: /*rrand(0.7, 1.0) * */ p.sign.neg
+		\panenv, Pfunc({ |ev|
+			var p, e = ev[\env][0];
+			[Env(p = #[-1, 1].rotate(2.rand).insert(1, 0), [e.times[0], e.times.sum - e.times[0]], #[-4, 4] * p[0].sign)]
+		})
+	)
+);
+)
+
+p.prepareForPlay;
+
+p.reset;
+p.triggerOneEvent(0);
+
+p.topNote = PR(\patternTop).copy.make {
+	~mode = \d;
+	~deg = Pwhite(38, 50, inf);
+};
+
+p.topNote.deg = Pwhite(40, 55, inf);
+
+p.child.fitFunc = \chordFitInt;
+
+VC(\flzg).nodes.do(_.steal = false);
+
+BP(\flz).free;
+Fact(\flzgBP) => BP(\flz);
+
+0 => BP(\flz);
+VC(\flzg) => BP(\flz);
+
+/* HOW IS THIS POSSIBLE? All the same node?
+
+made 1050: Bus(control, 17, 2, localhost)
+added node 1050: Synth("-qjq3t1035" : 16602)
+added node 1050: Synth("-qjq3t1035" : 16602)
+added node 1050: Synth("-qjq3t1035" : 16602)
+added node 1050: Synth("-qjq3t1035" : 16602)
+added node 1050: Synth("-qjq3t1035" : 16602)
+added node 1050: Synth("-qjq3t1035" : 16602)
+added node 1050: Synth("-qjq3t1035" : 16602)
+added node 1050: Synth("-qjq3t1035" : 16602)
+
+prGetNodes collects results of "stealer" method
+preferEarly uses nonplaying
+if no nodes are available, nonplaying returns [theEarliestNode]
+in an event, nodes are reserved but not triggered
+hence lastTrigger doesn't change and the same node is always earliest
+maybe set trigger time when the node is reserved?
+*/
 
 
 // fast stuff: need a bunch of sounds
