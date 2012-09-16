@@ -183,6 +183,7 @@ Proto({
 
 Proto {
 	~prep = { |args|
+		// ~number = UniqueID.next;
 		if(args.respondsTo(\keysValuesDo)) {
 			currentEnvironment.putAll(args);
 		};
@@ -203,12 +204,12 @@ Proto {
 		if((~bus = Bus.perform(rate, ~server, numCh)).isNil) {
 			Error("couldn't get % bus".format(rate)).throw;
 		};
-		~bus //.debug("made");
+		// ~bus.debug("made" + ~number);
 	};
 
 	~freeStuff = {
 		var killMsgs;
-		~bus /*.debug("freed")*/ .free;
+		// ~bus.debug("freed" + ~number).free;
 		~killNodes.do { |thing|
 			if(thing.isKindOf(Node)) {
 				killMsgs = killMsgs.add(thing.freeMsg)
@@ -226,10 +227,10 @@ Proto {
 		var	endFunc = e { |obj, what|
 			if(what == \n_end) {
 				node.removeDependant(endFunc);
-				~removeLock.(node);
+				~removeLock.(node/*.debug("node ended" + ~number)*/);
 			};
 		};
-		~locks.add(node);
+		~locks.add(node/*.debug("added node" + ~number)*/);
 		NodeWatcher.register(node);
 		node.addDependant(endFunc);
 	};
