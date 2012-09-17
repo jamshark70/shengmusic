@@ -1,0 +1,926 @@
+var o, p;
+o = [
+	MIDIRecBuf.prNew,  "unisonb",  Array.prNew(143),  SequenceNote.prNew,  
+	Array.prNew(6),  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(6),  Array.prNew(2),  
+	SequenceNote.prNew,  Array.prNew(6),  SequenceNote.prNew,  SeqChordNote.prNew,  
+	Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SeqChordNote.prNew,  Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SeqChordNote.prNew,  
+	Array.prNew(1),  SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(3),  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SeqChordNote.prNew,  
+	Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SeqChordNote.prNew,  Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(3),  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(3),  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SeqChordNote.prNew,  
+	Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SeqChordNote.prNew,  Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(3),  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(3),  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SeqChordNote.prNew,  
+	Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SeqChordNote.prNew,  Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SeqChordNote.prNew,  
+	Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SeqChordNote.prNew,  Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(3),  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(3),  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SeqChordNote.prNew,  
+	Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SeqChordNote.prNew,  Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(3),  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(3),  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SeqChordNote.prNew,  
+	Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  
+	SeqChordNote.prNew,  Array.prNew(3),  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(1),  SequenceNote.prNew,  
+	SeqChordNote.prNew,  Array.prNew(1),  SequenceNote.prNew,  SeqChordNote.prNew,  
+	Array.prNew(1),  SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(3),  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  SeqChordNote.prNew,  
+	Array.prNew(1),  SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(1),  
+	SequenceNote.prNew,  SeqChordNote.prNew,  Array.prNew(1),  SequenceNote.prNew,  
+	SeqChordNote.prNew,  Array.prNew(2),  SequenceNote.prNew,  SequenceNote.prNew,  
+	SeqChordNote.prNew,  Array.prNew(2),  SequenceNote.prNew,  SequenceNote.prNew,  
+	SeqChordNote.prNew,  Array.prNew(2),  SequenceNote.prNew,  SequenceNote.prNew,  
+	SequenceNote.prNew,  SequenceNote.prNew,  SequenceNote.prNew,  Event.prNew,  
+	Array.prNew(4)
+];
+p = [
+	// MIDIRecBuf
+	0, [ name: o[1],  notes: o[2],  
+		absoluteOnsets: false,  properties: o[271],  
+		stopRecTime: nil ],  
+	// Array
+	2, [ o[3],  o[5],  o[6],  o[7],  
+		o[8],  o[9],  o[10],  o[11],  
+		o[12],  o[13],  o[14],  o[15],  
+		o[16],  o[17],  o[18],  o[19],  
+		o[20],  o[21],  o[22],  o[23],  
+		o[24],  o[25],  o[26],  o[27],  
+		o[28],  o[29],  o[30],  o[31],  
+		o[32],  o[33],  o[34],  o[35],  
+		o[36],  o[37],  o[38],  o[39],  
+		o[40],  o[41],  o[42],  o[43],  
+		o[44],  o[45],  o[46],  o[47],  
+		o[48],  o[49],  o[50],  o[51],  
+		o[52],  o[53],  o[54],  o[55],  
+		o[56],  o[57],  o[58],  o[59],  
+		o[60],  o[61],  o[62],  o[63],  
+		o[64],  o[65],  o[71],  o[76],  
+		o[81],  o[82],  o[83],  o[84],  
+		o[85],  o[86],  o[87],  o[88],  
+		o[89],  o[90],  o[91],  o[92],  
+		o[93],  o[94],  o[95],  o[96],  
+		o[97],  o[98],  o[99],  o[100],  
+		o[101],  o[102],  o[103],  o[106],  
+		o[111],  o[116],  o[121],  o[126],  
+		o[131],  o[136],  o[141],  o[146],  
+		o[151],  o[156],  o[161],  o[162],  
+		o[163],  o[164],  o[165],  o[166],  
+		o[167],  o[168],  o[169],  o[170],  
+		o[171],  o[172],  o[173],  o[174],  
+		o[175],  o[176],  o[177],  o[178],  
+		o[179],  o[180],  o[181],  o[182],  
+		o[183],  o[188],  o[193],  o[198],  
+		o[203],  o[208],  o[213],  o[218],  
+		o[223],  o[228],  o[233],  o[236],  
+		o[239],  o[242],  o[247],  o[250],  
+		o[253],  o[256],  o[260],  o[264],  
+		o[268],  o[269],  o[270] ],  
+	// SequenceNote
+	3, [ freq: 62,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// Array
+	4, [ 'gate',  0.500000,  'isChord',  0,  
+		'isMain',  1 ],  
+	// SequenceNote
+	5, [ freq: 64,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	6, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	7, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	8, [ freq: 57,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	9, [ freq: 59,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	10, [ freq: 62,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	11, [ freq: 64,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	12, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	13, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	14, [ freq: 66,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	15, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	16, [ freq: 69,  dur: 0.500000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	17, [ freq: 59,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	18, [ freq: 61,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	19, [ freq: 62,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	20, [ freq: 66,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	21, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	22, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	23, [ freq: 57,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	24, [ freq: 59,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	25, [ freq: 62,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	26, [ freq: 64,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	27, [ freq: 61,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	28, [ freq: 62,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	29, [ freq: 66,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	30, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	31, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	32, [ freq: 71,  dur: 0.500000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	33, [ freq: 64,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	34, [ freq: 66,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	35, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	36, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	37, [ freq: 71,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	38, [ freq: 66,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	39, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	40, [ freq: 76,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	41, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	42, [ freq: 76,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	43, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	44, [ freq: 59,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	45, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	46, [ freq: 81,  dur: 1.000000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	47, [ freq: 66,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	48, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	49, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	50, [ freq: 71,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	51, [ freq: 64,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	52, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	53, [ freq: 81,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	54, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	55, [ freq: 81,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	56, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	57, [ freq: 64,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	58, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	59, [ freq: 83,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	60, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	61, [ freq: 83,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	62, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	63, [ freq: 83,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	64, [ freq: 73,  dur: 0.250000,  
+		length: 0.583333,  args: o[4] ],  
+	// SeqChordNote
+	65, [ freq: 64,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[67],  shortDur: 0.000000 ],  
+	// Array
+	66, [ 'gate',  0.500000,  'isChord',  1,  
+		'isMain',  1 ],  
+	// Array
+	67, [ o[68],  o[70] ],  
+	// SequenceNote
+	68, [ freq: 10,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// Array
+	69, [ 'gate',  0.500000,  'isChord',  1,  
+		'isMain',  0 ],  
+	// SequenceNote
+	70, [ freq: 19,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	71, [ freq: 64,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[72],  shortDur: 0.000000 ],  
+	// Array
+	72, [ o[73],  o[74],  o[75] ],  
+	// SequenceNote
+	73, [ freq: 9,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	74, [ freq: 10,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	75, [ freq: 19,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	76, [ freq: 83,  dur: 1.583333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[77],  shortDur: 0.000000 ],  
+	// Array
+	77, [ o[78],  o[79],  o[80] ],  
+	// SequenceNote
+	78, [ freq: -9,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	79, [ freq: -10,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	80, [ freq: -19,  dur: 1.583333,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	81, [ freq: 66,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	82, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	83, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	84, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	85, [ freq: 74,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	86, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	87, [ freq: 71,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	88, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	89, [ freq: 74,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	90, [ freq: 64,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	91, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	92, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	93, [ freq: 71,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	94, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	95, [ freq: 74,  dur: 0.500000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	96, [ freq: 66,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	97, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	98, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	99, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	100, [ freq: 74,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	101, [ freq: 76,  dur: 0.250000,  
+		length: 0.833333,  args: o[4] ],  
+	// SequenceNote
+	102, [ freq: 81,  dur: 0.250000,  
+		length: 0.583333,  args: o[4] ],  
+	// SeqChordNote
+	103, [ freq: 86,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[104],  shortDur: 0.000000 ],  
+	// Array
+	104, [ o[105] ],  
+	// SequenceNote
+	105, [ freq: 4,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	106, [ freq: 90,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[107],  shortDur: 0.000000 ],  
+	// Array
+	107, [ o[108],  o[109],  o[110] ],  
+	// SequenceNote
+	108, [ freq: -4,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	109, [ freq: -9,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	110, [ freq: -14,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	111, [ freq: 76,  dur: 1.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[112],  shortDur: 0.000000 ],  
+	// Array
+	112, [ o[113],  o[114],  o[115] ],  
+	// SequenceNote
+	113, [ freq: 5,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	114, [ freq: 10,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	115, [ freq: 14,  dur: 1.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	116, [ freq: 71,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[117],  shortDur: 0.000000 ],  
+	// Array
+	117, [ o[118],  o[119],  o[120] ],  
+	// SequenceNote
+	118, [ freq: 7,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	119, [ freq: 8,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	120, [ freq: 15,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	121, [ freq: 71,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[122],  shortDur: 0.000000 ],  
+	// Array
+	122, [ o[123],  o[124],  o[125] ],  
+	// SequenceNote
+	123, [ freq: 7,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	124, [ freq: 8,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	125, [ freq: 15,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	126, [ freq: 86,  dur: 0.666667,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[127],  shortDur: 0.000000 ],  
+	// Array
+	127, [ o[128],  o[129],  o[130] ],  
+	// SequenceNote
+	128, [ freq: -7,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	129, [ freq: -8,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	130, [ freq: -15,  dur: 0.666667,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	131, [ freq: 67,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[132],  shortDur: 0.000000 ],  
+	// Array
+	132, [ o[133],  o[134],  o[135] ],  
+	// SequenceNote
+	133, [ freq: 6,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	134, [ freq: 7,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	135, [ freq: 14,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	136, [ freq: 67,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[137],  shortDur: 0.000000 ],  
+	// Array
+	137, [ o[138],  o[139],  o[140] ],  
+	// SequenceNote
+	138, [ freq: 6,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	139, [ freq: 7,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	140, [ freq: 14,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	141, [ freq: 67,  dur: 0.666667,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[142],  shortDur: 0.000000 ],  
+	// Array
+	142, [ o[143],  o[144],  o[145] ],  
+	// SequenceNote
+	143, [ freq: 6,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	144, [ freq: 7,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	145, [ freq: 14,  dur: 0.666667,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	146, [ freq: 76,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[147],  shortDur: 0.000000 ],  
+	// Array
+	147, [ o[148],  o[149],  o[150] ],  
+	// SequenceNote
+	148, [ freq: -5,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	149, [ freq: -7,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	150, [ freq: -15,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	151, [ freq: 61,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[152],  shortDur: 0.000000 ],  
+	// Array
+	152, [ o[153],  o[154],  o[155] ],  
+	// SequenceNote
+	153, [ freq: 8,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	154, [ freq: 10,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	155, [ freq: 15,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	156, [ freq: 61,  dur: 0.916667,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[157],  shortDur: 0.000000 ],  
+	// Array
+	157, [ o[158],  o[159],  o[160] ],  
+	// SequenceNote
+	158, [ freq: 8,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	159, [ freq: 10,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	160, [ freq: 15,  dur: 0.916667,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	161, [ freq: 66,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	162, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	163, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	164, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	165, [ freq: 74,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	166, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	167, [ freq: 71,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	168, [ freq: 74,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	169, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	170, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	171, [ freq: 67,  dur: 0.500000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	172, [ freq: 74,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	173, [ freq: 73,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	174, [ freq: 69,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	175, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	176, [ freq: 64,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	177, [ freq: 71,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	178, [ freq: 74,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	179, [ freq: 76,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	180, [ freq: 66,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	181, [ freq: 67,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SequenceNote
+	182, [ freq: 71,  dur: 0.250000,  
+		length: 0.250000,  args: o[4] ],  
+	// SeqChordNote
+	183, [ freq: 57,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[184],  shortDur: 0.000000 ],  
+	// Array
+	184, [ o[185],  o[186],  o[187] ],  
+	// SequenceNote
+	185, [ freq: 2,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	186, [ freq: 4,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	187, [ freq: 5,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	188, [ freq: 57,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[189],  shortDur: 0.000000 ],  
+	// Array
+	189, [ o[190],  o[191],  o[192] ],  
+	// SequenceNote
+	190, [ freq: 2,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	191, [ freq: 4,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	192, [ freq: 5,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	193, [ freq: 62,  dur: 1.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[194],  shortDur: 0.000000 ],  
+	// Array
+	194, [ o[195],  o[196],  o[197] ],  
+	// SequenceNote
+	195, [ freq: -1,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	196, [ freq: -3,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	197, [ freq: -5,  dur: 1.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	198, [ freq: 57,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[199],  shortDur: 0.000000 ],  
+	// Array
+	199, [ o[200],  o[201],  o[202] ],  
+	// SequenceNote
+	200, [ freq: 4,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	201, [ freq: 5,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	202, [ freq: 7,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	203, [ freq: 57,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[204],  shortDur: 0.000000 ],  
+	// Array
+	204, [ o[205],  o[206],  o[207] ],  
+	// SequenceNote
+	205, [ freq: 4,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	206, [ freq: 5,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	207, [ freq: 7,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	208, [ freq: 57,  dur: 2.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[209],  shortDur: 0.000000 ],  
+	// Array
+	209, [ o[210],  o[211],  o[212] ],  
+	// SequenceNote
+	210, [ freq: 4,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	211, [ freq: 5,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	212, [ freq: 7,  dur: 2.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	213, [ freq: 68,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[214],  shortDur: 0.000000 ],  
+	// Array
+	214, [ o[215],  o[216],  o[217] ],  
+	// SequenceNote
+	215, [ freq: -6,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	216, [ freq: -7,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	217, [ freq: -11,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	218, [ freq: 57,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[219],  shortDur: 0.000000 ],  
+	// Array
+	219, [ o[220],  o[221],  o[222] ],  
+	// SequenceNote
+	220, [ freq: 4,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	221, [ freq: 5,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	222, [ freq: 11,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	223, [ freq: 57,  dur: 0.731771,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[224],  shortDur: 0.000000 ],  
+	// Array
+	224, [ o[225],  o[226],  o[227] ],  
+	// SequenceNote
+	225, [ freq: 4,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	226, [ freq: 5,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	227, [ freq: 11,  dur: 0.731771,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	228, [ freq: 73,  dur: 0.401042,  
+		length: 0.398438,  args: o[66],  
+		chordNotes: o[229],  shortDur: 0.000000 ],  
+	// Array
+	229, [ o[230],  o[231],  o[232] ],  
+	// SequenceNote
+	230, [ freq: -4,  dur: 0.000000,  
+		length: 0.398438,  args: o[69] ],  
+	// SequenceNote
+	231, [ freq: -5,  dur: 0.000000,  
+		length: 0.398438,  args: o[69] ],  
+	// SequenceNote
+	232, [ freq: -11,  dur: 0.401042,  
+		length: 0.398438,  args: o[69] ],  
+	// SeqChordNote
+	233, [ freq: 62,  dur: 0.398437,  
+		length: 0.398437,  args: o[66],  
+		chordNotes: o[234],  shortDur: 0.000000 ],  
+	// Array
+	234, [ o[235] ],  
+	// SequenceNote
+	235, [ freq: 11,  dur: 0.398437,  
+		length: 0.398437,  args: o[69] ],  
+	// SeqChordNote
+	236, [ freq: 62,  dur: 0.401042,  
+		length: 0.398437,  args: o[66],  
+		chordNotes: o[237],  shortDur: 0.000000 ],  
+	// Array
+	237, [ o[238] ],  
+	// SequenceNote
+	238, [ freq: 11,  dur: 0.401042,  
+		length: 0.398437,  args: o[69] ],  
+	// SeqChordNote
+	239, [ freq: 62,  dur: 0.401042,  
+		length: 0.398437,  args: o[66],  
+		chordNotes: o[240],  shortDur: 0.000000 ],  
+	// Array
+	240, [ o[241] ],  
+	// SequenceNote
+	241, [ freq: 11,  dur: 0.401042,  
+		length: 0.398437,  args: o[69] ],  
+	// SeqChordNote
+	242, [ freq: 68,  dur: 0.250000,  
+		length: 0.250000,  args: o[66],  
+		chordNotes: o[243],  shortDur: 0.000000 ],  
+	// Array
+	243, [ o[244],  o[245],  o[246] ],  
+	// SequenceNote
+	244, [ freq: 6,  dur: 0.000000,  
+		length: 0.250000,  args: o[69] ],  
+	// SequenceNote
+	245, [ freq: 8,  dur: 0.000000,  
+		length: 0.250000,  args: o[69] ],  
+	// SequenceNote
+	246, [ freq: 13,  dur: 0.250000,  
+		length: 0.250000,  args: o[69] ],  
+	// SeqChordNote
+	247, [ freq: 74,  dur: 0.250000,  
+		length: 0.250000,  args: o[66],  
+		chordNotes: o[248],  shortDur: 0.000000 ],  
+	// Array
+	248, [ o[249] ],  
+	// SequenceNote
+	249, [ freq: 7,  dur: 0.250000,  
+		length: 0.250000,  args: o[69] ],  
+	// SeqChordNote
+	250, [ freq: 81,  dur: 0.250000,  
+		length: 0.250000,  args: o[66],  
+		chordNotes: o[251],  shortDur: 0.000000 ],  
+	// Array
+	251, [ o[252] ],  
+	// SequenceNote
+	252, [ freq: -7,  dur: 0.250000,  
+		length: 0.250000,  args: o[69] ],  
+	// SeqChordNote
+	253, [ freq: 74,  dur: 0.250000,  
+		length: 0.250000,  args: o[66],  
+		chordNotes: o[254],  shortDur: 0.000000 ],  
+	// Array
+	254, [ o[255] ],  
+	// SequenceNote
+	255, [ freq: 7,  dur: 0.250000,  
+		length: 0.250000,  args: o[69] ],  
+	// SeqChordNote
+	256, [ freq: 74,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[257],  shortDur: 0.000000 ],  
+	// Array
+	257, [ o[258],  o[259] ],  
+	// SequenceNote
+	258, [ freq: 2,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	259, [ freq: 11,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	260, [ freq: 74,  dur: 0.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[261],  shortDur: 0.000000 ],  
+	// Array
+	261, [ o[262],  o[263] ],  
+	// SequenceNote
+	262, [ freq: 2,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	263, [ freq: 11,  dur: 0.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SeqChordNote
+	264, [ freq: 74,  dur: 1.333333,  
+		length: 0.333333,  args: o[66],  
+		chordNotes: o[265],  shortDur: 0.000000 ],  
+	// Array
+	265, [ o[266],  o[267] ],  
+	// SequenceNote
+	266, [ freq: 2,  dur: 0.000000,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	267, [ freq: 11,  dur: 1.333333,  
+		length: 0.333333,  args: o[69] ],  
+	// SequenceNote
+	268, [ freq: 67,  dur: 1.000000,  
+		length: 1.000000,  args: o[4] ],  
+	// SequenceNote
+	269, [ freq: 69,  dur: 1.500000,  
+		length: 1.500000,  args: o[4] ],  
+	// SequenceNote
+	270, [ freq: 67,  dur: 0.000000,  
+		length: 0.500000,  args: o[4] ],  
+	// Event
+	271, [ array: o[272],  size: 1,  
+		proto: nil,  parent: nil,  
+		know: true ],  
+	// Array
+	272, [ nil,  nil,  'mode',  'd' ]
+];
+prUnarchive(o,p);

@@ -5,6 +5,9 @@ m = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/long-chords-afte
 m = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/middle-fast-1c.midi");
 m = SimpleMIDIFile.read("~/Documents/xinghai/sheng-piece/drafts/climax-rewrite-tester.midi");
 
+m = SimpleMIDIFile.read(thisProcess.nowExecutingPath.dirname.dirname +/+ "support/fast-unison-notes.midi");
+
+
 p = m.p;
 p = Pbindf(m.p, \midinote, Pkey(\midinote) - v.globalControls[\transpose]);
 
@@ -19,6 +22,7 @@ SynthDef(\tri, { |out, freq = 440, det = 1.003, width = 0.5, gate = 1, amp = 0.1
 
 // w = Voicer(25, \tri);
 w = Voicer(25, \tri, target: MixingBoard.at(0).mixers[0].mixer);
+// w = VC(\tri).v;
 
 q = Pchain(Pbind(\type, \voicerNote, \voicer, w, \delta, Pkey(\delta) * (m.tempo.round/60), \sustain, (Pkey(\sustain) * 0.9) * (m.tempo.round/60)), p);
 
