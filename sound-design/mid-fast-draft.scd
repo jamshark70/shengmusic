@@ -230,6 +230,8 @@ Fact(\flzgBP) => BP(\flz);
 0 => BP(\flz);
 VC(\flzg) => BP(\flz);
 
+p = BP(\flz);
+
 /* HOW IS THIS POSSIBLE? All the same node?
 
 made 1050: Bus(control, 17, 2, localhost)
