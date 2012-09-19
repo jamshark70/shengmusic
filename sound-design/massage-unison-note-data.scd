@@ -120,15 +120,6 @@ bench { k = Object.readArchive(thisProcess.nowExecutingPath.dirname.dirname +/+ 
 
 
 
-c.notes.do { |note|
-	if(note.isMemberOf(SeqChordNote)) {
-		note.args = #[gate, 0.5, isChord, 1, isMain, 1];
-		note.chordNotes.do(_.args = #[gate, 0.5, isChord, 1, isMain, 0]);
-	} {
-		note.args = #[gate, 0.5, isChord, 0, isMain, 1];
-	}
-};
-
 c.notes.detect(_.isMemberOf(SeqChordNote)).inspect
 
 (
@@ -214,29 +205,17 @@ PR(\abstractProcess).clone {
 S..S.Sss.Ssss.>|S..S.Ss---|>-->-->--|
 S..S.S.S...S..|S.Ss.S..>--|
 >-->--|>--->...>--|SS>";
-	~articReader = Pseq(e, 1).select { |ch| ".sS->".includes(ch) };
+	~articReader = Plazy({ Pseq(~articString, 1).select { |ch| ".sS->".includes(ch) } });
 
 	~asPattern = {
 		var oct = Pseq([0, -24, Pshuf(#[-12, 12, 24])]).asStream;
 		Pbind(
 			\note, Pseq(~midibuf.notes, 1),
 			\isChord, Pfunc({ |ev|
-				var a = ev[\note].args, i;
-				if(a.isArray) {
-					if((i = a.indexOf(\isMain)).notNil) {
-						ev[\isMain] = a[i+1];
-					} {
-						ev[\isMain] = 0;
-					};
-					if((i = a.indexOf(\isChord)).notNil) {
-						a[i+1]   // return value
-					} {
-						0
-					}
-				} {
-					ev[\isMain] = 0;
-					0
-				}
+				var a = ev[\note], i;
+				ev[\suppressAccent] = a.argAt(\suppressAccent) ? 0;
+				ev[\isMain] = a.argAt(\isMain) ? 0;
+				a.argAt(\isChord) ? 0
 			}),
 			\artic, Pclutch(~articReader, Pkey(\isMain) > 0),
 			\sustain, Pfunc({ |ev| ev[\note].length }),
@@ -269,8 +248,120 @@ S..S.S.S...S..|S.Ss.S..>--|
 } => PR(\unison);
 )
 
+Fact(\triVC) => VC(\tri);
+
 PR(\unison) => BP(\un);
 Object.readArchive(thisProcess.nowExecutingPath.dirname.dirname +/+ "support/unison-parsed.txarch") => BP(\un);
 VC(\tri) => BP(\un);
+1 => BP(\un);
 
 BP(\un).listVars;
+
+
+// still a mistake: "main" note is not necessarily highest
+b = BP(\un).midibuf;
+
+c = b.notes.select(_.isMemberOf(SeqChordNote));
+
+[c[0].freq, c[0].chordNotes.asFloat]
+
+// for some, "main" is top
+c.select { |note| note.chordNotes.asFloat.every(_ < 0) } [0].postcs
+
+// after fix, all "main" notes are top
+c.count { |note| note.chordNotes.asFloat.any(_ > 0) }
+
+[64, 74, 83].sort(_ > _).differentiate
+
+// if I mess up
+b = Object.readArchive(thisProcess.nowExecutingPath.dirname.dirname +/+ "support/unison-parsed.txarch");
+
+b.notes.do { |note|
+	if(note.isMemberOf(SeqChordNote)) {
+		note.args = #[gate, 0.5, isChord, 1, isMain, 1];
+		note.chordNotes.do(_.args = #[gate, 0.5, isChord, 1, isMain, 0]);
+	} {
+		note.args = #[gate, 0.5, isChord, 0, isMain, 1];
+	}
+};
+
+b.notes.do { |note|
+	var abs;
+	if(note.isMemberOf(SeqChordNote)) {
+		if(note.chordNotes.asFloat.every(_ < 0).not) {
+			abs = note.asNoteArray.asFloat.sort(_ > _);
+			note.freq = abs[0];
+			note.chordNotes = abs[1..].collect { |chNote, i|
+				note.chordNotes[i].copy.freq_(chNote - abs[0])
+			};
+		}
+	}
+};
+
+b => BP(\un);
+
+BP(\un).event.finish = nil;
+
+// suppress chord accent for last 3
+(140..142).do { |i| b.notes[i].argPut(\suppressAccent, 1) };
+
+b.dumpSeq;
+
+b.writeArchive(thisProcess.nowExecutingPath.dirname.dirname +/+ "support/unison-parsed.txarch");
+
+
+// chord accents
+
+Fact(\madfmVC) => VC(\fm);  // 1JkRVE
+
+Pn(#[0.25, 0.15, 0.5], 1) => MicRh(\unCh);
+
+(
+BP(\unCh).free;
+\newCh.eval(\unCh, \arpeg1, \macroRh, MBM(0)[\pzch], nil, Pn(1, inf), \unCh, \block, nil, \d);
+)
+
+VC(\fm) => BP(\unCh);
+
+p = BP(\unCh);
+
+p.topNote = PR(\patternTop).copy.make {
+	~mode = \d;
+};
+
+// ModalSpec((0..11), 12, 0) => Mode(\chrom);
+
+BP(\un).event.finish = {
+	if(~suppressAccent == 0 and: { ~isMain == 1 and: { ">S".includes(~artic) } }) {
+		// roundUp: G# as topNote sounds like hell, make it A-nat
+		BP(\unCh).topNote.deg = ((~freq ?? { ~note.asFloat }).first.mapMode(\d).roundUp + 7);
+		BP(\unCh).triggerOneEvent(0);
+	};
+};
+
+p.topNote.deg = 74;
+p.child.fitFunc = \chordFitInt;
+
+p.prepareForPlay;
+p.triggerOneEvent(0);
+
+(
+p.child.argPairs = [
+	mod_lev: Pwhite(3.5, 7.0, inf),
+	mod_ratio1: Pwhite(1, 4, inf),
+	mod_ratio2: Pkey(\mod_ratio1),
+	car_detune: 1.006,
+	mod_buf: Prand(VC(\fm).env.bufs, inf),
+	keyscale: 0.001,
+	pan: Pfunc({ |ev|
+		var ctr = 0.5.rand2, width = (1.0 - abs(ctr)).rand,
+		size = ev[\note].asFloat.size;
+		Array.series(size, ctr - width, width * 2 / (size-1)).scramble
+	})
+];
+)
+
+VC(\fm).panic
+
+s.sendMsg(\g_freeAll, 23);
+
