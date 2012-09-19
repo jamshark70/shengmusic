@@ -2,8 +2,8 @@
 // (thisProcess.nowExecutingPath.dirname +/+ "../common/common-defs.scd").loadPath;
 
 (thisProcess.nowExecutingPath.dirname +/+ "../processes/long-ch-procs.scd").loadPath;
-
 (thisProcess.nowExecutingPath.dirname +/+ "../processes/mid-fast-procs.scd").loadPath;
+(thisProcess.nowExecutingPath.dirname +/+ "../processes/climax-procs.scd").loadPath;
 
 TempoClock.tempo = 100/60;
 TempoClock.default.gui;
@@ -1274,3 +1274,5 @@ p.child.argPairs = Pbind(
 		)
 	})
 ));
+
+
