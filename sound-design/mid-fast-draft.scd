@@ -1,6 +1,7 @@
 (thisProcess.nowExecutingPath.dirname +/+ "../common/dev-setup.scd").loadPath;
 // (thisProcess.nowExecutingPath.dirname +/+ "../common/common-defs.scd").loadPath;
 
+(thisProcess.nowExecutingPath.dirname +/+ "../processes/drones-and-clicks.scd").loadPath;
 (thisProcess.nowExecutingPath.dirname +/+ "../processes/long-ch-procs.scd").loadPath;
 (thisProcess.nowExecutingPath.dirname +/+ "../processes/mid-fast-procs.scd").loadPath;
 (thisProcess.nowExecutingPath.dirname +/+ "../processes/climax-procs.scd").loadPath;
@@ -1276,3 +1277,135 @@ p.child.argPairs = Pbind(
 ));
 
 
+
+// rhythm patterns for klinks etc.
+BP(\cl).free;
+PR(\clicks).chuck(BP(\cl), nil, (master: ~master));
+// BP(\cl) => MCG(3);
+1 => BP(\cl);
+
+p = BP(\cl);
+
+// used in ~postPattern
+p.durBase = 0.125;
+p.dur = Plazy({ ~durBaseStream.next.loop }) * Pwrand([Pn(1, 2), 2, 4], #[0.1, 0.75, 0.15], inf);
+p.waitTime = Pwhite(1.0, 4.0, inf).round(0.25);
+
+p.event.eventKey = \polySynthPlayer;
+
+p.freqTemplate
+
+p.dHarmonicSeries = 50.midicps * (1..9);  // more than 9 introduces aliasing @ 44.1k
+p.specs = Plazy({
+	var harmonics = ~dHarmonicSeries.copy;
+	Pseq([
+		Array.fill(3, {
+			// trick: removeAt returns the item that was removed, which is what I want
+			harmonics.removeAt(round(exprand(0.01, harmonics.size - 0.001) - 0.5).asInteger)
+		}),
+		Pn([#[62, 69].choose.midicps], inf)
+	]).collect { |freqs|
+		freqs.collect { |freq|
+			[
+				(#[1, 2] ++ ~freqTemplate.scramble.keep(3)) * freq,
+				~ampTemplate,
+				Array.fill(5, { exprand(0.02, 0.2) })
+			].flat
+		}
+	}
+});
+
+p.objects[\klinks][\pattern] = Pbind(
+	\bufnum, Plazy({ ~klbufnumStream.next.loop }),
+	\klAtk, BPStream(\klAtk),
+	\klDcy, BPStream(\klDcy),
+	\excfreq, Plazy({ ~excfreqStream.next.loop }),
+	\specs, Plazy({ ~specs/*Stream.next.loop*/ }),
+	\ampFactor, BPStream(\klampFactor)
+);
+
+p.objects[\zzip][\pattern] = Pbind(
+	\bufnum, Plazy({ ~zzbufnumStream.next.loop }),
+	\sustain, BPStream(\sustain),
+	\freq, BPStream(\freq),
+	\hpfreq, Plazy({ ~hpfreq/*Stream.next.loop*/ }),
+	\hprq, Plazy({ ~hprqStream.next.loop }),
+	\env, Plazy({ ~envStream.next.loop }),
+	\ampFactor, BPStream(\zzampFactor)
+);
+
+p.hpfreq = Plazy({
+	var baseFreq = (#[62, 69].choose + (12 * rrand(2, 5))).midicps,
+	harmonics = baseFreq * 0.5 * (1 .. (40000 / baseFreq).asInteger);
+	Pseq([
+		if(harmonics.size <= 3) { harmonics } {
+			Array.fill(3, {
+				// trick: removeAt returns the item that was removed, which is what I want
+				harmonics.removeAt(round(exprand(0.01, harmonics.size - 0.001) - 0.5).asInteger)
+			})
+		},
+		Pn(baseFreq, inf)
+	])
+});
+
+p.hpfreqStream.next(());
+
+p.hpfreq.asStream.next(());
+
+p.reset;
+p.override(\synth, Pn(\zzip, 1));
+e = p.eventStream.next(p.event.copy);
+
+e.play;
+
+e.keys
+e[\evArgs]
+e[\hasGate]
+e[\sustain]
+
+s.sendBundle(nil, [ 9, "zzip", 8245, 1, 19, 'bufnum', 1.7993828809261, 'freq', 34.179498471795, 'hpfreq', 3520.0, 'hprq', 0.05, 'amp', 0.062648404203409, 'pan', -0.75551986694336, 'env', $[, 0.0, 3, 2, -99, 1.0, 0.01, 5, -4.0, 0.05, 0.044265031814575, 5, -4.0, 0.0, 0.03, 5, -4.0, $], 'out', 24, 'i_out', 24, 'outbus', 24 ]);
+
+20000 / (2**6)
+
+(p.postPattern = {
+	var dur = ~phraseDurStream.next;
+	Pfindur(dur, Pbind(
+		// \amp, Env(#[1.0, 0.6, 0.6, 0.2], [0.1, 0.5, 0.4] * dur, #[-4, 0, -2])
+		// .asStream * Pkey(\ampFactor),
+		\amp, Pseq([1.0, Env(#[0.86, 0.3], [dur], -7)], 1) * Pkey(\ampFactor),
+		\dur, Plazy({ ~dur }), // * Env(#[1, 2], [dur], -1.5),
+		\pan, Plazy({ ~panStream.next.loop })
+	))
+})
+
+(
+var dur = rrand(25.0, 35.0), ratio = rrand(0.3, 0.7);
+p.override(\waitTime, (Pif(
+	Ptime() < dur,
+	Env(
+		rrand(#[2.8, 0.15, 2.8], #[4.0, 0.75, 4.0]),
+		[ratio, 1 - ratio] * dur,
+		#[-3, 3]
+	).postcs
+).round(0.25) + Prand(#[0, 0.25], inf)).trace);
+)
+
+(
+var dur = rrand(9.0, 17.0);
+p.override(\waitTime, Pif(
+	Ptime() < dur,
+	Pwrand(#[0.25, 0.5, 0.75], #[0.1, 0.5, 0.4], inf)
+	* Env(
+		[1, rrand(6.0, 9.0)],
+		[dur],
+		2
+	).asStream.trunc  // trunc applies to streams, not Envs directly
+).trace);
+)
+
+p.listVars;
+
+// p.pan = Pwhite(-1.0, 1.0, inf);
+// p.phraseDur = Pwhite(3.0, 7.0, inf);
+
+// other parms, see line 343 in drones-and-clicks.scd
