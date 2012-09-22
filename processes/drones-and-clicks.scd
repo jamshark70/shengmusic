@@ -358,7 +358,7 @@ forkIfNeeded {
 			~zzbufnum = Plazy({ ~bufs[0].bufnum + Pwhite(0.0, ~bufs.size - 1.01) });
 			~sustain = 0.07;
 			~freq = Pexprand(25, 38);
-			~hpfreq = (Prand(#[62, 69], inf) + (12 * Pwhite(2, 6))).midicps;
+			~hpfreq = (Prand(#[62, 69], inf) + (12 * Pwhite(2, 5))).midicps;
 			~hprq = Pn(0.05, inf); // rrand(0.1, 0.4);
 			~env = Pfunc({ [Env.adsr(0.01, rrand(0.02, 0.15), 0.05, 0.03).asArray] });
 			~zzampFactor = 1/8 * (-6.dbamp);
