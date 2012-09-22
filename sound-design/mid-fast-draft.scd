@@ -1358,15 +1358,6 @@ e = p.eventStream.next(p.event.copy);
 
 e.play;
 
-e.keys
-e[\evArgs]
-e[\hasGate]
-e[\sustain]
-
-s.sendBundle(nil, [ 9, "zzip", 8245, 1, 19, 'bufnum', 1.7993828809261, 'freq', 34.179498471795, 'hpfreq', 3520.0, 'hprq', 0.05, 'amp', 0.062648404203409, 'pan', -0.75551986694336, 'env', $[, 0.0, 3, 2, -99, 1.0, 0.01, 5, -4.0, 0.05, 0.044265031814575, 5, -4.0, 0.0, 0.03, 5, -4.0, $], 'out', 24, 'i_out', 24, 'outbus', 24 ]);
-
-20000 / (2**6)
-
 (p.postPattern = {
 	var dur = ~phraseDurStream.next;
 	Pfindur(dur, Pbind(
@@ -1374,7 +1365,8 @@ s.sendBundle(nil, [ 9, "zzip", 8245, 1, 19, 'bufnum', 1.7993828809261, 'freq', 3
 		// .asStream * Pkey(\ampFactor),
 		\amp, Pseq([1.0, Env(#[0.86, 0.3], [dur], -7)], 1) * Pkey(\ampFactor),
 		\dur, Plazy({ ~dur }), // * Env(#[1, 2], [dur], -1.5),
-		\pan, Plazy({ ~panStream.next.loop })
+		\pan, Plazy({ ~panStream.next.loop }),
+		\isAccent, Pseq([true, Pn(false, inf)], 1)
 	))
 })
 
@@ -1409,3 +1401,92 @@ p.listVars;
 // p.phraseDur = Pwhite(3.0, 7.0, inf);
 
 // other parms, see line 343 in drones-and-clicks.scd
+
+// really f'ing hard problem: control polyphony from Pspawner
+
+p[\superPattern] = p[\asPattern];
+p[\superPattern] = PR(\clicks)[\asPattern];
+
+
+p.maxPoly = GenericGlobalControl(\maxPoly, nil, 1, #[1, 20, \lin, 1]);
+p.maxPoly => VP(0);
+p[\userfree] = { ~maxPoly.free };
+
+p.maxPoly.spec = #[0.05, 20, \exp];
+
+
+
+p.simultaneousThreshold = 0.001;
+(p.asPattern = {
+	var stream = ~superPattern.().asStream;
+	Prout({ |inval|
+		var simult = IdentitySet.new, accents = IdentitySet.new,
+		event, delta, numout,
+		cleanup = EventStreamCleanup.new;
+		block { |break|
+			loop {
+				// collect simultaneous events
+				while {
+					event = stream.next(inval);
+					if(event.isNil) { break.(cleanup.exit(inval)) };  // end condition
+					if(event[\isAccent] == true) { event };
+					event.delta < ~simultaneousThreshold
+				} {
+					if(event.isRest.not) {
+						if(event[\isAccent] == true) {
+							accents.add(event.put(\delta, 0))
+						} {
+							simult.add(event.put(\delta, 0))
+						};
+					};
+				};
+				if(simult.isEmpty and: { accents.isEmpty }) {
+					inval = event.yield
+				} {
+					delta = event.delta;
+					event[\delta] = 0;
+					if(event.isRest.not) {
+						if(event[\isAccent] == true) {
+							accents.add(event)
+						} {
+							simult.add(event)
+						};
+					};
+					numout = min(
+						simult.size + accents.size,
+						~maxPoly.value.trunc + ~maxPoly.value.frac.coin.asInteger
+					);
+					if(accents.size > 0) { numout = max(1, numout) };
+					min(numout, accents.size).do {
+						event = accents.choose;
+						accents.remove(event);  // "take" should do this but not for Set???????
+						inval = event.yield;
+					};
+					(numout - accents.size).clip(0, simult.size).do {
+						event = simult.choose;
+						simult.remove(event);
+						inval = event.yield;
+					};
+					simult.clear; accents.clear;
+					inval = Event.silent(delta).yield;
+				};
+			};
+		};
+	})
+})
+
+p.unOverride(\waitTime);
+p.override(\waitTime, (Pwhite(2, 8, inf) * 0.25).trace);
+
+p[\postPattern].postcs
+
+
+
+BP(\gcl).free;
+PR(\gridClicks).chuck(BP(\gcl), nil, (master: ~master));
+1 => BP(\gcl);
+
+p = BP(\gcl);
+p.isPlaying;
+p.eventStreamPlayer.isPlaying;
+

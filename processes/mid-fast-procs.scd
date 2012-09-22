@@ -566,5 +566,152 @@ forkIfNeeded {
 			type: \bp
 		) => Fact(\flzgBP);
 
+
+		PR(\clicks).clone {
+			~event = (eventKey: \polySynthPlayer);
+
+			~userprep = ~userprep.addFunc({
+				~maxPoly = GenericGlobalControl(\maxPoly, nil, 0.08, #[0.05, 20, \exp]);
+			});
+			~userfree = { ~maxPoly.free };
+			~useGui = { |vpi| ~maxPoly => VP(vpi) };
+
+			~durBase = Pn(0.125, inf);
+			~dur = Plazy({ ~durBaseStream.next.loop }) * Pwrand([Pn(1, 2), 2, 4], #[0.1, 0.75, 0.15], inf);
+			~waitTime = Pwhite(1.0, 4.0, inf).round(0.25);
+
+			~dHarmonicSeries = 50.midicps * (1..9);  // more than 9 introduces aliasing @ 44.1k
+			~specs = Plazy({
+				var harmonics = ~dHarmonicSeries.copy;
+				Pseq([
+					Array.fill(3, {
+						// trick: removeAt returns the item that was removed, which is what I want
+						harmonics.removeAt(round(exprand(0.01, harmonics.size - 0.001) - 0.5).asInteger)
+					}),
+					Pn([#[62, 69].choose.midicps], inf)
+				]).collect { |freqs|
+					freqs.collect { |freq|
+						[
+							(#[1, 2] ++ ~freqTemplate.scramble.keep(3)) * freq,
+							~ampTemplate,
+							Array.fill(5, { exprand(0.02, 0.2) })
+						].flat
+					}
+				}
+			});
+
+			~hpfreq = Plazy({
+				var baseFreq = (#[62, 69].choose + (12 * rrand(2, 5))).midicps,
+				harmonics = baseFreq * 0.5 * (1 .. (40000 / baseFreq).asInteger);
+				Pseq([
+					if(harmonics.size <= 3) { harmonics } {
+						Array.fill(3, {
+							harmonics.removeAt(round(exprand(0.01, harmonics.size - 0.001) - 0.5).asInteger)
+						})
+					},
+					Pn(baseFreq, inf)
+				])
+			});
+
+			~objects = (
+				klinks: (
+					def: \klinks,
+					pattern: Pbind(
+						\bufnum, Plazy({ ~klbufnumStream.next.loop }),
+						\klAtk, BPStream(\klAtk),
+						\klDcy, BPStream(\klDcy),
+						\excfreq, Plazy({ ~excfreqStream.next.loop }),
+						\specs, Plazy({ ~specs/*Stream.next.loop*/ }),
+						\ampFactor, BPStream(\klampFactor)
+					)
+				),
+				zzip: (
+					def: \zzip,
+					pattern: Pbind(
+						\bufnum, Plazy({ ~zzbufnumStream.next.loop }),
+						\sustain, BPStream(\sustain),
+						\freq, BPStream(\freq),
+						\hpfreq, Plazy({ ~hpfreq/*Stream.next.loop*/ }),
+						\hprq, Plazy({ ~hprqStream.next.loop }),
+						\env, Plazy({ ~envStream.next.loop }),
+						\ampFactor, BPStream(\zzampFactor)
+					)
+				)
+			);
+
+			~superPattern = ~asPattern;
+			~postPattern = {
+				var dur = ~phraseDurStream.next;
+				Pfindur(dur, Pbind(
+					\amp, Pseq([1.0, Env(#[0.86, 0.3], [dur], -7)], 1) * Pkey(\ampFactor),
+					\dur, Plazy({ ~dur }), // * Env(#[1, 2], [dur], -1.5),
+					\pan, Plazy({ ~panStream.next.loop }),
+					\isAccent, Pseq([true, Pn(false, inf)], 1)
+				))
+			};
+
+			~simultaneousThreshold = 0.001;
+			~asPattern = {
+				var stream = ~superPattern.().asStream;
+				Prout({ |inval|
+					var simult = IdentitySet.new, accents = IdentitySet.new,
+					event, delta, numout,
+					cleanup = EventStreamCleanup.new;
+					block { |break|
+						loop {
+							// collect simultaneous events
+							while {
+								event = stream.next(inval);
+								if(event.isNil) { break.(cleanup.exit(inval)) };  // end condition
+								event.delta < ~simultaneousThreshold
+							} {
+								if(event.isRest.not) {
+									if(event[\isAccent] == true) {
+										accents.add(event.put(\delta, 0))
+									} {
+										simult.add(event.put(\delta, 0))
+									};
+								};
+							};
+							if(simult.isEmpty and: { accents.isEmpty }) {
+								if(~maxPoly.value.trunc + ~maxPoly.value.frac.coin.asInteger >= 1) {
+									inval = event.yield
+								} {
+									inval = event.put(\isRest, true).yield;
+								}
+							} {
+								delta = event.delta;
+								event[\delta] = 0;
+								if(event.isRest.not) {
+									if(event[\isAccent] == true) {
+										accents.add(event)
+									} {
+										simult.add(event)
+									};
+								};
+								numout = min(
+									simult.size + accents.size,
+									~maxPoly.value.trunc + ~maxPoly.value.frac.coin.asInteger
+								);
+								if(accents.size > 0) { numout = max(1, numout) };
+								min(numout, accents.size).do {
+									event = accents.choose;
+									accents.remove(event);  // "take" should do this but not for Set???????
+									inval = event.yield;
+								};
+								(numout - accents.size).clip(0, simult.size).do {
+									event = simult.choose;
+									simult.remove(event);
+									inval = event.yield;
+								};
+								simult.clear; accents.clear;
+								inval = Event.silent(delta).yield;
+							};
+						};
+					};
+				})
+			}
+		} => PR(\gridClicks);
+
 	} { AbstractChuckArray.defaultSubType = saveSubtype };
 };
