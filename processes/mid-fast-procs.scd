@@ -578,18 +578,28 @@ forkIfNeeded {
 
 			~durBase = Pn(0.125, inf);
 			~dur = Plazy({ ~durBaseStream.next.loop }) * Pwrand([Pn(1, 2), 2, 4], #[0.1, 0.75, 0.15], inf);
-			~waitTime = Pwhite(1.0, 4.0, inf).round(0.25);
+
+			~waitTime_ = { |pattern|
+				if(pattern.notNil) { ~waitTimeSource = pattern };
+				~waitTime = pattern;
+			};
+			~waitTime_.(Pwhite(1.0, 4.0, inf).round(0.25));
+			~stopCleanup = {
+				~waitTime = ~waitTimeSource;  // automatically reset, if you stopped it by setting nil
+			};
+
+			~freqEnv = Env.one;
 
 			~dHarmonicSeries = 50.midicps * (1..9);  // more than 9 introduces aliasing @ 44.1k
 			~specs = Plazy({
 				var harmonics = ~dHarmonicSeries.copy;
-				Pseq([
+				(Pseq([
 					Array.fill(3, {
 						// trick: removeAt returns the item that was removed, which is what I want
 						harmonics.removeAt(round(exprand(0.01, harmonics.size - 0.001) - 0.5).asInteger)
 					}),
 					Pn([#[62, 69].choose.midicps], inf)
-				]).collect { |freqs|
+				]) * ~freqEnv.value).collect { |freqs|
 					freqs.collect { |freq|
 						[
 							(#[1, 2] ++ ~freqTemplate.scramble.keep(3)) * freq,
@@ -610,7 +620,7 @@ forkIfNeeded {
 						})
 					},
 					Pn(baseFreq, inf)
-				])
+				]) * ~freqEnv.value
 			});
 
 			~objects = (
@@ -642,6 +652,7 @@ forkIfNeeded {
 			~superPattern = ~asPattern;
 			~postPattern = {
 				var dur = ~phraseDurStream.next;
+				~latestPhraseDur = dur;
 				Pfindur(dur, Pbind(
 					\amp, Pseq([1.0, Env(#[0.86, 0.3], [dur], -7)], 1) * Pkey(\ampFactor),
 					\dur, Plazy({ ~dur }), // * Env(#[1, 2], [dur], -1.5),

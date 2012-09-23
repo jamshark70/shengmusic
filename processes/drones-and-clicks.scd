@@ -377,17 +377,24 @@ forkIfNeeded {
 			// don't mess with this
 			~asPattern = {
 				Pspawner({ |sp|
-					var synth;
-					loop {
-						synth = ~synthStream.next;
-						sp.par(
-							Pchain(
-								~postPattern.(),
-								~objects[synth][\pattern],
-								(instrument: synth)
-							)
-						);
-						sp.wait(~waitTimeStream.next);
+					var synth, waitTime;
+					block { |break|
+						loop {
+							synth = ~synthStream.next;
+							sp.par(
+								Pchain(
+									~postPattern.(),
+									~objects[synth][\pattern],
+									(instrument: synth)
+								)
+							);
+							waitTime = ~waitTimeStream.next;
+							if(waitTime.notNil) {
+								sp.wait(waitTime);
+							} {
+								break.();
+							}
+						};
 					};
 				})
 			};

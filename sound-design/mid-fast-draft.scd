@@ -1481,12 +1481,20 @@ p.override(\waitTime, (Pwhite(2, 8, inf) * 0.25).trace);
 p[\postPattern].postcs
 
 
+// must make this first, to send synthdefs
+PR(\clicks).chuck(BP(\cl), nil, (master: ~master));
 
 BP(\gcl).free;
 PR(\gridClicks).chuck(BP(\gcl), nil, (master: ~master));
 1 => BP(\gcl);
 
 p = BP(\gcl);
-p.isPlaying;
-p.eventStreamPlayer.isPlaying;
 
+p.phraseDur.postcs
+
+p.freqEnv = Env(#[1, 0.3], #[8], 2);
+
+p.latestPhraseDur
+p.freqEnv = { Env([1, rrand(-8, -4).midiratio], [~latestPhraseDur], 3) };
+
+p.waitTime = nil;  // stop after last gesture; stopCleanup automatically restores waitTime
