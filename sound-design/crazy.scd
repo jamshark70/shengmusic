@@ -24,10 +24,12 @@ s.addr = ~saveAddr;
 b.free;
 b = Buffer.readAndQuery(s, "/home/dlm/share/SC/Recordings/cues/feet101120_155745-partnering-norm.aiff", 51766, 1449461);
 
+(
 b.free;
 b = 2.collect { |i|
 	Buffer.readChannel(s, "/home/dlm/share/SC/Recordings/cues/feet101120_155745-partnering-norm.aiff", 51766, 1449461, i);
 };
+)
 
 b.do { |buf, i|
 	buf.readChannel(
@@ -119,6 +121,9 @@ q.run(true);
 
 a.free;
 
+
+// for some reason, below I didn't like the SinOsc for 'pos'
+// but come to think of it, I can just modulate 'start' using krBusLock
 SynthDef(\buzzz, { |bufnum, tfmod = 0, tfLo = 5, tfHi = 5, gdur = 0.1, rate = 1, start = 0, envbuf = -1, gate = 1, dratio = 0.25, resolution = 0.01, lpfreq = 19000, amp = 1, out|
 	var	bufFr = BufFrames.kr(bufnum),
 		tfreq = SinOsc.kr(tfmod).range(tfLo, tfHi),
@@ -135,7 +140,7 @@ SynthDef(\buzzz, { |bufnum, tfmod = 0, tfLo = 5, tfHi = 5, gdur = 0.1, rate = 1,
 
 // SinOsc thing doesn't work
 m.play((
-	instrument: \buzzz, 
+	instrument: \buzzz,
 	bufnum: b[0], tfLo: 22, tfHi: 8, tfmod: 6,
 	gdur: 0.2, rate: 1, start: rrand(0, (b[0].numFrames * 0.8).asInteger),
 	envbuf: ~eb, sustain: 2, dratio: 0.25, resolution: 0.01, lpfreq: 19000, amp: 4
@@ -178,6 +183,210 @@ p.stop;
 a.free;
 
 
+// t_trig will also be time to next trigger
+SynthDef(\tbuzzz, { |bufnum,
+	tfmod = 0, tfLo = 5, tfHi = 5, gdurMul = 20,
+	rate = 1, startLo = 0, startHi = 0, envbuf = -1, gate = 1,
+	dratioLo = 0.15, dratioHi = 0.45, dRatioDensity = 8, resolution = 0.01,
+	lpfreq = 19000, amp = 1,
+	panCenter = 0, panWidth = 0,
+	t_trig = 1, depth = 0.8, trigRatio = 0.35, out|
+	var	bufFr = BufFrames.kr(bufnum),
+	start = SinOsc.ar(Rand(0.07, 0.16)).range(startLo, startHi),
+	tfreq = SinOsc.kr(tfmod).range(tfLo, tfHi),
+	trig = Impulse.ar(tfreq),
+	pan = TRand.kr(panCenter - panWidth, panCenter + panWidth, trig),
+	sig = GrainBuf.ar(2, trig, gdurMul / tfreq, bufnum, rate,
+		start / bufFr, // SinOsc.kr(0.1, 0, 441, start) / bufFr,
+		pan: pan, envbufnum: envbuf
+	),
+	oneMinusDepth = 1 - depth,
+	triggeredAmp = EnvGen.kr(Env([oneMinusDepth, 1, oneMinusDepth], [trigRatio, 1.0 - trigRatio], \sin), t_trig,
+		timeScale: Latch.kr(t_trig, t_trig)),
+	sr = SampleRate.ir,
+	dratio = Lag.kr(TExpRand.kr(dratioLo, dratioHi, Dust.kr(dRatioDensity)), 0.05);
+	sig = Latch.ar(sig, Impulse.ar(sr * dratio));
+	sig = LPF.ar(sig.round(resolution), lpfreq, amp);
+	Out.ar(out, sig * triggeredAmp * Linen.kr(gate, 0.01, 1, 0.01, doneAction: 2));
+}).add;
+
+c = GenericGlobalControl(\startFr, nil, 948088, [0, b[0].numFrames-1]);
+c.automate({ SinOsc.kr(0.1, 0, 882 * 50, 948088) });
+
+c = Array.fill(3, { GenericGlobalControl(\startFr, nil, 948088, [0, b[0].numFrames-1]) });
+c.do { |c, i|
+	c.automate({ SinOsc.kr(0.1, 2pi * (i/3), 882 * 50, 948088) });
+};
+
+c.autoSynth.trace;
+
+d = GenericGlobalControl(\dratio, nil, 0.25, #[0.01, 1.0]);
+d.automate({ Lag.kr(TExpRand.kr(0.15, 0.45, Dust.kr(8)), 0.05) });
+
+d = Array.fill(3, { GenericGlobalControl(\dratio, nil, 0.25, #[0.01, 1.0]) });
+d.do { |d|
+	d.automate({ Lag.kr(TExpRand.kr(0.15, 0.45, Dust.kr(8)), 0.05) });
+};
+
+q = PbindProxy(
+	\dur, Pseg(
+		Ppatlace([Pwhite(0.4, 0.8, inf), Pwhite(0.06, 0.11, inf)], inf),
+		Pwhite(3.0, 6.0, inf),
+		\exp
+	),
+	\bufnum, b[0],
+	\tfLo, 6, \tfHi, 18,
+	\trig, Pkey(\dur) / Ptempo()
+);
+
+p = n.play(Pchain(Pmono(\tbuzzz, \start, c.asMap), Plambda(q)));
+
+p = n.play(Ptpar(
+	Array.fill(3, { |i|
+		[
+			(i - 1) % 3 * 2,
+			Pchain(
+				Pmono(\tbuzzz, \start, c[i].asMap, \dratio, d[i].asMap, \panCenter, i - 1),
+				Plambda(q)
+			)
+		]
+	}).flat,
+	inf
+));
+
+p.stop;
+
+q.set(\amp, 3);
+
+q.set(\dur, Pseg(
+	Ppatlace([Pwhite(0.4, 0.8, inf), Pwhite(0.11, 0.18, inf)], inf),
+	Pwhite(3.0, 6.0, inf),
+	\exp
+));
+
+// tie this envelope to amp somehow?
+// need to know the high and low points of this envelope...
+q.set(\dur, Pseg(
+	Pstutter(Pseq(#[1, 2], inf),
+		Ppatlace([
+			Plet(\shortDur, Pwhite(0.11, 0.18, inf)),
+			Plet(\longDur, Pwhite(0.4, 0.8, inf))
+		], inf)
+	),
+	Ppatlace([Pwhite(3.0, 6.0, inf), Pwhite(3.5, 7.0, inf), 0.0], inf),
+	\exp
+));
+
+// failed, either Pkey or Pget
+q.set(\amp, Pkey(\dur).linexp(Pget(\shortDur, repeats: inf), Pget(\longDur, repeats: inf), 3, 0.6));
+
+q.set(\dratio, d.asMap);
+
+q.postcs;
+
+p.stop;
+
+p.isPlaying;
+
+// c.stopAuto;
+c.free; d.free;
+
+s.sendMsg(\n_trace, 1014);
+
+
+(
+PR(\abstractProcess).clone({
+	~alwaysReset = true;
+	~event = (eventKey: \default);
+	~defname = \tbuzzz;
+
+	~prep = {
+		~chan = MixerChannel(~collIndex, s, 2, 2, outbus: ~master, completionFunc: { |chan|
+			chan.newPostSend(~rvbmc, 0.8);
+		});
+		~event.put(\group, ~chan.synthgroup).put(\out, ~chan.inbus.index);
+		~runningStreams = IdentitySet.new;
+
+		#[patDelta, patDur, shortDur, longDur, pan, startLo, startHi].do { |key|
+			~makeStreamForKey.(key);
+		};
+
+		currentEnvironment
+	};
+	~freeCleanup = {
+		~chan.free;
+	};
+
+	~patDelta = Pwhite(0.8, 3.0, inf);
+	~patDur = Pwhite(4.5, 7.0, inf);
+
+	// pan: try to balance, but randomize? how?
+	// remove: set a finite \amp pattern that goes down to 0.001
+
+	~shortDur = Pwhite(0.11, 0.18, inf);
+	~longDur = Pwhite(0.4, 0.8, inf);
+	~pan = Pwhite(0.25, 0.85, inf) * Prand(#[-1, 1], inf);
+	~startLo = 948088 - Pwhite(500, 1200, inf);
+	~startHi = 948088 + Pwhite(500, 1200, inf);
+
+	~onePattern = {
+		var dur = ~patDurStream.next,
+		shortDur = ~shortDurStream.next, longDur = ~longDurStream.next;
+		Pfindur(dur,
+			Pmono(~defname,
+				\dur, Env([shortDur, longDur], [dur], -5),
+				\bufnum, b[0],
+				\tfLo, 6, \tfHi, 18,
+				\trig, Pkey(\dur) / Ptempo(),
+				\amp, Pkey(\dur).linexp(shortDur, longDur, 3, 0.6),
+				\startLo, ~startLoStream.next,
+				\startHi, ~startHiStream.next,
+				\panCenter, ~panStream.next
+			)
+		)
+	};
+
+	~addOne = {
+		var stream = CleanupStream(~onePattern.().asStream, e {
+			~runningStreams.remove(stream);
+		}), result;
+		result = ~spawner.par(stream);
+		// if(~runningStreams.isEmpty) { ~nextEventNow.() };  // imported from shengDrone
+		~runningStreams.add(stream);
+		result
+	};
+
+	~removeOne = { |stream|
+		if(stream.isNil) { stream = ~runningStreams.choose };
+		~spawner.suspend(stream);
+		~runningStreams.remove(stream);
+		currentEnvironment
+	};
+
+	~asPattern = {
+		// if(~patDeltaStream.isNil) { ~makeStreamForKey.(\patDelta) };
+		// if(~patDurStream.isNil) { ~makeStreamForKey.(\patDur) };
+		Pspawner({ |sp|
+			~spawner = sp;
+			loop {
+				~addOne.();
+				sp.wait(~patDeltaStream.next);
+			};
+		})
+	};
+	~stopCleanup = {
+		~spawner = nil;
+		~runningStreams.clear; // not sure why I need this anyway?
+	};
+	// ~reset = { \resetBPStreams.eval };
+}).import((shengDrone: #[nextEventNow])) => PR(\decimator);
+)
+
+BP(\dc).free;
+PR(\decimator).chuck(BP(\dc), nil, (master: ~master, rvbmc: ~rvbmc));
+0 => BP(\dc);
+
+OSCFunc({ |msg| s.sendMsg(\n_trace, msg[1]) }, '/n_go', s.addr).oneShot;
 
 // switch to 1 synth per grain: may need different filter characteristics per grain
 SynthDef(\klunk, { |bufnum, rate = 1, start = 0, gdur = 0.1,
@@ -313,7 +522,7 @@ y.set(\ff, Pstutter(Pwhite(1, 4, inf), Pwhite(200, 700, inf).clump(3)));
 y.set(\fdur, Pexprand(0.05, 0.3, inf));
 
 // more interesting but not focused
-y.set(\delta, Plimitsum({ rrand(1, 4) * 0.5 }, 
+y.set(\delta, Plimitsum({ rrand(1, 4) * 0.5 },
 	Plazy({ Pn(rrand(0.08, 0.14), inf) }) *  // base rhythmic value
 	Pwxrand([
 		Pn(1, { rrand(2, 5) }),  // these shouldn't repeat
