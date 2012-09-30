@@ -887,6 +887,12 @@ p.gestureNow(\dArpeg);
 p.setGstNow(\fullRangeDrone);
 p.setGstNow(Pseq([ 'longPauses', 'da', 'longPauses' ], inf));
 
+p.setGstNow(Pseq([Pseq(#[da, gbcs], 1), Pseq([ 'longPauses', 'da', 'longPauses' ], inf)], 1));
+
+p[\gestureNow].postcs
+
+p.unOverride(\gesture);
+
 p.gst = Pseq([
 	Pseq(['longPauses', 'da']),
 	Prand([

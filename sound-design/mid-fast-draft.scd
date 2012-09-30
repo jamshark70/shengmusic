@@ -1498,3 +1498,4 @@ p.latestPhraseDur
 p.freqEnv = { Env([1, rrand(-8, -4).midiratio], [~latestPhraseDur], 3) };
 
 p.waitTime = nil;  // stop after last gesture; stopCleanup automatically restores waitTime
+
