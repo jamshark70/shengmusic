@@ -81,3 +81,31 @@ p.makeStreamForKey(\gesture);
 
 
 
+// rhythmic, then a-rhythm pizzes
+VC(\pzrhy).free;
+Fact(\pizz).chuck(VC(\pzrhy), nil, (
+	trigFunc: `{
+		var beatsPerSec = NamedControl.kr(\beatsPerSec, 100/60),
+		baseValue = NamedControl.kr(\baseValue, 0.25),
+		lfoDepth = NamedControl.kr(\lfoDepth, 1),
+		baseFreq = beatsPerSec / baseValue,
+		lfo = LFDNoise1.kr(LFNoise1.kr(Rand(0.05, 0.09)).exprange(0.3, 1.4))
+		.exprange(lfoDepth.reciprocal, lfoDepth),
+		trig = Impulse.kr(baseFreq * lfo);
+		trig
+	}
+));
+
+(type: \voicerNote, voicer: VC(\pzrhy).v, fbamp: 0.98).play;
+
+(type: \voicerNote, voicer: VC(\pzrhy).v, fbamp: 0.98, lfoDepth: 1.8, sustain: 5, amp: 1).play;
+
+(type: \voicerNote, voicer: VC(\pzrhy).v, fbamp: 0.98, lfoDepth: 1.8, sustain: 5, amp: 1, degree: #[0, 1, 3, 4]).play;
+
+// promising
+// should slide lfoDepth: use global control
+
+Pseq([
+	(type: \voicerNote, voicer: VC(\pzrhy).v, fbamp: 0.98, lfoDepth: 1, sustain: 5, amp: 1, degree: #[0, 1, 3, 4], dur: 5, retrigProb: 0.8),
+	(type: \voicerNote, voicer: VC(\pzrhy).v, fbamp: 0.98, lfoDepth: 1.8, sustain: 5, amp: 1, degree: #[0, 1, 3, 4], retrigProb: 0.8)
+]).play;
