@@ -298,7 +298,7 @@ s.sendMsg(\n_trace, 1014);
 PR(\abstractProcess).clone({
 	~alwaysReset = true;
 	~event = (eventKey: \default);
-	~defname = \tbuzzz;
+	// ~defname = \tbuzzz;
 
 	~prep = {
 		~chan = MixerChannel(~collIndex, s, 2, 2, outbus: ~master, completionFunc: { |chan|
@@ -307,9 +307,11 @@ PR(\abstractProcess).clone({
 		~event.put(\group, ~chan.synthgroup).put(\out, ~chan.inbus.index);
 		~runningStreams = IdentitySet.new;
 
-		#[patDelta, patDur, shortDur, longDur, pan, startLo, startHi].do { |key|
+		#[patDelta, patDur, shortDur, longDur, pan, panWidth, startLo, startHi, gesture].do { |key|
 			~makeStreamForKey.(key);
 		};
+
+		~initSynthDef.();
 
 		currentEnvironment
 	};
@@ -326,22 +328,63 @@ PR(\abstractProcess).clone({
 	~shortDur = Pwhite(0.11, 0.18, inf);
 	~longDur = Pwhite(0.4, 0.8, inf);
 	~pan = Pwhite(0.25, 0.85, inf) * Prand(#[-1, 1], inf);
+	~panWidth = 0;
 	~startLo = 948088 - Pwhite(500, 1200, inf);
 	~startHi = 948088 + Pwhite(500, 1200, inf);
 
+	~tfLo = 6;
+	~tfHi = 18;
+	~durEnvs = (
+		decel: { |ev| Env([ev[\shortDur], ev[\longDur]], [ev[\totalDur]], rrand(-1.0, -0.2)) },
+		acceldecel: { |ev|
+			var ratio = rrand(0.5, 0.8);
+			Env(
+				[ev[\longDur], ev[\shortDur], ev[\longDur]],
+				[ratio, 1 - ratio] * ev[\totalDur],
+				rrand(-1.0, -0.2) * #[-1, 1]
+			)
+		},
+		steps: { |ev|
+			var n = rrand(3, 7);
+			Env(
+				Array.series(n, ev[\shortDur], (ev[\longDur] - ev[\shortDur]) / n),
+				Array.fill(n, ev[\totalDur] / n),
+				\step
+			)
+		}
+	);
+	~gesture = Pfunc({ ~durEnvs.keys.choose });
+	~durEnv = { |ev| ~durEnvs[ev[\gesture] ? \decel].value(ev) };
+	// CHANGE THIS
+	~bufnum = b[0];
+	~trig = Pkey(\dur) / Ptempo();
+	~amp = Pfunc({ |ev|
+		ev[\dur].linlin(ev[\shortDur], ev[\longDur], 3, 0.001);
+	});
+	~trigRatio = 0.1;
+	~depth = 0.92;
+
 	~onePattern = {
 		var dur = ~patDurStream.next,
-		shortDur = ~shortDurStream.next, longDur = ~longDurStream.next;
+		shortDur = ~shortDurStream.next, longDur = ~longDurStream.next,
+		gesture = ~gestureStream.next;
 		Pfindur(dur,
 			Pmono(~defname,
-				\dur, Env([shortDur, longDur], [dur], -5),
-				\bufnum, b[0],
-				\tfLo, 6, \tfHi, 18,
-				\trig, Pkey(\dur) / Ptempo(),
-				\amp, Pkey(\dur).linexp(shortDur, longDur, 3, 0.6),
+				\shortDur, shortDur,
+				\longDur, longDur,
+				\totalDur, dur,
+				\gesture, gesture,
+				\dur, Plazy({ |ev| ~durEnv.(ev) }),
+				\bufnum, BPStream(\bufnum),
+				\tfLo, ~tfLo, \tfHi, ~tfHi,
+				\trig, BPStream(\trig),
+				\amp, BPStream(\amp),
 				\startLo, ~startLoStream.next,
 				\startHi, ~startHiStream.next,
-				\panCenter, ~panStream.next
+				\panCenter, ~panStream.next,
+				\panWidth, ~panWidthStream.next,
+				\trigRatio, BPStream(\trigRatio),
+				\depth, BPStream(\depth)
 			)
 		)
 	};
@@ -363,12 +406,16 @@ PR(\abstractProcess).clone({
 		currentEnvironment
 	};
 
+	~stopAdding = {
+		~keepAdding = false;
+		currentEnvironment
+	};
+
 	~asPattern = {
-		// if(~patDeltaStream.isNil) { ~makeStreamForKey.(\patDelta) };
-		// if(~patDurStream.isNil) { ~makeStreamForKey.(\patDur) };
 		Pspawner({ |sp|
 			~spawner = sp;
-			loop {
+			~keepAdding = true;
+			while { ~keepAdding ? true } {
 				~addOne.();
 				sp.wait(~patDeltaStream.next);
 			};
@@ -379,14 +426,66 @@ PR(\abstractProcess).clone({
 		~runningStreams.clear; // not sure why I need this anyway?
 	};
 	// ~reset = { \resetBPStreams.eval };
+
+	~initSynthDef = {
+		~def = SynthDef(\tbuzzz, { |bufnum,
+			tfmod = 0, tfLo = 5, tfHi = 5, gdurMul = 20,
+			rate = 1, startLo = 0, startHi = 0, envbuf = -1, gate = 1,
+			dratioLo = 0.15, dratioHi = 0.45, dRatioDensity = 8, resolution = 0.01,
+			lpfreq = 19000, amp = 1,
+			panCenter = 0, panWidth = 0,
+			t_trig = 1, depth = 0.8, trigRatio = 0.35, out|
+			var	bufFr = BufFrames.kr(bufnum),
+			start = SinOsc.ar(Rand(0.07, 0.16)).range(startLo, startHi),
+			tfreq = SinOsc.kr(tfmod).range(tfLo, tfHi),
+			trig = Impulse.ar(tfreq),
+			pan = TRand.kr(panCenter - panWidth, panCenter + panWidth, trig),
+			sig = GrainBuf.ar(2, trig, gdurMul / tfreq, bufnum, rate,
+				start / bufFr, // SinOsc.kr(0.1, 0, 441, start) / bufFr,
+				pan: pan, envbufnum: envbuf
+			),
+			oneMinusDepth = 1 - depth,
+			triggeredAmp = EnvGen.kr(
+				Env([oneMinusDepth, 1, oneMinusDepth], [trigRatio, 1.0 - trigRatio], \sin),
+				t_trig, timeScale: Latch.kr(t_trig, t_trig)
+			),
+			sr = SampleRate.ir,
+			dratio = Lag.kr(TExpRand.kr(dratioLo, dratioHi, Dust.kr(dRatioDensity)), 0.05);
+			sig = Latch.ar(sig, Impulse.ar(sr * dratio));
+			sig = LPF.ar(sig.round(resolution), lpfreq, amp);
+			Out.ar(out, sig * triggeredAmp * Linen.kr(gate, 0.01, 1, 0.01, doneAction: 2));
+		}).add;
+		~defname = ~def.name;
+		currentEnvironment
+	};
 }).import((shengDrone: #[nextEventNow])) => PR(\decimator);
 )
+
+OSCFunc({ |msg| { s.sendMsg(\n_trace, msg[1]) }.defer(1) }, '/n_go', s.addr).oneShot;
+
 
 BP(\dc).free;
 PR(\decimator).chuck(BP(\dc), nil, (master: ~master, rvbmc: ~rvbmc));
 0 => BP(\dc);
 
-OSCFunc({ |msg| s.sendMsg(\n_trace, msg[1]) }, '/n_go', s.addr).oneShot;
+p = BP(\dc);
+
+p => MT(1); p => MCG.collection.detect { |mcg| mcg.v.mixer.isNil };
+
+p.gesture = \decel;
+p.gesture = \acceldecel;
+p.gesture = \steps;
+
+p.gesture = Prand(#[decel, acceldecel, steps], inf).trace;
+
+p.stopAdding;
+
+
+p.originalDurEnv = p[\durEnv];
+
+p.durEnv = { |ev| ~durEnv = ~originalDurEnv; Env([ev[\shortDur], ev[\longDur]], [ev[\totalDur]], -5).asStream.trace(prefix: "dur: ") };
+
+
 
 // switch to 1 synth per grain: may need different filter characteristics per grain
 SynthDef(\klunk, { |bufnum, rate = 1, start = 0, gdur = 0.1,
