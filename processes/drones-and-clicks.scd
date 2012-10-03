@@ -170,6 +170,34 @@ forkIfNeeded {
 				midRest: Pbind(
 					\dur, Pwhite(2.0, 5.0, 1),
 					\deg, Rest
+				),
+				// following is for the climax section near the end
+				bmin: Pbind(
+					\totalDur, 6,
+					\dur, Pn(0.5, 12),
+					\sustain, 0.4, // max(0.5, Pkey(\totalDur) - Ptime()),
+					\octave, 3,
+					\deg, Pseq([-2, 2, 5, 9, 11, 15, Pxrand(#[5, 9, 11, 15], inf)]),
+					\amp, 0.25
+				),
+				gmaj: Pbind(
+					\dur, Pseq([
+						Pn(0.5, 8),
+						Pexprand(0.8, 1.25, inf) * Pseg(
+							Pseq([0.3, 0.9], inf),
+							Pwhite(2.5, 6.0, inf),
+							\exp
+						)
+					]),
+					\sustain, Pwhite(0.25, 0.5, inf),
+					\octave, 3,
+					\deg, Pseq([-4, 0, 3, 7, 11, 12,
+						Pseq([
+							Pxrand(#[16, 18, 22, 11, 13, 7], { rrand(3, 7, inf) }),
+							Pseq(#[-4, 0, 3], 1)
+						], inf)
+					]),
+					\amp, 0.25
 				)
 			);
 
@@ -210,24 +238,28 @@ forkIfNeeded {
 				var gestureEvent;
 				Pchain(
 					Pfunc({ |ev| ev.putAll(gestureEvent) }),
-					Pbind(
-						\instrument, BPStream(\defName),
-						\degree, BPStream(\degree),
-						\root, BPStream(\root),
-						#[freq, topFreq], BPStream(\freqStuff),
-						\ffreq, BPStream(\ffreq),
-						\fratio, Pkey(\ffreq) / Pkey(\topFreq),
-						\ampFactor, Pkey(\ffreq).linlin(1600, 12000, 1.0, 0.08),
-						\ctranspose, BPStream(\ctranspose),
-						// I see... because I hacked \freq above,
-						// I need to reapply ctranspose here
-						\freq, Pkey(\freq) * Pkey(\ctranspose).midiratio,
-						\pan, BPStream(\pan),
-						\sustainAmp, BPStream(\sustainAmp),
-						\desiredSusAmp, BPStream(\desiredSusAmp),
-						\env, BPStream(\env),
-						\excamp, BPStream(\excamp) * Pkey(\ampFactor),
-						\amp, BPStream(\amp)
+					Pif(
+						Pfunc(_.isRest),
+						Pfunc({ |ev| ev }),
+						Pbind(
+							\instrument, BPStream(\defName),
+							\degree, BPStream(\degree),
+							\root, BPStream(\root),
+							#[freq, topFreq], BPStream(\freqStuff),
+							\ffreq, BPStream(\ffreq),
+							\fratio, Pkey(\ffreq) / Pkey(\topFreq),
+							\ampFactor, Pkey(\ffreq).linlin(1600, 12000, 1.0, 0.08),
+							\ctranspose, BPStream(\ctranspose),
+							// I see... because I hacked \freq above,
+							// I need to reapply ctranspose here
+							\freq, Pkey(\freq) * Pkey(\ctranspose).midiratio,
+							\pan, BPStream(\pan),
+							\sustainAmp, BPStream(\sustainAmp),
+							\desiredSusAmp, BPStream(\desiredSusAmp),
+							\env, BPStream(\env),
+							\excamp, BPStream(\excamp) * Pkey(\ampFactor),
+							\amp, BPStream(\amp)
+						)
 					),
 					BPStream(\gesture).collect { |ev| gestureEvent = ev; ev }
 				)
