@@ -298,7 +298,8 @@ s.sendMsg(\n_trace, 1014);
 PR(\abstractProcess).clone({
 	~alwaysReset = true;
 	~event = (eventKey: \default);
-	// ~defname = \tbuzzz;
+	~bufRecorder = nil;  // fill this in at chuck time to provide a buffer source
+	~iMadeBuffers = false;
 
 	~prep = {
 		~chan = MixerChannel(~collIndex, s, 2, 2, outbus: ~master, completionFunc: { |chan|
@@ -307,30 +308,40 @@ PR(\abstractProcess).clone({
 		~event.put(\group, ~chan.synthgroup).put(\out, ~chan.inbus.index);
 		~runningStreams = IdentitySet.new;
 
-		#[patDelta, patDur, shortDur, longDur, pan, panWidth, startLo, startHi, gesture].do { |key|
+		#[patDelta, patDur, shortDur, longDur, pan, panWidth,
+			startLo, startHi, gesture, startCenter, startWidth].do { |key|
 			~makeStreamForKey.(key);
 		};
 
 		~initSynthDef.();
 
+		if(~bufRecorder.notNil and: { BP.exists(~bufRecorder) }) {
+			~buffers = BP(~bufRecorder).buffers;
+		} {
+			~buffers = 2.collect { |i|
+				Buffer.readChannel(s, "/home/dlm/share/SC/Recordings/cues/feet101120_155745-partnering-norm.aiff",
+					51766, 1449461, i
+				);
+			};
+			~iMadeBuffers = true;
+		};
+
 		currentEnvironment
 	};
 	~freeCleanup = {
 		~chan.free;
+		if(~iMadeBuffers) { ~buffers.free };
 	};
 
 	~patDelta = Pwhite(0.8, 3.0, inf);
 	~patDur = Pwhite(4.5, 7.0, inf);
 
-	// pan: try to balance, but randomize? how?
-	// remove: set a finite \amp pattern that goes down to 0.001
-
 	~shortDur = Pwhite(0.11, 0.18, inf);
 	~longDur = Pwhite(0.4, 0.8, inf);
 	~pan = Pwhite(0.25, 0.85, inf) * Prand(#[-1, 1], inf);
-	~panWidth = 0;
-	~startLo = 948088 - Pwhite(500, 1200, inf);
-	~startHi = 948088 + Pwhite(500, 1200, inf);
+	~panWidth = Pwhite(0.05, 0.15, inf);
+	~startCenter = 948088 + Pwhite(-40000, 40000, inf);
+	~startWidth = Pwhite(500, 1200, inf);
 
 	~tfLo = 6;
 	~tfHi = 18;
@@ -353,10 +364,10 @@ PR(\abstractProcess).clone({
 			)
 		}
 	);
-	~gesture = Pfunc({ ~durEnvs.keys.choose });
+	// ~gesture = Pfunc({ ~durEnvs.keys.choose });
+	~gesture = Pwrand(#[decel, acceldecel, steps], #[0.6, 0.3, 0.1], inf);
 	~durEnv = { |ev| ~durEnvs[ev[\gesture] ? \decel].value(ev) };
-	// CHANGE THIS
-	~bufnum = b[0];
+	~bufnum = Plazy({ Prand(~buffers, inf) });
 	~trig = Pkey(\dur) / Ptempo();
 	~amp = Pfunc({ |ev|
 		ev[\dur].linlin(ev[\shortDur], ev[\longDur], 3, 0.001);
@@ -379,8 +390,20 @@ PR(\abstractProcess).clone({
 				\tfLo, ~tfLo, \tfHi, ~tfHi,
 				\trig, BPStream(\trig),
 				\amp, BPStream(\amp),
-				\startLo, ~startLoStream.next,
-				\startHi, ~startHiStream.next,
+				\startCenter, ~startCenterStream.next,
+				\startWidth, ~startWidthStream.next,
+				\startLo, max(0, Pkey(\startCenter) - Pkey(\startWidth)),
+				\startHi, min(
+					Pfunc({ |ev|
+						if(ev[\bufnum].isKindOf(Buffer)) {
+							ev[\bufnum].numFrames - 1
+						} {
+							Buffer.cachedBufferAt(s, ev[\bufnum]).tryPerform(\numFrames)
+							?? 44100
+						};
+					}),
+					Pkey(\startCenter) - Pkey(\startWidth)
+				),
 				\panCenter, ~panStream.next,
 				\panWidth, ~panWidthStream.next,
 				\trigRatio, BPStream(\trigRatio),
@@ -471,6 +494,22 @@ PR(\decimator).chuck(BP(\dc), nil, (master: ~master, rvbmc: ~rvbmc));
 p = BP(\dc);
 
 p => MT(1); p => MCG.collection.detect { |mcg| mcg.v.mixer.isNil };
+
+q = p.gesture;
+p.gesture = p.gesture.trace;
+
+a = p.gestureStream.nextN(20000);
+b = a.copy.sort.separate { |a, b| a != b };
+b.collect(_.size);
+
+a = b = nil;
+
+p.gesture = Pwrand(#[decel, acceldecel, steps], #[0.6, 0.3, 0.1], inf);
+
+p.startWidth = Pwhite(2000, 8000, inf);
+p.startCenter = (948088 + Pwhite(-40000, 40000, inf)).trace;
+
+p.startCenterStream.next
 
 p.gesture = \decel;
 p.gesture = \acceldecel;

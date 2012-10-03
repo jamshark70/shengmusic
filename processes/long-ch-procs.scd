@@ -881,6 +881,194 @@ forkIfNeeded {
 				p
 		}, type: \bp) => Fact(\scotchBP);
 
+		PR(\abstractProcess).clone({
+			~alwaysReset = true;
+			~event = (eventKey: \default);
+			~bufRecorder = nil;  // fill this in at chuck time to provide a buffer source
+			~iMadeBuffers = false;
+
+			~prep = {
+				~chan = MixerChannel(~collIndex, s, 2, 2, outbus: ~master, completionFunc: { |chan|
+					chan.newPostSend(~rvbmc, 0.8);
+				});
+				~event.put(\group, ~chan.synthgroup).put(\out, ~chan.inbus.index);
+				~runningStreams = IdentitySet.new;
+
+				#[patDelta, patDur, shortDur, longDur, pan, panWidth,
+					startLo, startHi, gesture, startCenter, startWidth].do { |key|
+					~makeStreamForKey.(key);
+				};
+
+				~initSynthDef.();
+
+				if(~bufRecorder.notNil and: { BP.exists(~bufRecorder) }) {
+					~buffers = BP(~bufRecorder).buffers;
+				} {
+					~buffers = 2.collect { |i|
+						Buffer.readChannel(s, "/home/dlm/share/SC/Recordings/cues/feet101120_155745-partnering-norm.aiff",
+							51766, 1449461, i
+						);
+					};
+					~iMadeBuffers = true;
+				};
+
+				currentEnvironment
+			};
+			~freeCleanup = {
+				~chan.free;
+				if(~iMadeBuffers) { ~buffers.free };
+			};
+
+			~patDelta = Pwhite(0.8, 3.0, inf);
+			~patDur = Pwhite(4.5, 7.0, inf);
+
+			~shortDur = Pwhite(0.11, 0.18, inf);
+			~longDur = Pwhite(0.4, 0.8, inf);
+			~pan = Pwhite(0.25, 0.85, inf) * Prand(#[-1, 1], inf);
+			~panWidth = Pwhite(0.05, 0.15, inf);
+			~startCenter = 948088 + Pwhite(-40000, 40000, inf);
+			~startWidth = Pwhite(500, 1200, inf);
+
+			~tfLo = 6;
+			~tfHi = 18;
+			~durEnvs = (
+				decel: { |ev| Env([ev[\shortDur], ev[\longDur]], [ev[\totalDur]], rrand(-1.0, -0.2)) },
+				acceldecel: { |ev|
+					var ratio = rrand(0.5, 0.8);
+					Env(
+						[ev[\longDur], ev[\shortDur], ev[\longDur]],
+						[ratio, 1 - ratio] * ev[\totalDur],
+						rrand(-1.0, -0.2) * #[-1, 1]
+					)
+				},
+				steps: { |ev|
+					var n = rrand(3, 7);
+					Env(
+						Array.series(n, ev[\shortDur], (ev[\longDur] - ev[\shortDur]) / n),
+						Array.fill(n, ev[\totalDur] / n),
+						\step
+					)
+				}
+			);
+			// ~gesture = Pfunc({ ~durEnvs.keys.choose });
+			~gesture = Pwrand(#[decel, acceldecel, steps], #[0.6, 0.3, 0.1], inf);
+			~durEnv = { |ev| ~durEnvs[ev[\gesture] ? \decel].value(ev) };
+			~bufnum = Plazy({ Prand(~buffers, inf) });
+			~trig = Pkey(\dur) / Ptempo();
+			~amp = Pfunc({ |ev|
+				ev[\dur].linlin(ev[\shortDur], ev[\longDur], 3, 0.001);
+			});
+			~trigRatio = 0.1;
+			~depth = 0.92;
+
+			~onePattern = {
+				var dur = ~patDurStream.next,
+				shortDur = ~shortDurStream.next, longDur = ~longDurStream.next,
+				gesture = ~gestureStream.next;
+				Pfindur(dur,
+					Pmono(~defname,
+						\shortDur, shortDur,
+						\longDur, longDur,
+						\totalDur, dur,
+						\gesture, gesture,
+						\dur, Plazy({ |ev| ~durEnv.(ev) }),
+						\bufnum, BPStream(\bufnum),
+						\tfLo, ~tfLo, \tfHi, ~tfHi,
+						\trig, BPStream(\trig),
+						\amp, BPStream(\amp),
+						\startCenter, ~startCenterStream.next,
+						\startWidth, ~startWidthStream.next,
+						\startLo, max(0, Pkey(\startCenter) - Pkey(\startWidth)),
+						\startHi, min(
+							Pfunc({ |ev|
+								if(ev[\bufnum].isKindOf(Buffer)) {
+									ev[\bufnum].numFrames - 1
+								} {
+									Buffer.cachedBufferAt(s, ev[\bufnum]).tryPerform(\numFrames)
+									?? 44100
+								};
+							}),
+							Pkey(\startCenter) - Pkey(\startWidth)
+						),
+						\panCenter, ~panStream.next,
+						\panWidth, ~panWidthStream.next,
+						\trigRatio, BPStream(\trigRatio),
+						\depth, BPStream(\depth)
+					)
+				)
+			};
+
+			~addOne = {
+				var stream = CleanupStream(~onePattern.().asStream, e {
+					~runningStreams.remove(stream);
+				}), result;
+				result = ~spawner.par(stream);
+				// if(~runningStreams.isEmpty) { ~nextEventNow.() };  // imported from shengDrone
+				~runningStreams.add(stream);
+				result
+			};
+
+			~removeOne = { |stream|
+				if(stream.isNil) { stream = ~runningStreams.choose };
+				~spawner.suspend(stream);
+				~runningStreams.remove(stream);
+				currentEnvironment
+			};
+
+			~stopAdding = {
+				~keepAdding = false;
+				currentEnvironment
+			};
+
+			~asPattern = {
+				Pspawner({ |sp|
+					~spawner = sp;
+					~keepAdding = true;
+					while { ~keepAdding ? true } {
+						~addOne.();
+						sp.wait(~patDeltaStream.next);
+					};
+				})
+			};
+			~stopCleanup = {
+				~spawner = nil;
+				~runningStreams.clear; // not sure why I need this anyway?
+			};
+			// ~reset = { \resetBPStreams.eval };
+
+			~initSynthDef = {
+				~def = SynthDef(\tbuzzz, { |bufnum,
+					tfmod = 0, tfLo = 5, tfHi = 5, gdurMul = 20,
+					rate = 1, startLo = 0, startHi = 0, envbuf = -1, gate = 1,
+					dratioLo = 0.15, dratioHi = 0.45, dRatioDensity = 8, resolution = 0.01,
+					lpfreq = 19000, amp = 1,
+					panCenter = 0, panWidth = 0,
+					t_trig = 1, depth = 0.8, trigRatio = 0.35, out|
+					var	bufFr = BufFrames.kr(bufnum),
+					start = SinOsc.ar(Rand(0.07, 0.16)).range(startLo, startHi),
+					tfreq = SinOsc.kr(tfmod).range(tfLo, tfHi),
+					trig = Impulse.ar(tfreq),
+					pan = TRand.kr(panCenter - panWidth, panCenter + panWidth, trig),
+					sig = GrainBuf.ar(2, trig, gdurMul / tfreq, bufnum, rate,
+						start / bufFr, // SinOsc.kr(0.1, 0, 441, start) / bufFr,
+						pan: pan, envbufnum: envbuf
+					),
+					oneMinusDepth = 1 - depth,
+					triggeredAmp = EnvGen.kr(
+						Env([oneMinusDepth, 1, oneMinusDepth], [trigRatio, 1.0 - trigRatio], \sin),
+						t_trig, timeScale: Latch.kr(t_trig, t_trig)
+					),
+					sr = SampleRate.ir,
+					dratio = Lag.kr(TExpRand.kr(dratioLo, dratioHi, Dust.kr(dRatioDensity)), 0.05);
+					sig = Latch.ar(sig, Impulse.ar(sr * dratio));
+					sig = LPF.ar(sig.round(resolution), lpfreq, amp);
+					Out.ar(out, sig * triggeredAmp * Linen.kr(gate, 0.01, 1, 0.01, doneAction: 2));
+				}).add;
+				~defname = ~def.name;
+				currentEnvironment
+			};
+		}).import((shengDrone: #[nextEventNow])) => PR(\decimator);
+
 
 	} { AbstractChuckArray.defaultSubType = saveSubtype };
 };
