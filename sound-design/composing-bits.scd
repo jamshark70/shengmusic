@@ -3,7 +3,7 @@
 "~/share/SC/scd/simple-piano.scd".standardizePath.loadPath;
 
 (
-TempoClock.tempo = 88/60;
+TempoClock.tempo = 100/60;
 ~tcgui = TempoClock.default.gui;
 
 {
@@ -401,3 +401,34 @@ p = Pbind(
 	\sustain, Pif(Pbinop('==', Pkey(\sustainOverride), -1), Pkey(\sustain1), Pkey(\sustainOverride))
 ).play(quant: 1, protoEvent: (type: \voicerNote, voicer: w));
 )
+
+
+
+
+(
+var durs;
+p = Penvir((), Pbind(
+	\type, \voicerNote,
+	\voicer, v,
+	\root, 2,
+	\degree, Pstep(
+		Pseq([
+			0,
+			#[0, 1],
+			#[-2, 0],
+			#[-1, 0],
+			#[-1, 0, 4],
+			#[-3, 0, 5],
+			#[-2, 1, 6]
+		], 1),
+		Pseq(durs = [5, 3, 1.5, 4, 1.5, 2.5, 5], 1)
+	),
+	\dur, Env(#[1.1, 0.2, 1.1], #[0.35, 0.65] * durs.sum, #[-3, 2.5]),
+	\vel, Pfunc({ |ev|
+		if(ev[\degree] == ~lastChord) { 75 } { 100 }
+	}),
+	\legato, 0.92
+).collect { |ev| ~lastChord = ev[\degree]; ev }).play;
+)
+
+p.stop;
