@@ -21,12 +21,19 @@ s.addr = ~debugAddr;
 s.addr = ~saveAddr;
 
 
+VC.freeType(\sheng);
+BP.freeType(\sheng);
+
 (
 // drones
 BP(\sd).free;
 PR(\shengDrone) => BP(\sd);
 0 => BP(\sd);
 BP(\sd) => MT(1);
+
+BP(\sdg).free;
+PR(\sdGestureCtl) => BP(\sdg);
+BP(\sdg) => MT(1);
 
 // bells
 \makeBowedBellVC.eval;
@@ -39,3 +46,4 @@ BP(\bw) => MT(1);
 BP(\sd) => MCG(0);
 VC(\bowedFM) => MCG(1);
 )
+

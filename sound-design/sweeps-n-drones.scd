@@ -1594,4 +1594,48 @@ BP(\bw).reset;
 BP(\bw).degree = BP(\bw).degree + 7;
 BP(\bw).mod_lev = 2.5;
 
-PeakMonitor(~rvbmc)
+
+
+BP(\sd).gestures.keys;
+
+(
+PR(\abstractProcess).clone {
+	~quant = 0;
+	~targetBP = \sd;
+	~gstPatSeq = Pbind(
+		\gstPat, Pseq([
+			Pn(\ebnat, 2), \gb,
+			Pxrand([
+				`Pseq(#[da, gb], 1),
+				`Pseq(#[da, gbcs], 1),
+				`Pseq(#[da, ebnat], 1)
+			], inf)
+		], 1),
+		\override, 1
+	);
+	~selectors = (
+		1: \gestureNow,
+		0: \setGstNow
+	);
+	~reset = {
+		~gstPatStream = ~gstPatSeq.asStream;
+	};
+	~doAction = {
+		var event;
+		if(~gstPatStream.isNil) { ~reset.() };
+		if(BP.exists(~targetBP)) {
+			event = ~gstPatStream.next(());
+			if(event.notNil) {
+				BP(~targetBP).perform(~selectors[event[\override]].debug("calling"), event[\gstPat].value.postcs);
+			} {
+				"BP(%): no event to play".format(~collIndex.asCompileString).warn;
+			}
+		} {
+			"BP(%): target BP % doesn't exist".format(~collIndex.asCompileString, ~targetBP.asCompileString).warn;
+		};
+	};
+} => PR(\sdGestureCtl);
+)
+
+BP(\sdg).free;
+PR(\sdGestureCtl) => BP(\sdg);
