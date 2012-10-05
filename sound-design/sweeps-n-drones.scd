@@ -1430,3 +1430,168 @@ SynthDef(\noise1TimesEnv, { |outbus, lfwidth1 = 1, lfwidth2 = 0, lfoSpeed = 5, t
 		time: 4.01
 	)
 )));
+
+
+// fm zzzzzzing
+VC(\fm).free;
+Fact(\madfmVC) => VC(\fm);
+
+a = VC(\fm);
+a.mapGlobal(\mod_lev, nil, 1, #[1, 30, \exp]);
+a.mapGlobal(\mod_ratio2, nil, 1, #[1, 20, \lin, 0.1]);
+a.mapGlobal(\keyscale, nil, 0.001, #[0.001, 1, \exp]);
+
+a.unmapGlobal(\mod_ratio2);
+
+k = VoicerMIDISocket(0, a.v);
+
+(
+k.noteOnArgsEvent = (
+	car_env: [Env.adsr(0.8, 0.3, 0.4, 2.8, curve: #[2, -4, -4]).releaseNode_(nil).asArray],
+	mod_env: [Env.adsr(0.8, 0.3, 0.4, 2.8, curve: #[2, -4, -4]).releaseNode_(nil).asArray]
+);
+)
+
+k.noteOnArgsPat = Pbind(\mod_ratio1, a.globalControls[\mod_ratio2], \pan, Pwhite(0.8, 1.0, inf) * Pseq(#[-1, 1], inf, { 2.rand }));
+
+// q = a.env.target.playfx(Instr("busfx.chorus"), [0, 2]); q.gui;
+
+b = Buffer.alloc(s, (60/88 * 0.75 * s.sampleRate).nextPowerOfTwo, 2);
+
+q = a.env.target.playfx({ |outbus, feedback = 0.7|
+	var sig = Instr("busfx.chorus").ar(outbus, 2, 0.015468872882259, 0.017575106248548, 0.0068811564687238, 2.7569078388645, 0.5),
+	delaytime = 60/88 * 0.75 - ControlDur.ir,
+	// rolling my own pingpong delay b/c PingPong clicks at delay transition :-@
+	feedbacks = LocalIn.ar(2) * feedback,
+	delay = DelayL.ar((sig + feedbacks).rotate(1), delaytime, delaytime);
+	LocalOut.ar(delay);
+	sig + delay
+});
+
+	PingPong.ar(LocalBuf((delaytime * s.sampleRate).nextPowerOfTwo, 2).clear, sig, delaytime, feedback);
+	// PingPong.ar(b, sig, delaytime, feedback);
+
+q.set(\feedback, 0.4);
+
+(60/88 * 0.75 * s.sampleRate).nextPowerOfTwo / 44100
+
+q.trace;
+q.free;
+
+a.env.target.play((sustain: 0.1, amp: 1, pan: -1));
+{ q.trace }.defer(0.3);
+
+x = {
+	var sig = SinOsc.ar(440, 0, 0.1) * Decay2.ar(Impulse.ar(1), 0.01, 0.1);
+	sig ! 2
+}.play;
+
+x.free;
+
+x = {
+	var sig = SinOsc.ar(440, 0, 0.1) * Decay2.ar(Impulse.ar(1), 0.01, 0.1);
+	sig + PingPong.ar(LocalBuf(32768, 2).clear, [sig, DC.ar(0)], 0.375, 0.8);
+}.play;
+
+OSCFunc({ |msg| s.sendMsg(\n_trace, msg[1]) }, '/n_go', s.addr).oneShot;
+
+x.trace;
+
+x.free;
+
+(
+{	|name(\bowedFM)|
+	VC(name).free;
+	Fact(\madfmVC).chuck(VC(name), nil, (master: ~master, rvbmc: ~rvbmc));
+	VC(name).env.use {
+		~target.newPostSend(~rvbmc, 0.6);
+		~target.playfx({ |outbus, feedback = 0.7|
+			var sig = Instr("busfx.chorus").ar(outbus, 2, 0.015468872882259, 0.017575106248548, 0.0068811564687238, 2.7569078388645, 0.5),
+			delaytime = 60/88 * 0.75, // - ControlDur.ir,
+			// rolling my own pingpong delay b/c PingPong clicks at delay transition :-@
+			// feedbacks = LocalIn.ar(2) * feedback,
+			// delay = DelayL.ar((sig + feedbacks).rotate(1), delaytime, delaytime);
+			// LocalOut.ar(delay);
+			delay = PingPong.ar(
+				LocalBuf((delaytime * s.sampleRate).nextPowerOfTwo, 2).clear,
+				sig, delaytime, feedback
+			);
+			sig + delay
+		});
+	};
+	VC(name)
+} => Func(\makeBowedBellVC);
+)
+
+\makeBowedBellVC.eval;
+
+e = Env.adsr(0.8, 0.3, 0.4, 2.8, curve: #[2, -4, -4]).releaseNode_(nil);
+
+VC(\bowedFM).trigger([62, 74].midicps, 0.7, [mod_lev: 5, mod_ratio1: 11, mod_ratio2: 11, car_detune: 1.003, /*car_buf: VC(\bowedFM).env.bufs.choose, mod_buf: VC(\bowedFM).env.bufs.choose,*/ pan: #[-0.9, 0.9].choose, mod_env: e, car_env: e]);
+
+VC(\bowedFM).trigger([62, 71, 76].midicps, 0.7, [mod_lev: 5, mod_ratio1: 11, mod_ratio2: 11, car_detune: 1.003, /*car_buf: VC(\bowedFM).env.bufs.choose, mod_buf: VC(\bowedFM).env.bufs.choose,*/ pan: #[-0.9, 0.9].choose, mod_env: e, car_env: e]);
+
+
+(
+PR(\abstractProcess).clone {
+	~event = (eventKey: \voicerNote);
+
+	~degree = Pseq([#[35, 42], #[35, 42], #[33, 36, 41]], 1) + 7;
+	~mode = \d;
+	~mod_lev = 2.5;
+	~mod_ratio1 = 11;
+	~mod_ratio2 = Pkey(\mod_ratio1);
+	~car_detune = 1.003;
+	~pan = Pwhite(0.8, 1.0, inf) * Pseq(#[-1, 1], inf, { 2.rand });
+	~dur = 1;
+	~length = 1;
+	~gate = 0.5;
+	~mod_env = [Env.adsr(0.8, 0.3, 0.4, 2.8, curve: #[2, -4, -4]).releaseNode_(nil)];
+	~car_env = ~mod_env;
+
+	~doAction = {
+		var event;
+		if(~eventsStream.isNil) { ~reset.() };
+		event = ~eventsStream.next(~event.copy);
+		if(event.notNil) {
+			event.play;
+		} {
+			"BP(%): no event to play".format(~collIndex.asCompileString).warn;
+		};
+	};
+	~reset = {
+		~eventsStream = ~makePattern.().asStream;
+	};
+	~makePattern = {
+		Pbind(
+			\mode, BPStream(\mode, resetSource: true),
+			\freq, BPStream(\degree, resetSource: true),
+			\dur, BPStream(\dur, resetSource: true),
+			\length, BPStream(\length, resetSource: true),
+			\gate, BPStream(\gate, resetSource: true),
+			\mod_lev, BPStream(\mod_lev, resetSource: true),
+			\mod_ratio1, BPStream(\mod_ratio1, resetSource: true),
+			\mod_ratio2, BPStream(\mod_ratio2, resetSource: true),
+			\car_detune, BPStream(\car_detune, resetSource: true),
+			\pan, BPStream(\pan, resetSource: true),
+			\mod_env, Pfunc({ ~mod_env }),
+			\car_env, Pfunc({ ~car_env })
+		);
+	};
+} => PR(\bowed);
+)
+
+BP(\bw).free;
+PR(\bowed) => BP(\bw);
+VC(\bowedFM) => BP(\bw);
+0 => BP(\bw);
+
+BP(\bw).mod_env = [Env.adsr(0.8, 0.3, 0.4, 2.8, curve: #[2, -4, -4]).releaseNode_(nil)];
+BP(\bw).car_env = [Env.adsr(0.8, 0.3, 0.4, 2.8, curve: #[2, -4, -4]).releaseNode_(nil)];
+
+BP(\bw).reset;
+
+BP(\bw).degree = BP(\bw).degree + 7;
+BP(\bw).mod_lev = 2.5;
+
+PeakMonitor(~rvbmc)

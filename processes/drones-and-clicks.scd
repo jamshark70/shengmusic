@@ -630,6 +630,78 @@ forkIfNeeded {
 			};
 		} => PR(\birds);
 
+		{	|name(\bowedFM)|
+			VC(name).free;
+			Fact(\madfmVC).chuck(VC(name), nil, (
+				master: ~master, rvbmc: ~rvbmc,
+				initLevel: -14.dbamp
+			));
+			VC(name).env.use {
+				~target.newPostSend(~rvbmc, 0.6);
+				~target.playfx({ |outbus, feedback = 0.7|
+					var sig = Instr("busfx.chorus").ar(outbus, 2, 0.015468872882259, 0.017575106248548, 0.0068811564687238, 2.7569078388645, 0.5),
+					delaytime = 60/88 * 0.75, // - ControlDur.ir,
+					// rolling my own pingpong delay b/c PingPong clicks at delay transition :-@
+					// feedbacks = LocalIn.ar(2) * feedback,
+					// delay = DelayL.ar((sig + feedbacks).rotate(1), delaytime, delaytime);
+					// LocalOut.ar(delay);
+					delay = PingPong.ar(
+						LocalBuf((delaytime * s.sampleRate).nextPowerOfTwo, 2).clear,
+						sig, delaytime, feedback
+					);
+					sig + delay
+				});
+			};
+			VC(name)
+		} => Func(\makeBowedBellVC);
+
+		PR(\abstractProcess).clone {
+			~event = (eventKey: \voicerNote);
+
+			~degree = Pseq([#[35, 42], #[35, 42], #[33, 36, 41]], 1) + 7;
+			~mode = \d;
+			~mod_lev = 2.5;
+			~mod_ratio1 = 11;
+			~mod_ratio2 = Pkey(\mod_ratio1);
+			~car_detune = 1.003;
+			~pan = Pwhite(0.8, 1.0, inf) * Pseq(#[-1, 1], inf, { 2.rand });
+			~dur = 1;
+			~length = 1;
+			~gate = 0.5;
+			~mod_env = [Env.adsr(0.8, 0.3, 0.4, 2.8, curve: #[2, -4, -4]).releaseNode_(nil)];
+			~car_env = ~mod_env;
+
+			~doAction = {
+				var event;
+				if(~eventsStream.isNil) { ~reset.() };
+				event = ~eventsStream.next(~event.copy);
+				if(event.notNil) {
+					event.play;
+				} {
+					"BP(%): no event to play".format(~collIndex.asCompileString).warn;
+				};
+			};
+			~reset = {
+				~eventsStream = ~makePattern.().asStream;
+			};
+			~makePattern = {
+				Pbind(
+					\mode, BPStream(\mode, resetSource: true),
+					\freq, BPStream(\degree, resetSource: true),
+					\dur, BPStream(\dur, resetSource: true),
+					\length, BPStream(\length, resetSource: true),
+					\gate, BPStream(\gate, resetSource: true),
+					\mod_lev, BPStream(\mod_lev, resetSource: true),
+					\mod_ratio1, BPStream(\mod_ratio1, resetSource: true),
+					\mod_ratio2, BPStream(\mod_ratio2, resetSource: true),
+					\car_detune, BPStream(\car_detune, resetSource: true),
+					\pan, BPStream(\pan, resetSource: true),
+					\mod_env, Pfunc({ ~mod_env }),
+					\car_env, Pfunc({ ~car_env })
+				);
+			};
+		} => PR(\bowed);
+
 	} {
 		AbstractChuckArray.defaultSubType = saveSubType;
 	}
