@@ -180,7 +180,7 @@ forkIfNeeded {
 					\deg, Pseq([-2, 2, 5, 9, 11, 15, Pxrand(#[5, 9, 11, 15], inf)]),
 					\amp, 0.25
 				),
-				gmaj: Pbind(
+				gmaj: Pfindur(32, Pbind(
 					\dur, Pseq([
 						Pn(0.5, 8),
 						Pexprand(0.8, 1.25, inf) * Pseg(
@@ -195,6 +195,38 @@ forkIfNeeded {
 						Pseq([
 							Pxrand(#[16, 18, 22, 11, 13, 7], { rrand(3, 7, inf) }),
 							Pseq(#[-4, 0, 3], 1)
+						], inf)
+					]),
+					\amp, 0.25
+				)),
+				emaj: Pfindur(11.5, Pbind(
+					\dur, Pexprand(0.8, 1.25, inf) * Pseg(
+						Pseq([0.3, 0.9], inf),
+						Pwhite(2.5, 6.0, inf),
+						\exp
+					),
+					\sustain, Pwhite(0.25, 0.5, inf),
+					\octave, 3,
+					\deg, Pseq([1, 5, 8, 12, 14, 18,
+						Pseq([
+							Pxrand(#[12, 14, 17.5, 18, 20, 21], { rrand(3, 7, inf) }),
+							Pseq(#[1, 5, 8], 1)
+						], inf)
+					]),
+					\amp, 0.25
+				)),
+				csmin: Pbind(
+					\dur, Pexprand(0.8, 1.25, inf) * Pseg(
+						Pseq([0.3, 0.9], inf),
+						Pwhite(2.5, 6.0, inf),
+						\exp
+					),
+					\sustain, Pwhite(0.25, 0.5, inf),
+					\octave, 3,
+					\deg, Pseq([-1, 3.5, 6, 10.5, 12,
+						Pseq([
+							Pxrand(#[12, 13, 17.5, 18, 22], { rrand(3, 7, inf) }),
+							Pseq(#[-1, 3.5, 6], 1)
 						], inf)
 					]),
 					\amp, 0.25
@@ -267,12 +299,15 @@ forkIfNeeded {
 
 			// I cannot BELIEVE this actually worked the first time!
 			~nextEventNow = {
-				var oldPlayer = ~eventStreamPlayer,
-				// make a new stream player, fix dependants etc.
-				newPlayer = BP(~collIndex).asEventStreamPlayer;
-				~clock.sched(0, newPlayer.refresh);
-				// this doesn't kill the BP because the old dependency is already broken
-				oldPlayer.stop;
+				var oldPlayer, newPlayer;
+				if(~isPlaying) {
+					oldPlayer = ~eventStreamPlayer;
+					// make a new stream player, fix dependants etc.
+					newPlayer = BP(~collIndex).asEventStreamPlayer;
+					~clock.sched(0, newPlayer.refresh);
+					// this doesn't kill the BP because the old dependency is already broken
+					oldPlayer.stop;
+				};
 				currentEnvironment
 			};
 
