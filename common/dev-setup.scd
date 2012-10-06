@@ -17,9 +17,11 @@ NotificationCenter.registerOneShot(\chucklibGui, \ready, \devSetup, e {
 	) => MCG(6);
 
 	[m, n].free;
-	m = MixerChannel(\test1, s, 1, 2, outbus: ~master);
-	n = MixerChannel(\test2, s, 2, 2, outbus: ~master);
-	m => MCG(0); n => MCG(1);
+	if(~performance != true) {
+		m = MixerChannel(\test1, s, 1, 2, outbus: ~master);
+		n = MixerChannel(\test2, s, 2, 2, outbus: ~master);
+		m => MCG(0); n => MCG(1);
+	};
 
 	["common/common-defs.scd"].do { |file|
 		(d +/+ file).loadPath;
