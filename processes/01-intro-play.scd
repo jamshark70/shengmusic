@@ -110,3 +110,34 @@ BP(\pzr) => MT(1);
 BP(\pzr).put(\first, true);
 
 
+// c. m36, bring up retrigProb, then, quickly...
+
+(
+VC(\lpizz).free;
+Fact(\lowpizz).chuck(VC(\lpizz), nil, (initLevel: -12.dbamp));
+
+BP(\lowCh).free;
+Fact(\lowChBP) => BP(\lowCh);
+VC(\lpizz) => BP(\lowCh);
+0 => BP(\lowCh);
+BP(\lowCh) => MT(1);
+
+Pfin(2, MacRh(\lowCh).asPattern) =>.macro BP(\lowCh);
+)
+
+(
+~lowch = TLSequenceIterator([
+	{
+		VC(\lpizz).globalControls[\retrigProb].value = 0.12;
+		0
+	},
+	bpCmd: (name: \lowCh, prepareBP: _.reset),
+	\cmdSync,
+	{
+		VC(\lpizz).globalControls[\retrigProb].value = 1;
+		(type: \voicerNote, voicer: VC(\lpizz), freq: [31, 43].midicps, pan: 0, baseDur: 20, env: [Env.one(4)], amp: 2, retrigProb: 1, ffreq: 31.midicps * 16, fbamp: 0.98).play;
+		0
+	}
+]).play;
+)
+

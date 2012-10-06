@@ -210,11 +210,11 @@ forkIfNeeded {
 							~wasFirst = ~first;
 							if(~first) {
 								MBM(0)[\openDA] => BP(\pz);
-								BP(\pz).child.fitFunc = \asis;
+								BP(~bp).child.fitFunc = \asis;
 								~first = false;
 							} {
 								MBM(0)[\pzch] => BP(\pz);
-								BP(\pz).child.fitFunc = \chordFitNotes;
+								BP(~bp).child.fitFunc = \chordFitNotes;
 							};
 						};
 						BP(~bp).triggerOneEvent(0);
@@ -226,6 +226,12 @@ forkIfNeeded {
 			~stopCleanup = {
 				~stopWatcher.remove;
 				~stopWatcher = nil;
+				BP(~bp).child[\eventStreamPlayer].stop;
+				if(BP(~bp).child.event[\voicer].isKindOf(Voicer)) {
+					BP(~bp).child.event.voicer.nodes.do { |node|
+						node.release(-1.65);  // force 0.65 sec release
+					};
+				};
 			};
 		} => PR(\chordRunner);
 
