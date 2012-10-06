@@ -401,7 +401,7 @@ forkIfNeeded {
 				)
 			);
 
-			~durBase = Pwhite(0.09, 0.41, inf);
+			~durBase = Pnaryop(\lincurve, Pwhite(0.0, 1.0, inf), #[0, 1, 0.09, 0.41, -2]);
 			~dur = Plazy({ ~durBaseStream.next.loop }) * Pwrand(#[1, 2], #[0.85, 0.15], inf);
 			~pan = Pwhite(-1.0, 1.0, inf);
 			~phraseDur = Pwhite(3.0, 7.0, inf);
@@ -430,13 +430,22 @@ forkIfNeeded {
 			~env = Pfunc({ [Env.adsr(0.01, rrand(0.02, 0.15), 0.05, 0.03).asArray] });
 			~zzampFactor = 1/8 * (-6.dbamp);
 
+			~patAmpEnvs = [
+				Env(#[0.01, 0.8, 0.8, 0.15], [0.4, 0.2, 0.4], #[2, 0, -2])
+			];
+			~patAmpEnv = { ~patAmpEnvs.choose };
+			~patDurEnvs = [
+				Env(#[1, 2], #[1], -1.5),
+				Env(#[1.5, 1, 2], #[0.35, 0.65], -1.5)
+			];
+			~patDurEnv = { ~patDurEnvs.choose };
+
 			// you can mess with this
 			~postPattern = {
 				var dur = ~phraseDurStream.next;
 				Pfindur(dur, Pbind(
-					\amp, Env(#[0.4, 0.8, 0.8, 0.2], [0.1, 0.5, 0.4] * dur, #[-4, 0, -2])
-					.asStream * Pkey(\ampFactor),
-					\dur, Plazy({ ~dur }) * Env(#[1, 2], [dur], -1.5),
+					\amp, ~patAmpEnv.value.copy.duration_(dur).asStream * Pkey(\ampFactor),
+					\dur, Plazy({ ~dur }) * ~patDurEnv.value.copy.duration_(dur),
 					\pan, Plazy({ ~panStream.next.loop })
 				))
 			};
