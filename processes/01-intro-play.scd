@@ -67,21 +67,46 @@ BP(\cl).chan.level = 0;
 BP(\birds).chan.level = 0;
 )
 
+
+
+
 // play clicks before m17
 // fade in both slowly (birds after)
 
 // retriggered pizzes
 (
+VC(\nlet).free;
+Fact(\noiseletVC) => VC(\nlet);
+
+Fact(\highChBP).chuck(BP(\firstPitch), nil, (
+	customizeHook: { |proc|
+		0 => proc;
+		MBM(0)[\simpleCh] => proc;
+		Pwhite(14.0, 20.0, 3) =>.macro proc;
+		\asis1 =>.arpeg proc;
+		proc.child.fitFunc = \asis;
+		\slowHighCh =>.micro proc;
+		proc.child.event.ctranspose = 12;
+	}
+));
+VC(\nlet) => BP(\firstPitch);
+BP(\firstPitch) => MT(1);
+
 VC(\pz).free;
 Fact(\pizz) => VC(\pz);
 VC(\pz) => MCG(4);
+VC(\pz).env.target.level = 0;
 VC(\pz) => VP(0);
 
 BP(\pz).free;
 Fact(\pzBP) => BP(\pz);
 VC(\pz) => BP(\pz);
-BP(\pz) => MT(1);
-)
 
 BP(\pzr).free;
 PR(\chordRunner).chuck(BP(\pzr), nil, (bp: \pz));
+BP(\pzr) => MT(1);
+)
+
+BP(\pzr).put(\first, true);
+
+

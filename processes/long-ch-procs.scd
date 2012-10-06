@@ -101,6 +101,11 @@ forkIfNeeded {
 
 		Pwhite(0.6, 2.4, inf) * Ptuple([1, Pwhite(4.2, 9.8, inf), 0.5], inf) => MicRh(\pizzes);
 
+		MIDIRecBuf(\openDA, [
+			#[50, 57, 62, 69, 74],
+			0.1, 0.1, 0.5
+		].asNotes, (type: \ch, mode: d)) => MBM(0);
+
 		MIDIRecBuf(\pzch, [
 			[	38, 45, 50, 54, 55, 59, 61, 64,
 				40, 49, 50, 54, 57, 61, 64, 71,
@@ -112,12 +117,11 @@ forkIfNeeded {
 			0.5 ! 32
 		].asNotes, (type: \ch, mode: \d)) => MBM(0);
 
-
 		(
 			make: { |name|
 				var new;
 				BP(name).free;
-				new = \newCh.eval(name, \arpeg1, \macroRh, MBM(0)[\pzch], nil, Pwhite(14, 24, inf), \pizzes, \shuf1, nil, \d);
+				new = \newCh.eval(name, \arpeg1, \macroRh, MBM(0)[\openDA], nil, Pwhite(14, 24, inf), \pizzes, \shuf1, nil, \d);
 				new.quant = 0;
 				new.topNote = PR(\patternTop).copy.make {
 					~deg = 'patRejectLastN'.eval(Pseries(
@@ -175,6 +179,7 @@ forkIfNeeded {
 
 		PR(\abstractProcess).clone {
 			~resetChild = false;
+			~first = true;
 			~rest = Pwhite(7.0, 14.0, inf);
 
 			~event = (eventKey: \hang);
@@ -201,6 +206,17 @@ forkIfNeeded {
 				if(~restStream.isNil) { ~makeStreamForKey.(\rest) };
 				Prout({ |inevent|
 					loop {
+						if(~first != ~wasFirst) {
+							~wasFirst = ~first;
+							if(~first) {
+								MBM(0)[\openDA] => BP(\pz);
+								BP(\pz).child.fitFunc = \asis;
+								~first = false;
+							} {
+								MBM(0)[\pzch] => BP(\pz);
+								BP(\pz).child.fitFunc = \chordFitNotes;
+							};
+						};
 						BP(~bp).triggerOneEvent(0);
 						// hang first, then wait 'delta' beats
 						inevent = inevent.copy.put(\delta, ~restStream.next(inevent)).yield;
@@ -757,8 +773,8 @@ forkIfNeeded {
 
 				out = ~voicerClass.new(~numVoices, ~defname, [attack: 1.5, decay: 1.0, susLevel: 0.7, release: 4.5], target: ~target);
 				~gcSpecs.do { |assn|
-					assn.value = assn.value.asSpec;
-					out.mapGlobal(assn.key, nil, assn.value.default, assn.value);
+					var spec = assn.value.asSpec;
+					out.mapGlobal(assn.key, nil, spec.default, spec);
 				};
 
 				~target.doWhenReady {
@@ -773,6 +789,16 @@ forkIfNeeded {
 			free: { ~target.free }
 		) => Fact(\noiseletVC);
 
+
+		// first pitch intro c. m30
+		MIDIRecBuf(\simpleCh, [
+			#[81, 83,  81, 86, 88, 85,  79, 74, 90, 83],
+			#[0.1, 1, 0.1, 0.1, 0.1, 1, 0.1, 0.1, 0.1, 1],
+			0.1, 0.5
+		].asNotes, (type: \ch, mode: \d)) => MBM(0);
+
+		{ |notes| Pseq(notes, 1) } => ArpegPat(\asis1);
+		Ptuple([ Pwhite(2.2, 2.9, inf), Pwhite(3.5, 8.0), 0.5 ]) => MicRh(\slowHighCh);
 
 		Ptuple([Pwhite(0.8, 1.7, inf), Pwhite(4.0, 9.0, inf), 0.5]) => MicRh(\highCh);
 
