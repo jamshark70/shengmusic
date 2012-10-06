@@ -130,7 +130,13 @@ forkIfNeeded {
 				new.child.use {
 					~fitFunc = \chordFitNotes;
 
-					~ffreq = (Pfunc({ |ev| ev[\mode].asMode.cps(ev[\freq] ?? { ev[\note].freq }).asArray.maxItem }) * Pexprand(4.0, 18.0)).clip(1000, 12000);
+					~ffreq = Pfunc({ |ev|
+						var topfreq = ev[\mode].asMode.cps(ev[\freq] ?? { ev[\note].freq }).asArray.maxItem,
+						ffreq = (topfreq * exprand(4.0, 18.0)).clip(1000, 12000);
+						ev[\ffreqRatio] = ffreq / topfreq;
+						ffreq
+					});
+					~ctranspose = Pkey(\ffreqRatio).linlin(4, 23, 0.6, 0.051);
 					~excratio = Pwhite(0.4, 0.65);
 					~excamp = 1;
 					~fbamp = Pwhite(0.98, 0.998, inf);
@@ -160,7 +166,8 @@ forkIfNeeded {
 						\excDcy, BPStream(\excDcy),
 						\retrigProb, BPStream(\retrigProb),
 						\pan, BPStream(\pan),
-						\amp, BPStream(\amp)
+						\amp, BPStream(\amp),
+						\ctranspose, BPStream(\ctranspose)
 					);
 				};
 				new
