@@ -555,7 +555,9 @@ forkIfNeeded {
 			~alwaysReset = true;
 			~event = (eventKey: \default);
 			~prep = {
-				~chan = MixerChannel(~collIndex, s, 2, 2, ~initLevel, outbus: ~master, completionFunc: nil);
+				~chan = MixerChannel(~collIndex, s, 2, 2, ~initLevel, outbus: ~master, completionFunc: { |chan|
+					chan.newPostSend(~rvbmc, 0.5);
+				});
 				~event.put(\out, ~chan.inbus).put(\group, ~chan.synthgroup);
 				~makePMonoWrapper.();
 				~makeOneChirpPattern.();
@@ -729,7 +731,7 @@ forkIfNeeded {
 				if(BP.exists(~targetBP)) {
 					event = ~gstPatStream.next(());
 					if(event.notNil) {
-						BP(~targetBP).perform(~selectors[event[\override]].debug("calling"), event[\gstPat].value.postcs);
+						BP(~targetBP).perform(~selectors[event[\override]], event[\gstPat].value);
 					} {
 						"BP(%): no event to play".format(~collIndex.asCompileString).warn;
 					}
