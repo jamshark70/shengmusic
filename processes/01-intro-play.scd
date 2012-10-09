@@ -126,6 +126,7 @@ Pfin(2, MacRh(\lowCh).asPattern) =>.macro BP(\lowCh);
 )
 
 (
+BP.all.stop;
 ~lowch = TLSequenceIterator([
 	{
 		VC(\lpizz).globalControls[\retrigProb].value = 0.12;
@@ -141,3 +142,43 @@ Pfin(2, MacRh(\lowCh).asPattern) =>.macro BP(\lowCh);
 ]).play;
 )
 
+
+// m40: play \cl, \pz
+// m45: stop
+
+\makeSusChBP.eval;
+
+BP(\susCh).prepareForPlay;
+BP(\susCh).triggerOneEvent(0);
+
+
+(
+BP(\dc).free;
+PR(\decimator).chuck(BP(\dc), nil, (master: ~master, rvbmc: ~rvbmc));
+0 => BP(\dc);
+
+BP(\dc).startWidth = Pwhite(2000, 8000, inf);
+BP(\dc).startCenter = (948088 + Pwhite(-40000, 40000, inf));
+
+PR(\decimatorDriver) => BP(\dcdr);
+BP(\dcdr) => MT(1);
+)
+
+
+
+Fact(\triVC) => VC(\tri);
+Fact(\tripletBP) => BP(\tri);
+VC(\tri) => BP(\tri);
+PR(\triDriver).chuck(BP(\td), nil, (bp: \tri));
+
+BP(\td).playMode = \accel;
+BP(\td).playMode = \decel;
+BP(\td).playMode = \accelrit;
+BP(\td).playMode = \overlap;
+
+BP(\td).playMode = Prand(#[accel, decel, accelrit, overlap], inf).trace;
+BP(\td).dftRest = Pwhite(1.0, 2.5, inf);
+
+// overlap is insanely way too long, use sparingly
+
+MultiEQ(2).edit(VC(\tri).env.target);

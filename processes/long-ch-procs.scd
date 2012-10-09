@@ -326,7 +326,7 @@ forkIfNeeded {
 				gate: Pseq(#[0.17, 0.1, 0.1]),
 				pan: Plazy({ |ev| (~panWidthStream.next(ev) * ~panSideStream.next(ev)).loop }),
 				width: Pstutter(10, Pwhite(0.05, 0.15, 1)),
-				ffreq: Pgeom({ exprand(8000, 12000) }, Pstutter(10, Pwhite(0.15, 0.22, 1)), 3),
+				ffreq: Pgeom({ exprand(6000, 9000) }, Pstutter(10, Pwhite(0.15, 0.22, 1)), 3),
 				rq: Pseq(#[0.1, 0.4, 1.0], inf),
 				holdtime: Pkey(\length) / Ptempo()
 			],
@@ -369,6 +369,39 @@ forkIfNeeded {
 				p
 		}, type: \bp) => Fact(\tripletBP);
 
+		Plazy({
+			var dur = rrand(9.0, 16.0), proportion = rrand(0.3, 0.7);
+			Plimitsum(dur, Pexprand(0.8, 1.25, inf)
+				// * Env([2.0, 0.8, 2.0], [proportion, 1 - proportion] * dur, \exp).postcs);
+				* Env(rrand(#[1.5, 0.56, 1.8], #[2.2, 0.75, 2.4]), [proportion, 1 - proportion] * dur, \sin));
+		}) => MacRh(\accelrit);
+
+		{ |env, timeScale = 1, lo = 0.8, hi = 1.25|
+			var times = env.times * timeScale;
+			Plimitsum(times.sum, Pexprand(0.8, 1.25, inf) * env.copy.times_(times))
+		} => Func(\envRandWrap);
+
+		Plazy({
+			\envRandWrap.eval(Env([rrand(0.4, 0.6), rrand(2.0, 2.5)], #[1], \exp), rrand(6.0, 11.0))
+		}) => MacRh(\decel);
+
+		Plazy({
+			var ratio = rrand(0.6, 0.75);
+			\envRandWrap.eval(Env([rrand(2.0, 2.5), rrand(0.4, 0.6), rrand(0.4, 0.6), rrand(1.4, 1.7)], [ratio, 0.9 - ratio, 0.1], \exp), rrand(11.0, 16.0))
+		}) => MacRh(\accel);
+
+		SynthDef(\overlapEnv, { |out|
+			Out.kr(out, EnvGen.kr(
+				Env(
+					[Rand(3.0, 3.2), Rand(8.0, 8.5), Rand(3.7, 4.2), 3],
+					[Rand(7, 9), Rand(10, 14), Rand(5, 7)],
+					#[2, 5, -3]
+				),
+				doneAction: 2
+			))
+		}).add;
+
+		Pstutter(Pwhite(3, 5, inf), Pwhite(2.0, 3.5, inf)) / Ptuple([Plazy({ BP(\tri).overlapCtl.asPattern }), 1], inf) => MacRh(\tpOverlap);
 
 		PR(\abstractProcess).clone {
 			~event = (eventKey: \hang);
@@ -382,6 +415,7 @@ forkIfNeeded {
 				~event.put(\cond, ~cond);
 				~modes = ~modes.value;
 				~bp_.(bpname ?? ~bp);
+				~modeStreams = IdentityDictionary.new;
 				currentEnvironment
 			};
 			~freeCleanup = { ~resp.remove };
@@ -395,7 +429,7 @@ forkIfNeeded {
 					// 	~cond.unhang;
 					// });
 					~resp = Updater(BP(~bp), e { |obj, what, more|
-						if(more == \stopped) { ~cond.debug("unhang").unhang };
+						if(more == \stopped) { ~cond.unhang };
 					});
 				};
 				currentEnvironment
@@ -416,12 +450,25 @@ forkIfNeeded {
 						)
 					},
 				),
+				accelrit: (prepare: { MacRh(\accelrit) => BP(~bp) }),
+				accel: (prepare: { MacRh(\accel) => BP(~bp) }),
+				decel: (prepare: { MacRh(\decel) => BP(~bp) }),
 				overlap: (
-					// prepare: {
-					// },
-					asPattern: {
+					prepare: {
+						MacRh(\tpOverlap) => BP(~bp);
 					},
-					stopChild: false
+					asPattern: {
+						Pbind(
+							\action, e {
+								BP(~bp).overlapCtl
+								.watch
+								.automate(\overlapEnv)
+								.onFree(e { BP(~bp).stopNow });
+								BP(~bp).play(0);
+							},
+							\delta, BPStream(\dftRest)
+						)
+					}
 				),
 				at2: { |me, subKey ... keys|
 					var k = keys.detect { |key| me[key][subKey].notNil };
@@ -429,16 +476,32 @@ forkIfNeeded {
 				}
 			) };
 
-			~preparePlay = {
-				~modes.at2(\prepare, ~playMode).value;
-			};
+			// ~preparePlay = {
+			// 	~modes.at2(\prepare, ~playMode).value;
+			// };
 
 			~asPattern = {
-				~modes.at2(\asPattern, ~playMode).value;
+				Prout({ |inevent|
+					var mode;
+					if(~playModeStream.isNil) { ~makeStreamForKey.(\playMode) };
+					loop {
+						mode = ~playModeStream.next(inevent);
+						if(mode.notNil) {
+							~lastPlayMode = mode;
+							~modes.at2(\prepare, mode).value;
+							if(~modeStreams[mode].isNil) {
+								~modeStreams[mode] = ~modes.at2(\asPattern, mode).value.asStream;
+							};
+							inevent = ~modeStreams[mode].next(inevent).yield;
+						} {
+							nil.alwaysYield
+						}
+					}
+				})
 			};
 
 			~stopCleanup = {
-				if(~modes.at2(\stopChild, ~playMode)) { BP(~bp).stopNow };
+				if(~modes.at2(\stopChild, ~lastPlayMode)) { BP(~bp).stopNow };
 			};
 		} => PR(\triDriver);
 
@@ -493,7 +556,7 @@ forkIfNeeded {
 				gate: Pseq([0.17, Pn(0.1, inf)]),
 				pan: Plazy({ |ev| (~panWidthStream.next(ev) * ~panSideStream.next(ev)).loop }),
 				width: Pstutter(10, Pwhite(0.05, 0.15, 1)),
-				ffreq: Pgeom({ exprand(8000, 12000) }, Pstutter(10, Pwhite(0.5, 0.7, 1)), inf),
+				ffreq: Pgeom({ exprand(6000, 9000) }, Pstutter(10, Pwhite(0.5, 0.7, 1)), inf),
 				rq: Pseq([0.1, min(1, Pgeom(0.4, 0.97, inf))]),
 				holdtime: Pkey(\length) / Ptempo()
 			],
@@ -526,7 +589,9 @@ forkIfNeeded {
 			keys: #[master, rvbmc],
 
 			make: { |name|
-				~chan = MixerChannel(name, s, 2, 2, level: 0.75, outbus: ~master);
+				~chan = MixerChannel(name, s, 2, 2, level: 0.75, outbus: ~master, completionFunc: { |chan|
+					chan.newPostSend(~rvbmc, 0.7);
+				});
 				// sh!t design for SY, shouldn't have to do this
 				~target = ~chan.synthgroup;
 				~out = ~chan.inbus;
@@ -559,7 +624,7 @@ forkIfNeeded {
 
 				~def.name.asSymbol
 			},
-			free: { [~target, ~bufs].free }) => Fact(\trnspSY);
+			free: { [~chan, ~bufs].free }) => Fact(\trnspSY);
 
 		SynthDef(\ffreqWobble, { |low = 400, hi = 9000, time = 1,
 			upRatio = 0.3, shape = 5, curve = 0,
@@ -1108,6 +1173,62 @@ forkIfNeeded {
 			};
 		}).import((shengDrone: #[nextEventNow])) => PR(\decimator);
 
+		PR(\abstractProcess).clone {
+			~bp = \dc;
+			~alwaysReset = true;
+			~event = (eventKey: \dummy);
+			~prep = {
+				if(BP.exists(~bp)) {
+					~resp = SimpleController(BP(~bp)).put(\stop, e {
+						BP(~collIndex).stop(0);
+					});
+				} {
+					"BP(%): target BP(%) doesn't exist"
+					.format(~collIndex.asCompileString, ~bp.asCompileString)
+					.warn;
+				};
+				currentEnvironment
+			};
+			~freeCleanup = { ~resp.remove };
+			~preparePlay = {
+				if(BP.exists(~bp)) {
+					BP(~bp).play;
+				} {
+					"BP(%): target BP(%) doesn't exist"
+					.format(~collIndex.asCompileString, ~bp.asCompileString)
+					.warn;
+				}
+			};
+			~stopCleanup = {
+				if(BP.exists(~bp)) {
+					BP(~bp).stopAdding;
+				} {
+					"BP(%): target BP(%) doesn't exist"
+					.format(~collIndex.asCompileString, ~bp.asCompileString)
+					.warn;
+				}
+			};
+			~asPattern = {
+				Pbind(\dur, 1);  // keep alive only
+			};
+		} => PR(\decimatorDriver);
+
+		{ |name(\susCh)|
+			BP(name).free;
+			Fact(\highChBP).chuck(BP(name), nil, (
+				customizeHook: { |p|  // p === the new BP
+					0 => p;
+					p.macroRhythm = Pwhite(8.0, 12.0, inf);
+					Pfuncn({ |ev| ~macroRhythmStream.next(ev) }, 1) =>.macro p;
+					\shuf1 =>.arpeg p;
+					\highCh =>.micro p;
+					p.child.argPairs = PbindProxy(*p.child.argPairs);
+					p.child.argPairs.set(\attack, 2.5, \decay, 0.8, \susLevel, 0.5, \release, 9.0);
+				}
+			));
+			if(VC.exists(\nlet)) { VC(\nlet) => BP(name) };
+			BP(name)
+		} => Func(\makeSusChBP);
 
 	} { AbstractChuckArray.defaultSubType = saveSubtype };
 };

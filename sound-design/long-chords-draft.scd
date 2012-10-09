@@ -906,6 +906,16 @@ q.cond = Condition.new; q.event.cond = q.cond;
 
 p.macro
 
+BP(\tri).child.argPairs = [
+	gate: Pseq(#[0.17, 0.1, 0.1]),
+	pan: Plazy({ |ev| (~panWidthStream.next(ev) * ~panSideStream.next(ev)).loop }),
+	width: Pstutter(10, Pwhite(0.05, 0.15, 1)),
+	ffreq: Pgeom({ exprand(6000, 9000) }, Pstutter(10, Pwhite(0.15, 0.22, 1)), 3),
+	rq: Pseq(#[0.1, 0.4, 1.0], inf),
+	holdtime: Pkey(\length) / Ptempo()
+];
+
+
 q.modes.at2(\asPattern, \accelrit).postcs
 q.modes.at2(\asPattern, \default) === q.modes.at2(\asPattern, \default)
 
@@ -1088,6 +1098,7 @@ BP(\tup).topNote.deg = 'patRejectLastN'.eval(Pseries(
 ).fold(36, 43), 1) - Ptuple([0, Pwhite(-6, -2, inf)], inf);
 
 
+BP(\tup).removeFromCollection;
 
 // transparent thingy for G-A-G motif
 
@@ -1278,12 +1289,14 @@ Func(\newCh).listArgs
 s.controlBusAllocator.debug
 
 
-// test transparent
+// test transparent -- this one is a bit space-musicy, not sure it fits
 SY(\trnsp).free;
 Fact(\trnspSY) => SY(\trnsp);
 
 Fact(\trnspBP) => BP(\trnsp);
 BP(\trnsp) => SY(\trnsp);
+
+p = BP(\trnsp);
 
 BP(\trnsp).prepareForPlay;
 
@@ -1299,6 +1312,16 @@ BP(\trnsp).reset;
 
 BP(\trnsp).triggerOneEvent(0);
 
+o.free; o = OSCFunc({ |msg| s.sendMsg(\n_trace, msg[1]) }, '/n_go', s.addr);
+
+p.child.ampLo = 0.2;
+
+BP(\trnsp).child.listVars
+
+MicRh(\quickArp).v.postcs
+
+\block =>.arpeg p;
+\blockFollow =>.micro p;
 
 
 
@@ -1670,11 +1693,12 @@ BP(\susCh).free;
 Fact(\highChBP).chuck(BP(\susCh), nil, (
 	customizeHook: { |p|  // p === the new BP
 		0 => p;
-		Ptuple([Pwhite(8.0, 12.0, inf), Pwhite(0.9, 1.5, inf)]) =>.macro p;
+		p.macroRhythm = Ptuple([Pwhite(8.0, 12.0, inf), Pwhite(0.9, 1.5, inf)]);
+		Pfuncn({ |ev| ~macroRhythmStream.next(ev) }, 1) =>.macro p;
 		\block =>.arpeg p;
 		\blockFollow =>.micro p;
 		p.child.argPairs = PbindProxy(*p.child.argPairs);
-		p.child.argPairs.set(\attack, 1.4, \decay, 0.8, \susLevel, 0.5, \release, 9.0);
+		p.child.argPairs.set(\attack, 2.5, \decay, 0.8, \susLevel, 0.5, \release, 9.0);
 	}
 ));
 VC(\nlet) => BP(\susCh);
@@ -1684,6 +1708,11 @@ p = BP(\susCh);
 p.prepareForPlay;
 
 p.triggerOneEvent(0);
+
+\shuf1 =>.arpeg p;
+\highCh =>.micro p;
+
+p.macroRhythm = Pwhite(8.0, 12.0, inf); // * #[1, 0.6];
 
 
 // scotch snap
