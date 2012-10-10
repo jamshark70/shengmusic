@@ -165,20 +165,32 @@ BP(\dcdr) => MT(1);
 )
 
 
-
-Fact(\triVC) => VC(\tri);
+(
+Fact(\triVC).chuck(VC(\tri), nil, (initLevel: -12.5.dbamp));
 Fact(\tripletBP) => BP(\tri);
 VC(\tri) => BP(\tri);
 PR(\triDriver).chuck(BP(\td), nil, (bp: \tri));
+1 => BP(\td);
+)
 
-BP(\td).playMode = \accel;
-BP(\td).playMode = \decel;
-BP(\td).playMode = \accelrit;
-BP(\td).playMode = \overlap;
+BP(\td).dftRest = Pwhite(3, 7, inf);
 
-BP(\td).playMode = Prand(#[accel, decel, accelrit, overlap], inf).trace;
+// m.52: play \td
+
+
+BP(\td).playMode = Pseq([\accelrit, Prand(#[accel, decel, accelrit], inf)]);
 BP(\td).dftRest = Pwhite(1.0, 2.5, inf);
 
-// overlap is insanely way too long, use sparingly
+BP(\td).playMode = Prand(#[accel, decel, accelrit], inf).trace;
 
-MultiEQ(2).edit(VC(\tri).env.target);
+BP(\td).playMode = Prand(#[accel, decel, accelrit, overlap], inf);
+BP(\td).dftRest = Pwhite(1.0, 2.5, inf);
+
+g = GenericGlobalControl(\lpfreq, nil, 2000, \freq); g => VP(0);
+h = GenericGlobalControl(\hprq, nil, 1, \myrq); h => VP(0);
+
+a = VC(\slowTri).env.target.playfx({ |outbus| RLPF.ar(In.ar(outbus, 2), g.kr, h.kr) });
+
+a.trace
+
+a.free;

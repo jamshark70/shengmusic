@@ -249,7 +249,7 @@ forkIfNeeded {
 			keys: #[master, rvbmc],
 			iMadeBufs: false,
 			getBufs: { BP(\shengShared).oscBufs },
-			env: Env.adsr(0.07, 0.12, 0.4, 0.12),
+			env: Env.adsr(0.15, 0.2, 0.4, 0.16),
 			instrName: "osc2.v3mappan",
 			voicerArgs: { [
 				bufbase: `(~oscBufs.first.bufnum),
@@ -274,9 +274,21 @@ forkIfNeeded {
 							0.017377393674649, 0.1, 0.0071613988449721,
 							1.6669675304762, 0.61054022965853]
 						);
+						chan.newPostSend(~rvbmc, -7.5.dbamp);
 					};
 				);
 				out = Voicer(20, WrapInstr(~instrName), ~voicerArgs.value, target: ~target);
+				out.mapGlobal(\lpfreq, nil, 1700, \freq);
+				out.mapGlobal(\lprq, nil, 1, \myrq);
+				~target.doWhenReady {
+					~lpf = ~target.playfx { |outbus|
+						RLPF.ar(
+							In.ar(outbus, 2),
+							out.globalControls[\lpfreq].kr,
+							out.globalControls[\lprq].kr
+						)
+					}
+				};
 				~customize.value(out);
 				out
 			},
@@ -295,6 +307,8 @@ forkIfNeeded {
 		Pwhite(0.5, 0.75, { rrand(2, 4) }) => MacRh(\tshort);
 		Pwhite(1.0, 1.25, { rrand(1, 2) }) => MacRh(\tmid);
 		Pwhite(1.8, 2.2, 1) => MacRh(\tlong);
+		Pwhite(0.7, 2.2, 1) => MacRh(\t_once);
+		Pn(1.0, { rrand(1, 4) }) => MacRh(\tqtr);
 
 		// IMPORTANT: this assumes MicRh will stop the arpeggiation
 		{ |notes|
@@ -326,7 +340,7 @@ forkIfNeeded {
 				gate: Pseq(#[0.17, 0.1, 0.1]),
 				pan: Plazy({ |ev| (~panWidthStream.next(ev) * ~panSideStream.next(ev)).loop }),
 				width: Pstutter(10, Pwhite(0.05, 0.15, 1)),
-				ffreq: Pgeom({ exprand(6000, 9000) }, Pstutter(10, Pwhite(0.15, 0.22, 1)), 3),
+				ffreq: Pgeom({ exprand(6000, 9000) }, Pstutter(10, Pwhite(0.288, 0.36, 1)), 3),
 				rq: Pseq(#[0.1, 0.4, 1.0], inf),
 				holdtime: Pkey(\length) / Ptempo()
 			],
@@ -365,12 +379,19 @@ forkIfNeeded {
 				p.useGui = { |vpi| ~overlapCtl => VP(vpi) };
 				p.userfree = { ~overlapCtl.free };
 				p.event.stopChild = false;
+				p.macroTotalDur = Pwhite(4.2, 6.0, inf);
+
+				Library.put(\tripletBass, Pclutch(
+					Pwhite(0, 6, inf),
+					Pdiff(Ptime()) > 0
+				).asStream);
+				p.bassID = \tripletBass;
 
 				p
 		}, type: \bp) => Fact(\tripletBP);
 
-		Plazy({
-			var dur = rrand(9.0, 16.0), proportion = rrand(0.3, 0.7);
+		Plazy({ |ev|
+			var dur = ~macroTotalDurStream.next(ev) * 1.4, proportion = rrand(0.3, 0.7);
 			Plimitsum(dur, Pexprand(0.8, 1.25, inf)
 				// * Env([2.0, 0.8, 2.0], [proportion, 1 - proportion] * dur, \exp).postcs);
 				* Env(rrand(#[1.5, 0.56, 1.8], #[2.2, 0.75, 2.4]), [proportion, 1 - proportion] * dur, \sin));
@@ -381,22 +402,23 @@ forkIfNeeded {
 			Plimitsum(times.sum, Pexprand(0.8, 1.25, inf) * env.copy.times_(times))
 		} => Func(\envRandWrap);
 
-		Plazy({
-			\envRandWrap.eval(Env([rrand(0.4, 0.6), rrand(2.0, 2.5)], #[1], \exp), rrand(6.0, 11.0))
+		Plazy({ |ev|
+			\envRandWrap.eval(Env([rrand(0.4, 0.6), rrand(2.0, 2.5)], #[1], \exp), ~macroTotalDurStream.next(ev))
 		}) => MacRh(\decel);
 
-		Plazy({
+		Plazy({ |ev|
 			var ratio = rrand(0.6, 0.75);
-			\envRandWrap.eval(Env([rrand(2.0, 2.5), rrand(0.4, 0.6), rrand(0.4, 0.6), rrand(1.4, 1.7)], [ratio, 0.9 - ratio, 0.1], \exp), rrand(11.0, 16.0))
+			\envRandWrap.eval(Env([rrand(2.0, 2.5), rrand(0.4, 0.6), rrand(0.4, 0.6), rrand(1.4, 1.7)], [ratio, 0.9 - ratio, 0.1], \exp), ~macroTotalDurStream.next(ev))
 		}) => MacRh(\accel);
 
-		SynthDef(\overlapEnv, { |out|
+		SynthDef(\overlapEnv, { |out, sustain = 1|
 			Out.kr(out, EnvGen.kr(
 				Env(
 					[Rand(3.0, 3.2), Rand(8.0, 8.5), Rand(3.7, 4.2), 3],
-					[Rand(7, 9), Rand(10, 14), Rand(5, 7)],
+					[Rand(7, 9), Rand(10, 14), Rand(5, 7)].normalizeSum,
 					#[2, 5, -3]
 				),
+				timeScale: sustain,
 				doneAction: 2
 			))
 		}).add;
@@ -416,6 +438,7 @@ forkIfNeeded {
 				~modes = ~modes.value;
 				~bp_.(bpname ?? ~bp);
 				~modeStreams = IdentityDictionary.new;
+				~makeStreamForKey.(\overlapTime);
 				currentEnvironment
 			};
 			~freeCleanup = { ~resp.remove };
@@ -435,13 +458,14 @@ forkIfNeeded {
 				currentEnvironment
 			};
 
-			~dftRest = Pwhite(6.0, 10.0, inf);
+			~dftRest = Pwhite(3, 7, inf); // Pwhite(6.0, 10.0, inf);
+			~overlapTime = Pwhite(5.0, 9.0, inf);
 
 			~modes = { (
 				default: (
 					stopChild: false,
 					prepare: {
-						MacRh(\tlong) => BP(~bp);
+						MacRh(\tqtr) => BP(~bp);
 					},
 					asPattern: {
 						Pbind(
@@ -450,6 +474,7 @@ forkIfNeeded {
 						)
 					},
 				),
+				single: (prepare: { MacRh(\t_once) => BP(~bp) }),
 				accelrit: (prepare: { MacRh(\accelrit) => BP(~bp) }),
 				accel: (prepare: { MacRh(\accel) => BP(~bp) }),
 				decel: (prepare: { MacRh(\decel) => BP(~bp) }),
@@ -462,7 +487,7 @@ forkIfNeeded {
 							\action, e {
 								BP(~bp).overlapCtl
 								.watch
-								.automate(\overlapEnv)
+								.automate(\overlapEnv, [sustain: ~overlapTimeStream.next])
 								.onFree(e { BP(~bp).stopNow });
 								BP(~bp).play(0);
 							},
