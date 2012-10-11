@@ -194,3 +194,70 @@ a = VC(\slowTri).env.target.playfx({ |outbus| RLPF.ar(In.ar(outbus, 2), g.kr, h.
 a.trace
 
 a.free;
+
+
+
+// around m. 61
+(
+MIDIRecBuf(\lowChGshp, [
+	#[28, 40, 47, 54, 56, 62, 69],
+	(0.1 ! 7).put(6, 1), 0.1, 0.5
+].asNotes, (type: \ch, mode: \d)) => BP(\lowCh);
+Pn(13, 1) =>.macro BP(\lowCh);
+)
+
+
+
+// mm65-67?
+(
+VC(\slowTri).free;
+Fact(\triVC).chuck(VC(\slowTri), nil, (env: Env.adsr(0.8, 1.2, 0.4, 2.4, curve: #[3, -1, -2])));
+
+Pdef(\triAChord, Pbind(
+	\type, \voicerNote,
+	\voicer, VC(\slowTri).v,
+	\args, #[],
+	\holdtime, 1000,
+	\dur, Pwhite(0.1, 0.4, inf),
+	\totalDur, 6,
+	\sustain, Pkey(\totalDur) - Ptime(),
+	\ffreq, 14000,
+	\gate, 0.5,
+	\midinote, Pseq(#[33, 21, 45, 55, 62, 64, 69, 74, 79, 85, 90, 91], 1),
+	\pan, Pseries.fromEndpoints(0, 1, 12) * Pseq(#[-1, 1], inf, { 2.rand })
+));
+
+p.gestures[\bigAChord] = Pbind(
+	\dur, Pexprand(0.15, 0.35, inf),
+	\sustain, 7,
+	\octave, 3,
+	\deg, Pseq(#[-3, 4, 10, 14, 15, 18], 1),
+	\amp, 0.07
+);
+)
+
+
+(
+if(t.isPlaying) { t.stop };
+t = TLSequenceIterator([
+	bpCmd: (name: \sd,
+		prepareBP: { |p|
+			~saveGst = p.gst;
+			p.setGstNow(Pn(\bigAChord, 1).trace);
+			p.gst.postcs;
+		},
+		clearDoneSignal: { ~isRunning = false; BP(\sd).stopNow; BP(\sd).setGstNow(~saveGst) }
+	),
+	0.4,
+	pdefCmd: (name: \triAChord),
+	gcAutoSynthCmd: (
+		gc: VC(\slowTri).globalControls[\lpfreq],
+		name: \ctlEnv, outName: \outbus,
+		connect: 0,
+		env: Env(#[900, 7500, 1700], #[1.5, 3], \sin)
+	),
+	\sync,
+	{ "seq done".postln; 0 }
+]).play;
+)
+
