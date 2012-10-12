@@ -960,3 +960,77 @@ p.synth.trace
 p.free; ~decim.free;
 
 ~decim.synthDef.inspect
+
+
+
+// buffer recording
+// try prebuilt first
+PR(\transient_analysis_incr).listVars
+
+~sbuf = Buffer.readAndQuery(s, thisProcess.nowExecutingPath.dirname.dirname +/+ "support/sheng1350023628.aiff", startFrame: 4227450);
+~sbus = Bus.audio(s, 1);
+
+BP(\rec).free;
+PR(\transient_analysis_incr).chuck(BP(\rec), nil, (
+	numBufs: 5,
+	bufDur: 30,
+	recordActive: false,
+	audioThru: false,
+	// audioThruLevel: 0,
+	inputBusIndex: ~sbus.index
+));
+
+BP(\rec).listVars
+
+BP(\rec).startRecord(true);
+
+BP(\rec).minPeak = -35.dbamp;
+PeakMonitor(~sbus)
+
+(
+BP(\rec).sendTrigger;
+~ssyn = { PlayBuf.ar(1, ~sbuf, loop: 0, doneAction: 2) }.play(target: s.asTarget, outbus: ~sbus, addAction: \addToHead);
+)
+
+~ssyn.free;
+
+~ssyn = { PlayBuf.ar(1, ~sbuf, loop: 0, doneAction: 2) ! 2 }.play(target: s.asTarget, outbus: 0, addAction: \addToHead);
+
+BP(\rec).play(0);
+
+BP(\rec).free;
+
+BP(\rec).lastBuf.associationsDo(_.postln); ""
+
+BP(\rec).buffers = { ~bufs.select { |buf| buf.status == \ready }.collect(_.buf) };
+BP(\rec).buffers
+
+BP(\rec).times = { ~bufs.select { |buf| buf.status == \ready }.collect(_.ontimes) };
+BP(\rec).times;
+
+BP(\dc).free;
+PR(\decimator).chuck(BP(\dc), nil, (
+	master: ~master, rvbmc: ~rvbmc, bufRecorder: \rec,
+	startCenter: Pfunc({ |ev| ~bufTimes[ev[\bufindex]].choose * s.sampleRate + 1500 })
+));
+0 => BP(\dc);
+
+BP(\dc).listVars;
+
+PR(\decimatorDriver) => BP(\dcdr);
+BP(\dcdr) => MT(1);
+
+BP(\dc).startCenter = Pfunc({ |ev| ~bufTimes[ev[\bufindex]].choose * s.sampleRate + rrand(500, 9000) });
+
+BP(\dc).scaleTotalDur = Pn(1.0, inf);  // could also global-control this
+BP(\dc).patDelta = Pwhite(4, 12, inf) * 0.25;
+
+BP(\dc).durEnvs['16th32nd'] = { |ev|
+	Plimitsum(ev[\totalDur] * ~scaleTotalDurStream.next(ev), Pseq([Pn(0.25, { rrand(4, 14) }), Pn(0.125, { rrand(1, 2) * 2 })], inf))
+};
+
+BP(\dc).saveGesture = BP(\dc).gesture;
+
+BP(\dc).gesture = '16th32nd';
+
+BP(\dcdr).play(1);

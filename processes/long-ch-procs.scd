@@ -1010,6 +1010,24 @@ forkIfNeeded {
 				p
 		}, type: \bp) => Fact(\scotchBP);
 
+		(
+			keys: #[shengMic],
+			make: { |name|
+				BP(name).free;
+				PR(\transient_analysis_incr).chuck(BP(name), nil, (
+					numBufs: 5,
+					bufDur: 30,
+					recordActive: false,
+					audioThru: false,
+					audioThruLevel: 0,
+					inputBusIndex: ~shengMic.inbus,
+					buffers: { ~bufs.select { |buf| buf.status == \ready }.collect(_.buf) },
+					times: { ~bufs.select { |buf| buf.status == \ready }.collect(_.ontimes) }
+				));
+			},
+			type: \bp
+		) => Fact(\eventDetectBP);
+
 		PR(\abstractProcess).clone({
 			~alwaysReset = true;
 			~event = (eventKey: \default);
@@ -1024,27 +1042,38 @@ forkIfNeeded {
 				~runningStreams = IdentitySet.new;
 
 				#[patDelta, patDur, shortDur, longDur, pan, panWidth,
-					startLo, startHi, gesture, startCenter, startWidth].do { |key|
+					startLo, startHi, gesture, startCenter, startWidth,
+					bufindex, bufnum, startCenter
+				].do { |key|
 					~makeStreamForKey.(key);
 				};
 
 				~initSynthDef.();
 
-				if(~bufRecorder.notNil and: { BP.exists(~bufRecorder) }) {
-					~buffers = BP(~bufRecorder).buffers;
-				} {
-					~buffers = 2.collect { |i|
-						Buffer.readChannel(s, "/home/dlm/share/SC/Recordings/cues/feet101120_155745-partnering-norm.aiff",
-							51766, 1449461, i
-						);
+				if(~buffers.isNil) {
+					if(~bufRecorder.notNil and: { BP.exists(~bufRecorder) }) {
+						~buffers = BP(~bufRecorder).buffers;
+						~bufTimes = BP(~bufRecorder).times;
+						~recListener = SimpleController(BP(~bufRecorder))
+						.put(\bufReady, e {
+							~buffers = BP(~bufRecorder).buffers.debug("BP(%): updated buffers".format(~collIndex.asCompileString));
+							~bufTimes = BP(~bufRecorder).times;
+						});
+					} {
+						~buffers = 2.collect { |i|
+							Buffer.readChannel(s, "/home/dlm/share/SC/Recordings/cues/feet101120_155745-partnering-norm.aiff",
+								51766, 1449461, i
+							);
+						};
+						~iMadeBuffers = true;
 					};
-					~iMadeBuffers = true;
 				};
 
 				currentEnvironment
 			};
 			~freeCleanup = {
 				~chan.free;
+				~recListener.remove;
 				if(~iMadeBuffers) { ~buffers.free };
 			};
 
@@ -1082,7 +1111,9 @@ forkIfNeeded {
 			// ~gesture = Pfunc({ ~durEnvs.keys.choose });
 			~gesture = Pwrand(#[decel, acceldecel, steps], #[0.6, 0.3, 0.1], inf);
 			~durEnv = { |ev| ~durEnvs[ev[\gesture] ? \decel].value(ev) };
-			~bufnum = Plazy({ Prand(~buffers, inf) });
+			// ~bufnum = Plazy({ Prand(~buffers, inf) });
+			~bufindex = Pfunc({ ~buffers.size.rand });
+			~bufnum = Pfunc({ |ev| ~buffers[ev[\bufindex]] });
 			~trig = Pkey(\dur) / Ptempo();
 			~amp = Pfunc({ |ev|
 				ev[\dur].linlin(ev[\shortDur], ev[\longDur], 3, 0.001);
@@ -1096,16 +1127,19 @@ forkIfNeeded {
 				gesture = ~gestureStream.next;
 				Pfindur(dur,
 					Pmono(~defname,
+						\depth, BPStream(\depth)
+					) <> Pbind(
 						\shortDur, shortDur,
 						\longDur, longDur,
 						\totalDur, dur,
 						\gesture, gesture,
 						\dur, Plazy({ |ev| ~durEnv.(ev) }),
+						\bufindex, ~bufindexStream.next,
 						\bufnum, BPStream(\bufnum),
 						\tfLo, ~tfLo, \tfHi, ~tfHi,
 						\trig, BPStream(\trig),
 						\amp, BPStream(\amp),
-						\startCenter, ~startCenterStream.next,
+						\startCenter, Plazy({ |ev| ~startCenterStream.next(ev).loop }),
 						\startWidth, ~startWidthStream.next,
 						\startLo, max(0, Pkey(\startCenter) - Pkey(\startWidth)),
 						\startHi, min(
@@ -1122,7 +1156,6 @@ forkIfNeeded {
 						\panCenter, ~panStream.next,
 						\panWidth, ~panWidthStream.next,
 						\trigRatio, BPStream(\trigRatio),
-						\depth, BPStream(\depth)
 					)
 				)
 			};
