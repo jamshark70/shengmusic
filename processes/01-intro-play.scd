@@ -207,36 +207,6 @@ Pn(13, 1) =>.macro BP(\lowCh);
 )
 
 
-
-// mm65-67?
-(
-VC(\slowTri).free;
-Fact(\triVC).chuck(VC(\slowTri), nil, (env: Env.adsr(0.8, 1.2, 0.4, 2.4, curve: #[3, -1, -2])));
-
-Pdef(\triAChord, Pbind(
-	\type, \voicerNote,
-	\voicer, VC(\slowTri).v,
-	\args, #[],
-	\holdtime, 1000,
-	\dur, Pwhite(0.1, 0.4, inf),
-	\totalDur, 6,
-	\sustain, Pkey(\totalDur) - Ptime(),
-	\ffreq, 14000,
-	\gate, 0.5,
-	\midinote, Pseq(#[33, 21, 45, 55, 62, 64, 69, 74, 79, 85, 90, 91], 1),
-	\pan, Pseries.fromEndpoints(0, 1, 12) * Pseq(#[-1, 1], inf, { 2.rand })
-));
-
-p.gestures[\bigAChord] = Pbind(
-	\dur, Pexprand(0.15, 0.35, inf),
-	\sustain, 7,
-	\octave, 3,
-	\deg, Pseq(#[-3, 4, 10, 14, 15, 18], 1),
-	\amp, 0.07
-);
-)
-
-
 (
 if(t.isPlaying) { t.stop };
 t = TLSequenceIterator([
@@ -259,5 +229,16 @@ t = TLSequenceIterator([
 	\sync,
 	{ "seq done".postln; 0 }
 ]).play;
+)
+
+
+
+// mm65-67?
+(
+VC(\slowTri).free;
+Fact(\triVC).chuck(VC(\slowTri), nil, (env: Env.adsr(0.8, 1.2, 0.4, 2.4, curve: #[3, -1, -2])));
+
+BP(\bigA).free;
+PR(\bigA) => BP(\bigA);
 )
 

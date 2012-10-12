@@ -230,6 +230,13 @@ forkIfNeeded {
 						], inf)
 					]),
 					\amp, 0.25
+				),
+				bigAChord: Pbind(
+					\dur, Pexprand(0.15, 0.35, inf),
+					\sustain, 7,
+					\octave, 3,
+					\deg, Pseq(#[-3, 4, 10, 14, 15, 18], 1),
+					\amp, 0.07
 				)
 			);
 
@@ -749,6 +756,65 @@ forkIfNeeded {
 				};
 			};
 		} => PR(\sdGestureCtl);
+
+		// hacking, don't want to make a BP just for one simple gesture
+		Pdef(\triAChord, Pbind(
+			\type, \voicerNote,
+			\voicer, VC(\slowTri).v,
+			\args, #[],
+			\holdtime, 1000,
+			\dur, Pwhite(0.1, 0.4, inf),
+			\totalDur, 6,
+			\sustain, Pkey(\totalDur) - Ptime(),
+			\ffreq, 14000,
+			\gate, 0.5,
+			\midinote, Pseq(#[33, 21, 45, 55, 62, 64, 69, 74, 79, 85, 90, 91], 1),
+			\pan, Pseries.fromEndpoints(0, 1, 12) * Pseq(#[-1, 1], inf, { 2.rand })
+		));
+
+		// quick trigger for that chord
+		// the BP wrapper to run the sequence, then stop, worked ON THE FIRST TRY
+		// :-O
+		PR(\abstractProcess).clone {
+			~quant = 0;
+			~alwaysReset = true;
+			~event = (eventKey: \hang);
+			~prep = {
+				~cond = Condition.new;
+				~event[\cond] = ~cond;
+				~event[\action] = e {
+					~tlseq = TLSequenceIterator(~seq).play(0, thisThread.clock);
+					~resp = NotificationCenter.registerOneShot(~tlseq, \done, ~collIndex, e { ~cond.unhang });
+				};
+			};
+			~freeCleanup = { ~resp.remove };
+			~seq = [
+				bpCmd: (name: \sd,
+					prepareBP: { |p|
+						~saveGst = p.gst;
+						p.setGstNow(Pn(\bigAChord, 1).trace);
+						p.gst.postcs;
+					},
+					clearDoneSignal: { ~isRunning = false; BP(\sd).stopNow; BP(\sd).setGstNow(~saveGst) }
+				),
+				0.4,
+				pdefCmd: (name: \triAChord),
+				gcAutoSynthCmd: (
+					gc: { VC(\slowTri).globalControls[\lpfreq] },
+					name: \ctlEnv, outName: \outbus,
+					connect: 0,
+					env: Env(#[900, 7500, 1700], #[1.5, 3], \sin)
+				)
+			];
+			~stopCleanup = { |auto|
+				// auto is true if the pattern's stream
+				// if(auto.not) { ~tlseq.stop };
+				~tlseq.stop;
+			};
+			~asPattern = {
+				Pn((delta: 0), 1)
+			};
+		} => PR(\bigA);
 
 	} {
 		AbstractChuckArray.defaultSubType = saveSubType;
