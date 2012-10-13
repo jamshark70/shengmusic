@@ -229,7 +229,5 @@ PR(\bigA) => BP(\bigA);
 )
 
 
-// drones -- but, \sd STILL didn't stop in the above
-BP(\sd).gst.postcs
-BP(\sd).reset;
-
+// drones, new notes
+// maybe add formlet chord e-f#-g

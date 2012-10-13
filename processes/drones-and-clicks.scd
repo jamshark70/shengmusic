@@ -237,6 +237,16 @@ forkIfNeeded {
 					\octave, 3,
 					\deg, Pseq(#[-3, 4, 10, 14, 15, 18], 1),
 					\amp, 0.07
+				),
+				eminTrans: Pbind(
+					\dur, Pwhite(0.8, 1.8, inf),
+					\sustain, 0.45,
+					\octave, 5,
+					\deg, \patRejectLastN.eval(Pindex(
+						#[1, 2, 3,  7,  -1,  5],
+						Pwhite(0, Pstutter(Pwhite(6, 9, inf), min(5, Pseries(2, 1, inf))), inf)
+					), 1),
+					\amp, 0.25
 				)
 			);
 
@@ -794,9 +804,13 @@ forkIfNeeded {
 					prepareBP: { |p|
 						~saveGst = p.gst;
 						p.setGstNow(Pn(\bigAChord, 1).trace);
-						p.gst.postcs;
+						p.reset;  // don't know why I need this, but it breaks without it
 					},
-					clearDoneSignal: { ~isRunning = false; BP(\sd).stopNow; BP(\sd).setGstNow(~saveGst) }
+					clearDoneSignal: {
+						~isRunning = false;
+						BP(\sd).stopNow;
+						(e { BP(\sd).setGstNow(~saveGst).debug("restored saved gesture") }).defer(0.1);
+					}
 				),
 				0.4,
 				pdefCmd: (name: \triAChord),
