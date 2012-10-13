@@ -970,31 +970,156 @@ PR(\transient_analysis_incr).listVars
 ~sbuf = Buffer.readAndQuery(s, thisProcess.nowExecutingPath.dirname.dirname +/+ "support/sheng1350023628.aiff", startFrame: 4227450);
 ~sbus = Bus.audio(s, 1);
 
-BP(\rec).free;
-PR(\transient_analysis_incr).chuck(BP(\rec), nil, (
-	numBufs: 5,
-	bufDur: 30,
-	recordActive: false,
-	audioThru: false,
-	// audioThruLevel: 0,
-	inputBusIndex: ~sbus.index
-));
+(
+Proto({
+	~alwaysReset = true;
+	~event = (eventKey: \dummy);
+	~quant = 0;
+	~initLevel = 0.75;
+	~prep = {
+		~chan = MixerChannel(~collIndex, s, 1, 2, ~initLevel, outbus: ~master, completionFunc: { |chan|
+			chan.newPostSend(~rvbmc, 0.6);
+		});
+		~def = ~makeSynthDef.();
+		currentEnvironment
+	};
+	~freeCleanup = { ~chan.free };
+	~makeSynthDef = {
+		SynthDef(\micIn, { |inbus, outbus, amp = 1, gate = 1|
+			Out.ar(outbus, In.ar(inbus, 1) * Linen.kr(gate, 0.05, 1, 0.05, doneAction: 2))
+		}).add;
+	};
+	~synthArgs = { [inbus: s.options.numOutputBusChannels, amp: 1] };
+	~stopCleanup = {
+		if(~node.notNil) {
+			~node.release;
+			~node = nil;
+		};
+	};
+	~asPattern = {
+		Pseq([
+			Pfuncn({ |ev|
+				if(~node.isNil) {
+					~node = ~chan.play(~def.name, ~synthArgs.());
+				};
+				ev.put(\delta, 1)
+			}, 1),
+			Pn((delta: 8), inf)
+		])
+	};
+}) => PR(\micIn);
+)
+
+BP(\mic).free;
+PR(\micIn).chuck(BP(\mic), nil, (master: ~master, rvbmc: ~rvbmc));
+0 => BP(\mic);
+
+
+
+(
+if(BP.exists(\mic)) {
+	BP(\rec).free;
+	PR(\transient_analysis_incr).chuck(BP(\rec), nil, (
+		userprep: {
+			// pipe mic input to me
+			// this also establishes the right order of execution
+			~micSend = BP(\mic).chan.newPostSend(~chan, 1);
+			~chan.level = 0;  // mute my channel, but processing continues internally
+		},
+		userFree: { ~micSend.free },
+		numBufs: 5,
+		bufDur: 30,
+		recordActive: false,
+		audioThru: false,
+		// audioThruLevel: 0,
+		inputBusIndex: 8, // ~sbus.index,
+		inputParms: [hardgate: -60.dbamp],
+		minPeak: -35.dbamp,
+		makeFeatureDetector: {
+			SynthDef(\pv_onsets, { |outbus, fftbuf, bufnum, t_trig, faststop = 0,
+				threshold = 0.267, waittime = 0.15116279069767,
+				i_fftwait = 0.05|  // can't do fft analysis until the whole frame is recorded
+
+				var	pc = PulseCount.kr(t_trig),
+				start = BinaryOpUGen.new1(\control, '==', pc, 1),
+				stop = BinaryOpUGen.new1(\control, '==', pc, 2),
+				started = (pc > 0),
+				sig = In.ar(outbus, 1),
+				fft = FFT(fftbuf, sig),
+				dur = Phasor.ar(start, SampleDur.ir, 0, 1000),
+				onsettrig;
+
+				// event onset
+				onsettrig = Onsets.kr(fft, threshold, \wphase);
+				// delayed to allow entire client fft frame to be recorded before analysis
+				// BufDur.kr(fftbuf) * 0.5 is a correction for PV_Jensen's trigger lag
+				SendTrig.kr(DelayN.kr(onsettrig, i_fftwait, i_fftwait), 32,
+					dur - i_fftwait - (BufDur.kr(fftbuf) * 0.5));
+
+				stop = stop + (started * A2K.kr(dur > BufDur.ir(bufnum))) + faststop;
+				FreeSelf.kr(stop);
+			});
+		},
+		buffers: { ~bufs.select { |buf| buf.status == \ready }.collect(_.buf) },
+		times: { ~bufs.select { |buf| buf.status == \ready }.collect(_.ontimes) }
+	));
+} {
+	"BP(\\mic) doesn't exist".warn;
+};
+)
 
 BP(\rec).listVars
 
 BP(\rec).startRecord(true);
 
 BP(\rec).minPeak = -35.dbamp;
-PeakMonitor(~sbus)
+PeakMonitor(~sbus);
+PeakMonitor(8);
+
+"xdg-open '%'".format(thisProcess.nowExecutingPath.dirname.dirname +/+ "support").unixCmd;
+
+~sresp.remove;
+~sresp = Updater(BP(\rec), e { |obj, what ... args|
+	[what, args].debug("BP(\\rec) responder");
+	switch(what)
+	{ \bufReady } { ~ssyn.free }
+	{ \free } { ~sresp.remove }
+});
+
+~tresp.free;
+~tresp = OSCFunc({ |msg| msg.postln }, '/tr', s.addr, argTemplate: [nil, 32]);
 
 (
 BP(\rec).sendTrigger;
-~ssyn = { PlayBuf.ar(1, ~sbuf, loop: 0, doneAction: 2) }.play(target: s.asTarget, outbus: ~sbus, addAction: \addToHead);
+// ~ssyn = { PlayBuf.ar(1, ~sbuf, loop: 0, doneAction: 2) }.play(target: s.asTarget, outbus: ~sbus, addAction: \addToHead);
+// ~sresp = SimpleController(BP(\rec)).put(\bufReady, { ~ssyn.free; ~sresp.remove });
 )
+
+BP(\rec).recNode.trace;
 
 ~ssyn.free;
 
 ~ssyn = { PlayBuf.ar(1, ~sbuf, loop: 0, doneAction: 2) ! 2 }.play(target: s.asTarget, outbus: 0, addAction: \addToHead);
+
+
+g = GenericGlobalControl(\thresh, nil, 0.5); g => VP(0);
+
+~ssyn = {
+	var sig = PlayBuf.ar(1, ~sbuf, loop: 0, doneAction: 2),
+	fft = FFT(LocalBuf(256, 1), sig),
+	trig = Onsets.kr(fft, g.kr, \wphase),
+	time = Sweep.kr(0, 1);
+	time.poll(trig);
+	sig ! 2
+}.play(target: s.asTarget, outbus: 0, addAction: \addToHead);
+
+
+~ssyn.free;
+
+~sbuf.getToFloatArray(0, 37000, -1, action: { |data| d = data.postln });
+
+d.abs.maxItem;
+d.plot(minval: -0.1, maxval: 0.1);
 
 BP(\rec).play(0);
 

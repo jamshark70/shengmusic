@@ -760,7 +760,8 @@ forkIfNeeded {
 		// hacking, don't want to make a BP just for one simple gesture
 		Pdef(\triAChord, Pbind(
 			\type, \voicerNote,
-			\voicer, VC(\slowTri).v,
+			// lazy init: this VC doesn't exist yet
+			\voicer, Plazy({ Pn(VC(\slowTri).v, inf) }),
 			\args, #[],
 			\holdtime, 1000,
 			\dur, Pwhite(0.1, 0.4, inf),

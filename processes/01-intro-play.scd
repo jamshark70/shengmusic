@@ -24,6 +24,11 @@ s.addr = ~saveAddr;
 VC.freeType(\sheng);
 BP.freeType(\sheng);
 
+
+BP(\mic).free; PR(\micIn).chuck(BP(\mic), nil, (master: ~master, rvbmc: ~rvbmc));
+BP(\mic) => MT(1);
+
+
 (
 // drones
 BP(\sd).free;
@@ -153,12 +158,17 @@ BP(\susCh).triggerOneEvent(0);
 
 
 (
+Fact(\recBP) => BP(\rec);
+
 BP(\dc).free;
-PR(\decimator).chuck(BP(\dc), nil, (master: ~master, rvbmc: ~rvbmc));
+PR(\decimator).chuck(BP(\dc), nil, (
+	master: ~master, rvbmc: ~rvbmc, bufRecorder: \rec,
+	startCenter: Pfunc({ |ev| ~bufTimes[ev[\bufindex]].choose * s.sampleRate + 1500 })
+));
 0 => BP(\dc);
 
-BP(\dc).startWidth = Pwhite(2000, 8000, inf);
-BP(\dc).startCenter = (948088 + Pwhite(-40000, 40000, inf));
+// BP(\dc).startWidth = Pwhite(2000, 8000, inf);
+// BP(\dc).startCenter = (948088 + Pwhite(-40000, 40000, inf));
 
 PR(\decimatorDriver) => BP(\dcdr);
 BP(\dcdr) => MT(1);
@@ -207,30 +217,6 @@ Pn(13, 1) =>.macro BP(\lowCh);
 )
 
 
-(
-if(t.isPlaying) { t.stop };
-t = TLSequenceIterator([
-	bpCmd: (name: \sd,
-		prepareBP: { |p|
-			~saveGst = p.gst;
-			p.setGstNow(Pn(\bigAChord, 1).trace);
-			p.gst.postcs;
-		},
-		clearDoneSignal: { ~isRunning = false; BP(\sd).stopNow; BP(\sd).setGstNow(~saveGst) }
-	),
-	0.4,
-	pdefCmd: (name: \triAChord),
-	gcAutoSynthCmd: (
-		gc: VC(\slowTri).globalControls[\lpfreq],
-		name: \ctlEnv, outName: \outbus,
-		connect: 0,
-		env: Env(#[900, 7500, 1700], #[1.5, 3], \sin)
-	),
-	\sync,
-	{ "seq done".postln; 0 }
-]).play;
-)
-
 
 
 // mm65-67?
@@ -241,4 +227,9 @@ Fact(\triVC).chuck(VC(\slowTri), nil, (env: Env.adsr(0.8, 1.2, 0.4, 2.4, curve: 
 BP(\bigA).free;
 PR(\bigA) => BP(\bigA);
 )
+
+
+// drones -- but, \sd STILL didn't stop in the above
+BP(\sd).gst.postcs
+BP(\sd).reset;
 
