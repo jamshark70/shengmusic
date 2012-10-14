@@ -1288,5 +1288,81 @@ forkIfNeeded {
 			BP(name)
 		} => Func(\makeSusChBP);
 
+
+		PR(\abstractProcess).clone {
+			~event = (eventKey: \polySynthBusLock);
+
+			~bindVoicer = { |vc|
+				~event[\chan] = vc.asMixer;
+				~event[\instrument] = vc.nodes[0].defname;
+				~noisefreq = VC(\nlet).globalControls[\noisefreq].asMap;
+				~def = ~makeFxDef.();
+				currentEnvironment
+			};
+
+			~makeFxDef = {
+				// not the usual In --> ReplaceOut fx
+				// buslock requires reading from a private bus and writing to the mixer's bus
+				SynthDef(\fxRetrig, { |inbus, outbus, gate = 1, time = 1|
+					var sig = In.ar(inbus, 2),
+					tfreqEnv = NamedControl.kr(\tfreqEnv, Env(#[4, 4], #[1]).asArray.extend(32, 0)),
+					tfreq = EnvGen.kr(tfreqEnv, timeScale: time),
+					trig = Impulse.ar(tfreq),
+					ampEnv = NamedControl.kr(\ampEnv, Env.perc(0.2, 0.8).asArray.extend(32, 0)),
+					ampEg = EnvGen.ar(ampEnv, trig, timeScale: tfreq.reciprocal),
+					wetEg = Linen.kr(gate, 0.05, 2, 0.2, doneAction: 2);
+					Out.ar(outbus, XFade2.ar(sig, sig * ampEg, wetEg - 1));
+				}).add;
+			};
+
+			// ~freq = (#[64, 66, 67] + 12).midicps;
+			~pitchWidth = Env(#[0, 1], #[30], 2.5);
+			~pitchSize = Env(#[1, 3], #[30], 3);
+			~freq = (\patRejectLastN.eval(Pn(Pshuf(#[76, 78, 79], 1), inf), 1).clump(Pkey(\pitchSize))
+				+ ((Pwhite(-0.7, 1.0, inf) * Pkey(\pitchWidth)).round * 12).clump(Pkey(\pitchSize))
+			);
+			~noisebuf = Prand(BP(\shengShared).noiseBufs, inf);
+			~noisefreq = 60;  // sounds like arse but binding the voicer fixes it
+			~sustain = Pwhite(6.0, 12.0, inf);
+			~delta = Pkey(\sustain) * Pwhite(0.3, 0.8, inf);
+			~filtAttack = 0.05;
+			~amp = 0.1;
+			~pan = Pwhite(0.7, 1.0, inf) * Pseq(#[-1, 1], inf, { 2.rand });
+			~tfreqStart = Pwhite(2.5, 4.2, inf);
+			~tfreqRatio = Pwhite(0.1, 0.4, inf);
+			~tfreqEnv = Pfunc({ |ev|
+				var start, ratio;
+				if(~tfreqStartStream.isNil) { ~makeStreamForKey.(\tfreqStart) };
+				if(~tfreqRatioStream.isNil) { ~makeStreamForKey.(\tfreqRatio) };
+				start = ~tfreqStartStream.next(ev);
+				ratio = ~tfreqRatioStream.next(ev);
+				[Env([1, rrand(1.7, 2.9), rrand(0.75, 1)] * start, [ratio, 1 - ratio], \exp)]
+			});
+
+			~asPattern = {
+				Pbind(
+					\pitchWidth, BPStream(\pitchWidth, resetSource: true),
+					\pitchSize, BPStream(\pitchSize, resetSource: true).collect(_.asInteger),
+					\freq, BPStream(\freq).midicps,
+					\noisebuf, BPStream(\noisebuf),
+					\noisefreq, BPStream(\noisefreq),
+					\sustain, BPStream(\sustain),
+					\delta, BPStream(\delta),
+					\filtAttack, BPStream(\filtAttack),
+					\amp, BPStream(\amp),
+					\pan, BPStream(\pan),
+					\lpcEv, Pbind(
+						\instrument, ~def.name,
+						\killNode, true,
+						\time, Pkey(\sustain) / Ptempo(),
+						// shouldn't free itself;
+						// the buslock will kill this node when its sources are silent
+						\sustain, inf,
+						\tfreqEnv, BPStream(\tfreqEnv)
+					)
+				)
+			};
+		} => PR(\e_fs_g);
+
 	} { AbstractChuckArray.defaultSubType = saveSubtype };
 };

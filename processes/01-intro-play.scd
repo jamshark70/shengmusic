@@ -231,3 +231,23 @@ PR(\bigA) => BP(\bigA);
 
 // drones, new notes
 // maybe add formlet chord e-f#-g
+
+VC(\nlet).nodes[0].initArgs
+VC(\nlet).nodes[0].defname
+
+
+(
+BP(\efg).free;
+PR(\e_fs_g) => BP(\efg);
+VC(\nlet) => BP(\efg);
+0 => BP(\efg);
+)
+
+BP(#[sd, efg]).do(_.reset);
+BP(\sd).setGstNow(\eminTrans);
+BP(\sd).gestureStream.hash;
+
+// play efg and sd together
+
+// change this -- need something rhythmic
+BP(\sd).setGstNow(Pseq(#[longPauses, da, longPauses], inf));

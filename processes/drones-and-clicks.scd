@@ -239,12 +239,17 @@ forkIfNeeded {
 					\amp, 0.07
 				),
 				eminTrans: Pbind(
-					\dur, Pwhite(0.8, 1.8, inf),
+					\dur, Pbeta(0.8, 1.8, 0.5, 0.5, inf),
 					\sustain, 0.45,
 					\octave, 5,
 					\deg, \patRejectLastN.eval(Pindex(
 						#[1, 2, 3,  7,  -1,  5],
-						Pwhite(0, Pstutter(Pwhite(6, 9, inf), min(5, Pseries(2, 1, inf))), inf)
+						// plazy around Env().asStream is necessary
+						// otherwise the envelope's stream never resets
+						Pwhite(0,
+							Plazy({ Env(#[0, 3], #[30], 2.4).asStream }).collect { |upper| upper.asInteger + 2 },
+							inf
+						)
 					), 1),
 					\amp, 0.25
 				)
