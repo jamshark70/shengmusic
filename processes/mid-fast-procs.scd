@@ -724,5 +724,58 @@ forkIfNeeded {
 			}
 		} => PR(\gridClicks);
 
+		(
+			keys: #[master, rvbmc],
+			make: { |name|
+				BP(name).free;
+				PR(\shengDrone).chuck(BP(name), nil, (
+					master: ~master,
+					rvbmc: ~rvbmc,
+					envel: [Env.adsr(0.05, 0.1, 0.3, 2)],
+					// I don't need the other gestures here, I think
+					// so completely overwrite the gestures dictionary
+					rhythm8: Pseq([1, Pn(0.5, { rrand(2, 7) })], 1),
+					rhythm16: Pseq([1, Pconst({ rrand(2, 7) * 0.5 }, Prand([0.5, Pn(0.25, 2)], inf))], 1),
+					triadSteps: Pseries({ rrand(1, 2) }, Pwhite(1, 2, inf), inf),
+					gestures: (
+						d8: Pbind(
+							\dur, Plazy({ ~rhythm8 }),
+							\sustain, 0.1,
+							\octave, 5,
+							\deg, 0,
+							\amp, 0.1
+						),
+						d16: Pbind(
+							\dur, Plazy({ ~rhythm16 }),
+							\sustain, 0.1,
+							\octave, 5,
+							\deg, 0,
+							\amp, 0.1
+						),
+						// this one is really nice
+						triad8: Pbind(
+							\dur, Pseq([1, Pn(0.5, { rrand(2, 7) })], inf),
+							\sustain, 0.1,
+							\octave, 5,
+							\deg, Ptuple([
+								0,
+								// notes should move separately
+								Pstutter(Pwhite(1, 3, inf), Plazy({ ~triadSteps }).neg),
+								Pstutter(Pwhite(1, 3, inf),
+									Pwhile1({ |ev, next| next <= 8 }, Plazy({ ~triadSteps }))
+								)
+							]),
+							\amp, 0.1
+						)
+					)
+				));
+				1 => BP(name);
+				BP(name) => MT(1);
+				BP(name).setGstNow(\d8);
+				BP(name)
+			},
+			type: \bp
+		) => Fact(\sd8BP);
+
 	} { AbstractChuckArray.defaultSubType = saveSubtype };
 };

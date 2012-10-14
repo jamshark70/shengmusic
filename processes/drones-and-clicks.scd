@@ -54,9 +54,10 @@ forkIfNeeded {
 		PR(\abstractProcess).clone {
 			~event = (eventKey: \default);
 			~requiredKeys = #[sharedReady];
+			~initLevel = -9.dbamp;
 			~prep = {
 				~chan = MixerChannel(~collIndex, s, 2, 2,
-					level: 0.75,
+					level: ~initLevel,
 					outbus: ~master ? topEnvironment[\master],
 					completionFunc: { |chan|
 						chan.newPostSend(~rvbmc ? topEnvironment[\rvbmc], -4.75.dbamp);
@@ -276,8 +277,8 @@ forkIfNeeded {
 			~pan = Pwhite(0.7, 1.0, inf) * Pseq(#[-1, 1], inf, { 2.rand });
 			~sustainAmp = 0.6;
 			~desiredSusAmp = 0.6;
-			// ~env = [Env.adsr(0.5, 0.6, 0.6, 4, curve: #[2, -1, -4])];
-			~env = Pfunc({ |ev|
+			// ~envel = [Env.adsr(0.5, 0.6, 0.6, 4, curve: #[2, -1, -4])];
+			~envel = Pfunc({ |ev|
 				[Env.adsr(
 					0.5, 0.6, ev[\sustainAmp], 4,
 					peakLevel: ev[\desiredSusAmp] / ev[\sustainAmp],
@@ -310,7 +311,7 @@ forkIfNeeded {
 							\pan, BPStream(\pan),
 							\sustainAmp, BPStream(\sustainAmp),
 							\desiredSusAmp, BPStream(\desiredSusAmp),
-							\env, BPStream(\env),
+							\env, BPStream(\envel),
 							\excamp, BPStream(\excamp) * Pkey(\ampFactor),
 							\amp, BPStream(\amp)
 						)
@@ -320,15 +321,22 @@ forkIfNeeded {
 			};
 
 			// I cannot BELIEVE this actually worked the first time!
-			~nextEventNow = {
+			~nextEventNow = { |quant|
 				var oldPlayer, newPlayer;
-				if(~isPlaying) {
-					oldPlayer = ~eventStreamPlayer;
-					// make a new stream player, fix dependants etc.
-					newPlayer = BP(~collIndex).asEventStreamPlayer;
-					~clock.sched(0, newPlayer.refresh);
-					// this doesn't kill the BP because the old dependency is already broken
-					oldPlayer.stop;
+				var doIt = {
+					if(~isPlaying) {
+						oldPlayer = ~eventStreamPlayer;
+						// make a new stream player, fix dependants etc.
+						newPlayer = BP(~collIndex).asEventStreamPlayer;
+						~clock.sched(0, newPlayer.refresh);
+						// this doesn't kill the BP because the old dependency is already broken
+						oldPlayer.stop;
+					};
+				};
+				if(quant.isNil) {
+					doIt.value
+				} {
+					doIt.fork(~clock, quant);
 				};
 				currentEnvironment
 			};
@@ -339,10 +347,10 @@ forkIfNeeded {
 				currentEnvironment
 			};
 
-			~setGstNow = { |gstPat|
+			~setGstNow = { |gstPat, quant|
 				~gst = gstPat;
 				~makeStreamForKey.(\gesture);  // start 'gesture' fresh with the new choice
-				~nextEventNow.();              // go immediately
+				~nextEventNow.(quant);         // go immediately
 				currentEnvironment
 			};
 		} => PR(\shengDrone);

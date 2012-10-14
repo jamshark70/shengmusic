@@ -230,12 +230,6 @@ PR(\bigA) => BP(\bigA);
 
 
 // drones, new notes
-// maybe add formlet chord e-f#-g
-
-VC(\nlet).nodes[0].initArgs
-VC(\nlet).nodes[0].defname
-
-
 (
 BP(\efg).free;
 PR(\e_fs_g) => BP(\efg);
@@ -245,9 +239,27 @@ VC(\nlet) => BP(\efg);
 
 BP(#[sd, efg]).do(_.reset);
 BP(\sd).setGstNow(\eminTrans);
-BP(\sd).gestureStream.hash;
 
 // play efg and sd together
 
-// change this -- need something rhythmic
-BP(\sd).setGstNow(Pseq(#[longPauses, da, longPauses], inf));
+
+
+// introduce rhythm: play this, fade out sd
+(
+BP(\sd8).free;
+Fact(\sd8BP) => BP(\sd8);
+)
+
+BP(\sd8).setGstNow(\d16, 1);
+
+BP(\sd8).setGstNow(Pseq([Pn(\d8, { rrand(1, 3) }), \triad8], inf), 1);
+
+// m97: G#
+
+// rhythmic clicks
+(
+BP(\gcl).free;
+PR(\gridClicks).chuck(BP(\gcl), nil, (master: ~master));
+1 => BP(\gcl);
+)
+
