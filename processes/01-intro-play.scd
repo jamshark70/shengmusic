@@ -263,3 +263,12 @@ PR(\gridClicks).chuck(BP(\gcl), nil, (master: ~master));
 1 => BP(\gcl);
 )
 
+
+// existing procs:
+// Fact('oscilBP'), Fact('flzgBP'), Fact('slowMelBP'), Fact('rpt16BP'), Fact('sd8BP')
+// PR('gridClicks'), PR('fastlow')
+// Voicer: Fact('madfmVC')
+//
+// Fact.all.select { |fact| fact.path.containsi("mid-fast") };
+// PR.all.select { |fact| fact.path.containsi("mid-fast") };
+// Func.all.select { |fact| fact.path.notNil and: { fact.path.containsi("mid-fast") } };

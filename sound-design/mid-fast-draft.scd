@@ -1499,3 +1499,51 @@ p.freqEnv = { Env([1, rrand(-8, -4).midiratio], [~latestPhraseDur], 3) };
 
 p.waitTime = nil;  // stop after last gesture; stopCleanup automatically restores waitTime
 
+
+
+// did I do anything with that fmbass? I think no
+// VC(\fmb).free;
+
+// MonoPortaVoicer owns 'freqlag' argument name
+WrapInstr("osc2.fm1ramp", { |freq, freqRampTime, gate = 1, car_env|
+	WrapInstr.wrap("osc2.fm1", [
+		Ramp.kr(freq, freqRampTime), gate,
+		car_env.dereference.value(gate)
+	])
+}, [\freq, \unipolar, \unipolar, ObjectSpec(Env.adsr(0.1, 0.2, 0.6, 0.12))]);
+
+(
+VC(\qb).free;
+Fact(\fmbass).chuck(VC(\qb), nil, (
+	// car_env: Env.adsr(0.1, 0.2, 0.6, 0.12),
+	car_env: `{ |gate|
+		gate = Latch.kr(gate, gate);
+		Env.adsr(
+			gate.linlin(0, 1, 1, 0.05),
+			gate.linlin(0, 1, 1.6, 0.15),
+			0.6, 0.8
+		)
+	},
+	instr: "osc2.fm1ramp"
+));
+)
+
+k.free;
+k = VoicerMIDISocket(0, VC(\qb).v);
+
+k.noteOnArgsPat = Pbind(\freqRampTime, Pkey(\velocity).linlin(0, 127, 0.4, 0.1));
+
+s.nodeAllocator.inspect;
+
+VC(\qb).env[\free] = { [~target, ~highEndToRvb, ~cb, ~mb].free };
+
+PeakMonitor(VC(\qb).env.highEndToRvb)
+
+VC(\qb).env.highEndToRvb.inbus
+BusDict
+
+VC(\qb).env.highEndToRvb => MCG(2)
+
+VC(\qb).env.highEndToRvb.level = 1;
+
+VC(\qb).env.target.postSettings

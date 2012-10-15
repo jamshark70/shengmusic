@@ -8,14 +8,17 @@ protect {
 	};
 
 	(
-		keys: #[master],
+		keys: #[master, rvbmc],
 		instr: "osc2.fm1porta",
 		car_env: nil,
 		mod_env: Env.adsr(0.01, 0.14, 1/3, 3, 3),
+		initLevel: 0.44,
 		make: { |name|
 			var args, out;
-			~target = MixerChannel(name, s, 1, 2, /*level: ,*/ outbus: ~master, completionFunc: { |chan|
+			~highEndToRvb = MixerChannel((name ++ "Rvb").asSymbol, s, 2, 2, level: 1, outbus: ~rvbmc);
+			~target = MixerChannel(name, s, 1, 2, level: ~initLevel, outbus: ~master, completionFunc: { |chan|
 				~chorus = chan.playfx(Instr("busfx.chorus2band2"), [0, 1, 3, 0.019929544097472, 0.10529309760794, 0.010555364844924, 0.84697339184144, 189.85848040307, 0.5]);
+				chan.newPostSend(~highEndToRvb, 0.834);
 			});
 			~cb = Buffer.alloc(s, 2048, 1, completionMessage: { |buf|
 				buf.sine1Msg(#[1]);
@@ -31,10 +34,16 @@ protect {
 			if(~car_env.notNil) { args = args ++ [car_env: ~car_env] };
 			out = MonoPortaVoicer(1, WrapInstr(~instr), args, target: ~target);
 			out.mapGlobal(\mod_lev, nil, 1.8, #[0.01, 8, \exponential]);
+			// out.mapGlobal(\rvbffreq, nil, 1200, \freq);
 			out.portaTime = 0.3;
+			~highEndToRvb.doWhenReady { |chan|
+				chan.playfx({ |outbus, hpfreq = 500|
+					HPF.ar(In.ar(outbus, 2), hpfreq)
+				}, [hpfreq: 650 /*out.globalControls[\rvbffreq].asMap*/]);
+			};
 			out
 		},
-		free: { [~target, ~cb, ~mb].free },
+		free: { [~target, ~highEndToRvb, ~cb, ~mb].free },
 		type: \voicer) => Fact(\fmbass);
 
 
