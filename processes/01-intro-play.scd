@@ -272,3 +272,22 @@ PR(\gridClicks).chuck(BP(\gcl), nil, (master: ~master));
 // Fact.all.select { |fact| fact.path.containsi("mid-fast") };
 // PR.all.select { |fact| fact.path.containsi("mid-fast") };
 // Func.all.select { |fact| fact.path.notNil and: { fact.path.containsi("mid-fast") } };
+
+(
+\makeOnePizzVC.eval;  //??
+// Fact(\triVC) => VC(\tri);
+Fact(\madfmVC) => VC(\fm);
+\makeflzgVC.eval(\flzg);
+
+VC(\tri).v.set([lpfreq: 3000]);
+VC(\flzg).v.set([lpfreq: 2540]);
+
+Fact(\rpt16BP) => BP(\rp);
+)
+
+MacRh(\rpt16syncop) => BP(\rp);
+
+MacRh(\rpt16syncop2) => BP(\rp);
+
+// f*** up the harmony *evil grin*
+BP(\rp).topNote.mode = Pxrand(Mode.keys.asArray.select { |key| key.asString.last == $0 }, inf);

@@ -84,7 +84,7 @@ forkIfNeeded {
 
 		// most args are left unset - be careful
 		(	keys: #[master, rvbmc],
-			initLevel: 0.75,
+			initLevel: -14.dbamp,
 			makeBufs: {
 				~bufs = Buffer.allocConsecutive(8, s, 2048, 1, { |buf, i|
 					var amps;
@@ -99,7 +99,9 @@ forkIfNeeded {
 			defaultCarrierBuf: { ~bufs.first.bufnum },
 			defaultModBuf: { ~bufs.first.bufnum },
 			make: { |name|
-				~target = MixerChannel(name, s, 2, 2, ~initLevel, outbus: ~master, completionFunc: nil);
+				~target = MixerChannel(name, s, 2, 2, ~initLevel, outbus: ~master, completionFunc: { |chan|
+					chan.newPostSend(~rvbmc, -8.6.dbamp);
+				});
 				~makeBufs.();
 
 				Voicer(15, WrapInstr("osc2.fm_monster"), [
@@ -385,10 +387,25 @@ forkIfNeeded {
 
 
 		// repeating 16ths
-		Pwhite(5, 11) * 0.25 => MacRh(\rpt16);
+		Pwrand((1..5), #[0.5, 3, 3, 2, 1.5].normalizeSum, inf) => MacRh(\rpt16);
+		Pwhite(5, 11) * 0.25 => MacRh(\rpt16syncop);
+		Pseq([
+			Pwhite(5, 11, { rrand(5, 11) }) * 0.25,
+			Pwrand([
+				Pseq(#[0.5, 0.75, 0.75, 1], 1),
+				Pseq([0.75, 0.5, 0.75, Prand(#[1, 2], 1)], 1),
+				Pseq(#[0.25, 0.25, 0.25, 0.5, 0.75], 1)
+			], #[3, 3, 1].normalizeSum, 1)
+		], inf) => MacRh(\rpt16syncop2);
 
 		{ |notes, inEvent|
-			Pseq([notes.asChord, Pn(inEvent[\top][\repeatNotes] ?? { 62.mapMode(inEvent[\mode]) }, inf)], 1)
+			Pseq([
+				notes.asChord,
+				Pn(inEvent[\top][\repeatNotes] ?? { 62.mapMode(inEvent[\mode]) }, inf).collect { |notes, ev|
+					if((BP(inEvent[\collIndex])[\rptProb] ? 1).coin.not) { ev[\isRest] = true };
+					notes
+				}
+			], 1)
 		} => ArpegPat(\rpt16);
 
 		Ptuple([0.25, Pseq([Pwhite(0.2, 0.33, 1), Pn(0.08, inf)], 1), 0.5]) => MicRh(\rpt16);
@@ -496,10 +513,25 @@ forkIfNeeded {
 				];
 				// #1 and #3 repeat the same basic voicer
 				// so cut their probabilities in half
-				p.child.argPairs = [vckey: Plazy({ ~gestures.wchoose(#[0.33333333333333, 0.16666666666667, 0.33333333333333, 0.16666666666667]) })];
+				// p.child.argPairs = [vckey: Plazy({ ~gestures.wchoose(#[0.33333333333333, 0.16666666666667, 0.33333333333333, 0.16666666666667]) })];
+
+				p.child.argPairs = { |ev|
+					[vckey: ~gestures.wchoose(
+						if(ev.delta > 1) {
+							#[0.33333333333333, 0.16666666666667, 0.33333333333333, 0.16666666666667]
+						} {
+							// use only the hard-attack sounds for short arpeg durations
+							#[0.5, 0, 0.5, 0]
+						}
+					)]
+				};
 
 				p.child.makeChordPattern = { Pxrand(~chords, inf) };
 				p.child.fitFunc = \chordFitNotes;
+
+				p.rptProb = GenericGlobalControl(\rptProb, nil, 0);
+				p.useGui = { |vpi| ~rptProb => VP(vpi) };
+				p.userfree = { ~rptProb.free };
 
 				1 => p;
 

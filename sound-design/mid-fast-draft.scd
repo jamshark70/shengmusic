@@ -933,14 +933,76 @@ Fact(\madfmVC) => VC(\fm);
 
 VC(#[onePizz, tri, fm, flzg]).do { |vc, i| vc => MCG(i+2) };
 
+VC(\tri).v.set([lpfreq: 3000]);
+VC(\flzg).v.set([lpfreq: 2540]);
+
+
 Fact(\rpt16BP) => BP(\rp);
 
+// Pwrand((1..5), #[0.5, 3, 3, 2, 1.5].normalizeSum, inf) =>.macro BP(\rp);
+
+MacRh(\rpt16syncop) => BP(\rp);
+
+Pseq([
+	Pwhite(5, 11, { rrand(5, 11) }) * 0.25,
+	Pwrand([
+		Pseq(#[0.5, 0.75, 0.75, 1], 1),
+		Pseq([0.75, 0.5, 0.75, Prand(#[1, 2], 1)], 1),
+		Pseq(#[0.25, 0.25, 0.25, 0.5, 0.75], 1)
+	], #[3, 3, 1].normalizeSum, 1)
+], inf) =>.macro p;
+
+p.child.gestures.postcs
+
+p.child.argPairs = { |ev|
+	[vckey: Plazy({
+		~gestures.wchoose(
+			if(ev.delta > 1) {
+				#[0.33333333333333, 0.16666666666667, 0.33333333333333, 0.16666666666667]
+			} {
+				#[0.5, 0, 0.5, 0]
+			}
+		)
+	})]
+};
+
+
 p = BP(\rp);
+
+p.rptProb = GenericGlobalControl(\rptProb, nil, 1); p.rptProb => VP(2);
+
+{ |notes, inEvent|
+	Pseq([
+		notes.asChord,
+		Pn(inEvent[\top][\repeatNotes] ?? { 62.mapMode(inEvent[\mode]) }, inf).collect { |notes, ev|
+			if(BP(inEvent[\collIndex]).rptProb.coin.not) { ev[\isRest] = true };
+			notes
+		}
+	], 1)
+} => ArpegPat(\rpt16prob);
+
+
+
+\rpt16prob =>.arpeg p;
+\rpt16 =>.arpeg p;
+
+p.child.event
+
+x = ArpegPat(\rpt16prob).asPattern([SequenceNote(#[0, 2, 4], 1, 1, 1)], (top: (repeatNotes: #[0, 1], mode: \d), mode: \d));
+x.postcs
+y = Pbind(\x, x).asStream;
+y.next(());
+
 
 p.topNote.mode = Pxrand(Mode.keys.asArray.select { |key| key.asString.last == $0 }, inf);
 
 // #1 and #3 repeat the same basic voicer
 p.child.argPairs = [vckey: Plazy({ ~gestures.wchoose(#[0.33333333333333, 0.16666666666667, 0.33333333333333, 0.16666666666667]) })];
+
+p.child.argPairs = [vckey: \fm];
+
+x = Pseq(#[fm, tri, onePizz, flzg], inf).asStream;
+p.child.argPairs = [vckey: Plazy({ x.next.loop })];
 
 p.child.argPairs = [vckey: Plazy({ ~gestures[2] })];
 
