@@ -283,6 +283,7 @@ VC(\tri).v.set([lpfreq: 3000]);
 VC(\flzg).v.set([lpfreq: 2540]);
 
 Fact(\rpt16BP) => BP(\rp);
+BP(\rp).leadTime = 0.01;
 )
 
 MacRh(\rpt16syncop) => BP(\rp);
@@ -293,5 +294,4 @@ MacRh(\rpt16syncop2) => BP(\rp);
 BP(\rp).topNote.mode = Pxrand(Mode.keys.asArray.select { |key| key.asString.last == $0 }, inf);
 
 
-BP(\rp).leadTime = 0.01;
 

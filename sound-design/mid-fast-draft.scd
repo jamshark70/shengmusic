@@ -1622,25 +1622,37 @@ PR(\abstractProcess).clone {
 	~mode = \d;
 	~degree = Pseries(
 		{ rrand(21, 28) },
-		Pstutter(Pwhite(1, 4, inf), Pwhite(1, 4, inf)) * Pseq(#[-1, 1], inf, { 2.rand }),
+		Pstutter(Pwhite(1, 2, inf), Pwhite(1, 4, inf)) * Pseq(#[-1, 1], inf, { 2.rand }),
 		inf
 	);
 	~dur = Pconst(
-		{ BP(~bp).lastEvent.delta },
-		Pseq([Pwhite(3, 5, 1) * 0.25, Pwrand(#[0.25, 0.5, 0.75], #[0.6, 0.3, 0.1], inf)], 1)
+		{ |ev| ev[\parentDur] },
+		Pseq([Pwhite(3, 5, 1) * 0.25, Pwrand(#[0.25, 0.5, 0.75], #[0.1, 0.45, 0.45], inf)], 1)
 	);
-	~length = Pkey(\dur) * 0.99;
-	// ~dur = Pfunc({ BP(~bp).lastEvent.delta });
-	// ~length = Pkey(\dur) * 0.99;
+	~length = Prout { |ev|
+		// - 0.001 -- build in a threshold to avoid FP rounding error
+		var stopTime = (thisThread.clock.beats + ev[\parentDur]) - 0.001;
+		while {
+			(thisThread.beats + ev.delta) < stopTime
+		} {
+			ev = (ev[\dur] * 1.01).yield;
+		};
+		0.1.yield;
+	};
+	~freqRampTime = Pwhite(0.15, 0.4, inf);
 	~gate = 0.7;
+	~parentDur = Pfunc({ BP(~bp).lastEvent.delta });
 
 	~asPattern = {
+		if(~parentDurStream.isNil) { ~makeStreamForKey.(\parentDur) };
 		PnNilSafe(
 			Pbind(
+				\parentDur, Plazy({ |ev| ~parentDurStream.next(ev).loop }),
 				\mode, BPStream(\mode),
 				\freq, Plazy({ ~degree }),
 				\dur, Plazy({ ~dur }),
 				\length, Plazy({ ~length }),
+				\freqRampTime, BPStream(\freqRampTime) / Ptempo(),
 				\gate, BPStream(\gate)
 			),
 			inf
@@ -1656,29 +1668,51 @@ BP(\sbs) => MT(1);
 
 p = BP(\sbs);
 
+p.parentDur = MacRh(\rpt16).asPattern;
+
 BP(\sbs).reset;
 BP(\sbs).play(AbsoluteTimeSpec(BP(\rp).eventStreamPlayer.nextBeat.roundUp));
 
 BP(\rp).v[\lastEvent]
 
-p.dur = Pfunc({ BP(~bp).lastEvent.delta });
+p.parentDur = Pfunc({ BP(~bp).lastEvent.delta });
+
+p.startDegree = \patRejectLastN.eval(Pseries({ rrand(21, 28) }, Pwhite(1, 4, inf) * Pseq(#[-1, 1], inf, { 2.rand }), inf).fold(21, 28), 1);
+
+p.degree = Pseries(
+	{ |ev| ~startDegreeStream.next(ev) },
+	Pstutter(Pwhite(1, 2, inf), Pwhite(1, 4, inf)) * Pseq(#[-1, 1], inf, { 2.rand }),
+	inf
+);
+
+p.dur = Pconst(
+	{ |ev| ev[\parentDur] },
+	Pseq([Pwhite(4, 7, 1) * 0.25, Pwrand(#[0.25, 0.5, 0.75], #[0.05, 0.6, 0.35], inf)], 1)
+);
+
+p.length = Prout { |ev|
+	// - 0.001 -- build in a threshold to avoid FP rounding error
+	var stopTime = (thisThread.clock.beats + ev[\parentDur]) - 0.001;
+	while {
+		(thisThread.beats + ev.delta) < stopTime
+	} {
+		ev = (ev[\dur] * 1.01).yield;
+	};
+	(stopTime - thisThread.clock.beats - 0.12).yield;
+};
+
+p.freqRampTime = Pkey(\dur) * Pwhite(0.2, 0.6, inf);
 
 // ok, this is solid, but sometimes the damn stupid voicer doesn't play the first note?
 p.length = Prout { |ev|
-	// - 0.001 -- build in a threshold
-	var stopTime = (thisThread.clock.beats + BP(~bp).lastEvent.delta)/*.debug("stop at")*/ - 0.001;
-	// thisThread.clock.sched(s.latency, { [thisThread.beats, stopTime].debug("\t\t\tnow, stop at"); nil });
+	// - 0.001 -- build in a threshold to avoid FP rounding error
+	var stopTime = (thisThread.clock.beats + BP(~bp).lastEvent.delta) - 0.001;
 	while {
-		(thisThread.beats + ev.delta)/*.debug("\tnext time")*/ < stopTime
+		(thisThread.beats + ev.delta) < stopTime
 	} {
 		ev = (ev[\dur] * 1.01).yield;
-		// ev = [ev[\dur], (ev[\dur] * 1.01)].debug("dur, length")[1].yield;
 	};
-	// "\texited while".debug;
-	// { [ev[\dur], ev.delta, 0.1].debug("final dur, length") }.defer(s.latency);
 	0.1.yield;
 };
 
 VC(\qb).gate(150, 0.15, 0.7);
-
-Penvir((), Pwhile1({ |ev, next| BP(~bp).lastEvent.
