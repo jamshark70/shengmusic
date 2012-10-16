@@ -809,5 +809,81 @@ forkIfNeeded {
 			type: \bp
 		) => Fact(\sd8BP);
 
+		// bass process
+		// MonoPortaVoicer owns 'freqlag' argument name
+		WrapInstr("osc2.fm1ramp", { |freq, freqRampTime, gate = 1, car_env|
+			WrapInstr.wrap("osc2.fm1", [
+				Ramp.kr(freq, freqRampTime), gate,
+				car_env.dereference.value(gate)
+			])
+		}, [\freq, \unipolar, \unipolar, ObjectSpec(Env.adsr(0.1, 0.2, 0.6, 0.12))]);
+
+		{ |name|
+			VC(name).free;
+			Fact(\fmbass).chuck(VC(name), nil, (
+				car_env: `{ |gate|
+					gate = Latch.kr(gate, gate);
+					Env.adsr(
+						gate.linlin(0, 1, 1, 0.05),
+						gate.linlin(0, 1, 1.6, 0.15),
+						0.6, 0.8
+					)
+				},
+				instr: "osc2.fm1ramp"
+			));
+		} => Func(\makeBassVC);
+
+		PR(\abstractProcess).clone {
+			~event = (eventKey: \voicerNote);
+			~bp = \rp;
+
+			~mode = \d;
+			~startDegree = \patRejectLastN.eval(
+				Pseries({ rrand(21, 28) }, Pwhite(1, 4, inf) * Pseq(#[-1, 1], inf, { 2.rand }), inf).fold(21, 28),
+				1
+			);
+			~degree = Pseries(
+				{ |ev| ~startDegreeStream.next(ev) },
+				Pstutter(Pwhite(1, 2, inf), Pwhite(1, 4, inf)) * Pseq(#[-1, 1], inf, { 2.rand }),
+				inf
+			);
+			~dur = Pconst({ |ev| ev[\parentDur] }, Pseq([Pwhite(0.3, 1.0, 1), Rest(10000)], 1));
+			~dur2 = Pconst(
+				{ |ev| ev[\parentDur] },
+				Pseq([Pwhite(4, 7, 1) * 0.25, Pwrand(#[0.25, 0.5, 0.75], #[0.05, 0.6, 0.35], inf)], 1)
+			);
+			~length = Pwhite(0.3, 1.0, inf);
+			~length2 = Prout { |ev|
+				// - 0.001 -- build in a threshold to avoid FP rounding error
+				var stopTime = (thisThread.clock.beats + ev[\parentDur]) - 0.001;
+				while {
+					(thisThread.beats + ev.delta) < stopTime
+				} {
+					ev = (ev[\dur] * 1.01).yield;
+				};
+				(stopTime - thisThread.clock.beats - 0.12).yield;
+			};
+			~freqRampTime = Pkey(\dur) * Pwhite(0.2, 0.6, inf);
+			~gate = 0.7;
+			~parentDur = Pfunc({ BP(~bp).lastEvent.delta });
+
+			~asPattern = {
+				if(~parentDurStream.isNil) { ~makeStreamForKey.(\parentDur) };
+				if(~startDegreeStream.isNil) { ~makeStreamForKey.(\startDegree) };
+				PnNilSafe(
+					Pbind(
+						\parentDur, Plazy({ |ev| ~parentDurStream.next(ev).loop }),
+						\dur, Plazy({ ~dur }),
+						\mode, BPStream(\mode),
+						\freq, Plazy({ ~degree }),
+						\length, Plazy({ ~length }),
+						\freqRampTime, BPStream(\freqRampTime) / Ptempo(),
+						\gate, BPStream(\gate)
+					).trace,
+					inf
+				)
+			};
+		} => PR(\sbass);
+
 	} { AbstractChuckArray.defaultSubType = saveSubtype };
 };

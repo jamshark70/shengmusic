@@ -1620,16 +1620,22 @@ PR(\abstractProcess).clone {
 	~bp = \rp;
 
 	~mode = \d;
+	~startDegree = \patRejectLastN.eval(
+		Pseries({ rrand(21, 28) }, Pwhite(1, 4, inf) * Pseq(#[-1, 1], inf, { 2.rand }), inf).fold(21, 28),
+		1
+	);
 	~degree = Pseries(
-		{ rrand(21, 28) },
+		{ |ev| ~startDegreeStream.next(ev) },
 		Pstutter(Pwhite(1, 2, inf), Pwhite(1, 4, inf)) * Pseq(#[-1, 1], inf, { 2.rand }),
 		inf
 	);
-	~dur = Pconst(
+	~dur = Pconst({ |ev| ev[\parentDur] }, Pseq([Pwhite(0.3, 1.0, 1), Rest(10000)], 1));
+	~dur2 = Pconst(
 		{ |ev| ev[\parentDur] },
-		Pseq([Pwhite(3, 5, 1) * 0.25, Pwrand(#[0.25, 0.5, 0.75], #[0.1, 0.45, 0.45], inf)], 1)
+		Pseq([Pwhite(4, 7, 1) * 0.25, Pwrand(#[0.25, 0.5, 0.75], #[0.05, 0.6, 0.35], inf)], 1)
 	);
-	~length = Prout { |ev|
+	~length = Pwhite(0.3, 1.0, inf);
+	~length2 = Prout { |ev|
 		// - 0.001 -- build in a threshold to avoid FP rounding error
 		var stopTime = (thisThread.clock.beats + ev[\parentDur]) - 0.001;
 		while {
@@ -1637,24 +1643,25 @@ PR(\abstractProcess).clone {
 		} {
 			ev = (ev[\dur] * 1.01).yield;
 		};
-		0.1.yield;
+		(stopTime - thisThread.clock.beats - 0.12).yield;
 	};
-	~freqRampTime = Pwhite(0.15, 0.4, inf);
+	~freqRampTime = Pkey(\dur) * Pwhite(0.2, 0.6, inf);
 	~gate = 0.7;
 	~parentDur = Pfunc({ BP(~bp).lastEvent.delta });
 
 	~asPattern = {
 		if(~parentDurStream.isNil) { ~makeStreamForKey.(\parentDur) };
+		if(~startDegreeStream.isNil) { ~makeStreamForKey.(\startDegree) };
 		PnNilSafe(
 			Pbind(
 				\parentDur, Plazy({ |ev| ~parentDurStream.next(ev).loop }),
+				\dur, Plazy({ ~dur }),
 				\mode, BPStream(\mode),
 				\freq, Plazy({ ~degree }),
-				\dur, Plazy({ ~dur }),
 				\length, Plazy({ ~length }),
 				\freqRampTime, BPStream(\freqRampTime) / Ptempo(),
 				\gate, BPStream(\gate)
-			),
+			).trace,
 			inf
 		)
 	};
@@ -1672,6 +1679,23 @@ p.parentDur = MacRh(\rpt16).asPattern;
 
 BP(\sbs).reset;
 BP(\sbs).play(AbsoluteTimeSpec(BP(\rp).eventStreamPlayer.nextBeat.roundUp));
+
+p.dur = Pconst({ |ev| ev[\parentDur] }, Pseq([Pwhite(0.3, 1.0, 1), Rest(10000)], 1)).trace;
+
+p.dur = Pfuncn({ |ev| ev[\parentDur] }, 1);
+p.length = Pwhite(0.3, 1.0, inf);
+
+p.dur = p.dur2;
+p.length = Prout { |ev|
+	// - 0.001 -- build in a threshold to avoid FP rounding error
+	var stopTime = (thisThread.clock.beats + ev[\parentDur]) - 0.001;
+	while {
+		(thisThread.beats + ev.delta) < stopTime
+	} {
+		ev = (ev[\dur] * 1.01).yield;
+	};
+	(stopTime - thisThread.clock.beats - 0.12).yield;
+};
 
 BP(\rp).v[\lastEvent]
 
@@ -1716,3 +1740,29 @@ p.length = Prout { |ev|
 };
 
 VC(\qb).gate(150, 0.15, 0.7);
+
+p.event.adjustLengthToRealDelta = false;
+
+( 'freqRampTime': 0.85166999816895, 'length': 0.95428758859634, 'clock': a TempoClock, 'eventKey': voicerNote,
+  'dur': 4, 'mode': d, 'gate': 0.7, 'collIndex': sbs, 'voicer': a MonoPortaVoicer,
+  'adjustLengthToRealDelta': false, 'timingOffset': 0, 'parentDur': 4, 'freq': 25, 'propagateDownward': a Function )
+
+(parent: ProtoEvent(\voicerNote).v, voicer: VC(\qb).v, freq: 22, mode: \d, length: 0.7, dur: 1, gate: 0.7, freqRampTime: 0.8, timingOffset: 0, debug: true, clock: TempoClock.default).play;
+
+VC(\qb).v.nodes[0].inspect
+VC(\qb).v.nodes[0].shouldSteal
+VC(\qb).nodes[0].myLastLatency
+
+>> steal: steal: true
+isPlaying: false
+synth exists: true
+synth is playing: false
+since last trigger: 0.0010378360748291
+should steal: true
+
+>> steal: steal: true
+isPlaying: false
+synth exists: true
+synth is playing: false
+since last trigger: 0.0011160373687744
+should steal: false

@@ -293,5 +293,3 @@ MacRh(\rpt16syncop2) => BP(\rp);
 // f*** up the harmony *evil grin*
 BP(\rp).topNote.mode = Pxrand(Mode.keys.asArray.select { |key| key.asString.last == $0 }, inf);
 
-
-
