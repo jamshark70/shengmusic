@@ -1609,3 +1609,76 @@ VC(\qb).env.highEndToRvb => MCG(2)
 VC(\qb).env.highEndToRvb.level = 1;
 
 VC(\qb).env.target.postSettings
+
+
+// the degree pattern is really terrible
+// also, not so many 16ths
+
+(
+PR(\abstractProcess).clone {
+	~event = (eventKey: \voicerNote);
+	~bp = \rp;
+
+	~mode = \d;
+	~degree = Pseries(
+		{ rrand(21, 28) },
+		Pstutter(Pwhite(1, 4, inf), Pwhite(1, 4, inf)) * Pseq(#[-1, 1], inf, { 2.rand }),
+		inf
+	);
+	~dur = Pconst(
+		{ BP(~bp).lastEvent.delta },
+		Pseq([Pwhite(3, 5, 1) * 0.25, Pwrand(#[0.25, 0.5, 0.75], #[0.6, 0.3, 0.1], inf)], 1)
+	);
+	~length = Pkey(\dur) * 0.99;
+	// ~dur = Pfunc({ BP(~bp).lastEvent.delta });
+	// ~length = Pkey(\dur) * 0.99;
+	~gate = 0.7;
+
+	~asPattern = {
+		PnNilSafe(
+			Pbind(
+				\mode, BPStream(\mode),
+				\freq, Plazy({ ~degree }),
+				\dur, Plazy({ ~dur }),
+				\length, Plazy({ ~length }),
+				\gate, BPStream(\gate)
+			),
+			inf
+		)
+	};
+} => PR(\sbass);
+)
+
+BP(\sbs).free;
+PR(\sbass) => BP(\sbs);
+VC(\qb) => BP(\sbs);
+BP(\sbs) => MT(1);
+
+p = BP(\sbs);
+
+BP(\sbs).reset;
+BP(\sbs).play(AbsoluteTimeSpec(BP(\rp).eventStreamPlayer.nextBeat.roundUp));
+
+BP(\rp).v[\lastEvent]
+
+p.dur = Pfunc({ BP(~bp).lastEvent.delta });
+
+// ok, this is solid, but sometimes the damn stupid voicer doesn't play the first note?
+p.length = Prout { |ev|
+	// - 0.001 -- build in a threshold
+	var stopTime = (thisThread.clock.beats + BP(~bp).lastEvent.delta)/*.debug("stop at")*/ - 0.001;
+	// thisThread.clock.sched(s.latency, { [thisThread.beats, stopTime].debug("\t\t\tnow, stop at"); nil });
+	while {
+		(thisThread.beats + ev.delta)/*.debug("\tnext time")*/ < stopTime
+	} {
+		ev = (ev[\dur] * 1.01).yield;
+		// ev = [ev[\dur], (ev[\dur] * 1.01)].debug("dur, length")[1].yield;
+	};
+	// "\texited while".debug;
+	// { [ev[\dur], ev.delta, 0.1].debug("final dur, length") }.defer(s.latency);
+	0.1.yield;
+};
+
+VC(\qb).gate(150, 0.15, 0.7);
+
+Penvir((), Pwhile1({ |ev, next| BP(~bp).lastEvent.

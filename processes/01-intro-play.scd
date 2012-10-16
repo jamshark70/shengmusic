@@ -275,7 +275,7 @@ PR(\gridClicks).chuck(BP(\gcl), nil, (master: ~master));
 
 (
 \makeOnePizzVC.eval;  //??
-// Fact(\triVC) => VC(\tri);
+\chuckIf.eval(Fact(\triVC), VC, \tri);
 Fact(\madfmVC) => VC(\fm);
 \makeflzgVC.eval(\flzg);
 
@@ -291,3 +291,7 @@ MacRh(\rpt16syncop2) => BP(\rp);
 
 // f*** up the harmony *evil grin*
 BP(\rp).topNote.mode = Pxrand(Mode.keys.asArray.select { |key| key.asString.last == $0 }, inf);
+
+
+BP(\rp).leadTime = 0.01;
+
