@@ -221,7 +221,7 @@ protect {
 
 		~freeStuff = {
 			var killMsgs;
-			// ~bus.debug("freed" + ~number).free;
+			~bus/*.debug("freed" + ~number)*/.free;
 			~killNodes.do { |thing|
 				if(thing.isKindOf(Node)) {
 					killMsgs = killMsgs.add(thing.freeMsg)
@@ -263,6 +263,31 @@ protect {
 			AppClock.sched(~busFreeDelay, e { ~bus.free });
 		};
 	} => PR(\busFxPatLock);
+
+	PR(\busLock).clone {
+		~makeStuff = { |gc|
+			~server = gc.server;
+			if((~bus = gc.bus).isNil) {
+				Error("couldn't get gc's bus").throw;
+			};
+			// ~bus.debug("made" + ~number);
+		};
+
+		~freeStuff = {
+			var killMsgs;
+			~killNodes.do { |thing|
+				if(thing.isKindOf(Node)) {
+					killMsgs = killMsgs.add(thing.freeMsg)
+				} {
+					thing.free
+				};
+			};
+			if(killMsgs.size > 0) {
+				~server.listSendBundle(nil, [#[error, -1]] ++ killMsgs ++ [#[error, -2]])
+			};
+			currentEnvironment
+		};
+	} => PR(\gcAutoLock);
 
 	(parent: ProtoEvent(\polySynthPlayer).v.parent.copy.putAll((
 		lockKey: \busLock,
