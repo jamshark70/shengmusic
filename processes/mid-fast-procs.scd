@@ -130,6 +130,7 @@ forkIfNeeded {
 
 		PR(\abstractProcess).clone {
 			~event = (eventKey: \voicerNote);
+			~quant = 1;
 
 			~mode = Pxrand(Mode.keys.select { |key| key.asString.last == $0 }.asArray, inf);
 			~seed = Pwhite(0, 0x7FFFFFFF, inf);
@@ -834,8 +835,12 @@ forkIfNeeded {
 		} => Func(\makeBassVC);
 
 		PR(\abstractProcess).clone {
-			~event = (eventKey: \voicerNote);
+			~event = (eventKey: \voicerNoteKrBusLock, lockKey: \gcAutoLock, numCh: 1);
 			~bp = \rp;
+
+			~bindVoicer = { |vc|
+				~event[\gc] = vc.globalControls[\mod_lev];
+			};
 
 			~mode = \d;
 			~startDegree = \patRejectLastN.eval(
@@ -867,19 +872,45 @@ forkIfNeeded {
 			~gate = 0.7;
 			~parentDur = Pfunc({ BP(~bp).lastEvent.delta });
 
+			~modlev = Pwhite(2.0, 7.5, inf); // Pseq([/*Pwhite(4.7, 6.0, 1),*/ Pexprand(2.0, 3.1, inf)]);
+			~modlevTime = Pkey(\length) / Ptempo();
+
 			~asPattern = {
 				if(~parentDurStream.isNil) { ~makeStreamForKey.(\parentDur) };
 				if(~startDegreeStream.isNil) { ~makeStreamForKey.(\startDegree) };
 				PnNilSafe(
 					Pbind(
+						\lock, Pfunc({ |ev|
+							PR(ev[\lockKey]).copy.prep((numCh: ev[\numCh], gc: ev[\gc]))
+						}),
 						\parentDur, Plazy({ |ev| ~parentDurStream.next(ev).loop }),
 						\dur, Plazy({ ~dur }),
 						\mode, BPStream(\mode),
 						\freq, Plazy({ ~degree }),
 						\length, Plazy({ ~length }),
 						\freqRampTime, BPStream(\freqRampTime) / Ptempo(),
-						\gate, BPStream(\gate)
-					).trace,
+						\gate, BPStream(\gate),
+						\lpcEv, Pseq([
+							Pfuncn({ |ev|
+								(
+									instrument: \ctlEnv,
+									env: [
+										Env(
+											[0, rrand(4.7, 6.0), rrand(1.8, 2.2)],
+											[0.01, rrand(0.15, 0.45) * ev[\length] / thisThread.clock.tempo]
+										)
+									],
+									connect: 1,
+									time: 1
+								)
+							}, 1),
+							Pbind(
+								\instrument, \ctlPoint,
+								\value, Plazy({ ~modlev }),
+								\time, Plazy({ ~modlevTime })
+							)
+						])
+					),
 					inf
 				)
 			};

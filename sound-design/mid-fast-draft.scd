@@ -780,6 +780,7 @@ p.listMethods
 
 p.dumpSegments;
 
+BP(\slowmel).mel.listVars
 
 
 p.event[\debug] = false;
