@@ -1,10 +1,12 @@
 ~performance = true; (thisProcess.nowExecutingPath.dirname +/+ "../common/dev-setup.scd").loadPath;
 // (thisProcess.nowExecutingPath.dirname +/+ "../common/common-defs.scd").loadPath;
 
-(thisProcess.nowExecutingPath.dirname +/+ "../processes/drones-and-clicks.scd").loadPath;
-(thisProcess.nowExecutingPath.dirname +/+ "../processes/long-ch-procs.scd").loadPath;
-(thisProcess.nowExecutingPath.dirname +/+ "../processes/mid-fast-procs.scd").loadPath;
-(thisProcess.nowExecutingPath.dirname +/+ "../processes/climax-procs.scd").loadPath;
+(
+#["../processes/drones-and-clicks.scd", "../processes/long-ch-procs.scd", "../processes/mid-fast-procs.scd", "../processes/climax-procs.scd"].do { |path|
+	(thisProcess.nowExecutingPath.dirname +/+ path).loadPath;
+};
+)
+
 TempoClock.tempo = 100/60;
 
 TempoClock.default.gui;
@@ -278,18 +280,58 @@ PR(\gridClicks).chuck(BP(\gcl), nil, (master: ~master));
 \chuckIf.eval(Fact(\triVC), VC, \tri);
 Fact(\madfmVC) => VC(\fm);
 \makeflzgVC.eval(\flzg);
+\makeBassVC.eval(\qb);
 
 VC(\tri).v.set([lpfreq: 3000]);
 VC(\flzg).v.set([lpfreq: 2540]);
 
 Fact(\rpt16BP) => BP(\rp);
 BP(\rp).leadTime = 0.01;
+BP(\rp) => MT(1);
+
+BP(\sbs).free;
+PR(\sbass) => BP(\sbs);
+VC(\qb) => BP(\sbs);
+BP(\sbs) => MT(1);
+BP(\sbs).quant = AbsoluteTimeSpec(Pfunc({ BP(\rp).nextBeat + BP(\rp).leadTime }));
+VC(\qb).env.target.level = 0;
 )
 
 MacRh(\rpt16syncop) => BP(\rp);
+
+BP(\sbs).dur = BP(\sbs).dur2; BP(\sbs).length = BP(\sbs).length2;
 
 MacRh(\rpt16syncop2) => BP(\rp);
 
 // f*** up the harmony *evil grin*
 BP(\rp).topNote.mode = Pxrand(Mode.keys.asArray.select { |key| key.asString.last == $0 }, inf);
+BP(\sbs).mode = Pfunc({ BP(\rp).lastEvent.top.mode });
+
+
+// BP(#[rp, sbs]).stop;
+
+
+// low fm, melody counterpont
+(
+\makeFMLowVC.eval;
+BP(\fastlow).free;
+PR(\fastlow) => BP(\fastlow);
+BP(\fastlow) => VC(\fmlow);
+BP(\fastlow) => MT(1);
+
+\makeNletMelVC.eval;
+Fact(\slowMelBP) => BP(\slowmel);
+BP(\slowmel) => VC(\nletmel);
+BP(\slowmel) => MT(1);
+1 => BP(\slowmel);
+BP(\slowmel).repeats = inf;
+BP(\slowmel).macro = Pwhite(1, 4, inf);
+
+if(VC.exists(\onePizz).not) { \makeOnePizzVC.eval };
+Fact(\scotchBP) => BP(\scotch);
+BP(\scotch) => VC(\onePizz);
+1 => BP(\scotch);
+BP(\scotch) => MT(1);
+Pwxrand(#[1, 2, 3, 4, 5], #[2, 2, 4, 4, 3].normalizeSum, inf) =>.macro BP(\scotch);
+)
 
