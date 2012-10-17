@@ -9,7 +9,7 @@ forkIfNeeded {
 	if(BP.exists(\shengShared).not) {
 		PR(\shengShared) => BP(\shengShared);
 		if(BP(\shengShared).ready.not) {
-			NotificationCenter.registerOneShot(BP(\shengShared).v, \sharedReady, \longch, {
+			NotificationCenter.registerOneShot(BP(\shengShared).v, \sharedReady, \midfast, {
 				cond.unhang;
 			});
 			cond.hang;

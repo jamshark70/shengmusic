@@ -9,7 +9,7 @@ forkIfNeeded {
 	if(BP.exists(\shengShared).not) {
 		PR(\shengShared) => BP(\shengShared);
 		if(BP(\shengShared).ready.not) {
-			NotificationCenter.registerOneShot(BP(\shengShared).v, \sharedReady, \longch, {
+			NotificationCenter.registerOneShot(BP(\shengShared).v, \sharedReady, \climax, {
 				cond.unhang;
 			});
 			cond.hang;
@@ -49,7 +49,7 @@ forkIfNeeded {
 
 			~doublingOn_ = { |bool(false)|
 				if(bool) {
-					BP(\un).event.finish = {
+					~event.finish = {
 						if(~suppressAccent == 0 and: { ~isMain == 1 and: { ">S".includes(~artic) } }) {
 							// roundUp: G# as topNote sounds like hell, make it A-nat
 							BP(\unCh).topNote.deg = ((~freq ?? { ~note.asFloat }).first.mapMode(\d).roundUp + 7);
@@ -57,7 +57,7 @@ forkIfNeeded {
 						};
 					};
 				} {
-					BP(\un).event.finish = nil;
+					~event.finish = nil;
 				};
 			};
 
