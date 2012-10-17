@@ -335,3 +335,73 @@ BP(\scotch) => MT(1);
 Pwxrand(#[1, 2, 3, 4, 5], #[2, 2, 4, 4, 3].normalizeSum, inf) =>.macro BP(\scotch);
 )
 
+
+// unison
+// needs rhythmic pizz embellishment in places, preparing for big chords
+(
+\chuckIf.eval(Fact(\triVC), VC, \tri, nil, (initLevel: -12.5.dbamp));
+PR(\unison) => BP(\un);
+VC(\tri) => BP(\un);
+1 => BP(\un);
+BP(\un) => MT(1);
+
+\chuckIf.eval(Fact(\madfmVC), VC, \fm);  // 1JkRVE
+Fact(\unChBP) => BP(\unCh);
+VC(\fm) => BP(\unCh);
+1 => BP(\unCh);
+BP(\un).doublingOn = true;
+)
+
+BP(\unCh).userfree = { ~recvNotify.remove };
+
+// run these in a TLSeq with the big chord procs
+// big chord procs: \sd (already exists), \pzclimax, \gcl
+(
+\makePizzRhyVC.eval;
+Fact(\pzclimaxBP) => BP(\pzclimax);
+VC(\pzrhy) => BP(\pzclimax);
+)
+
+(
+if(t.isPlaying) { t.stop };
+t = TLSequenceIterator([
+	{	BP(\pzclimax).lfoDepthCtl.value = 1;
+		VC(\pzrhy).v.globalControls[\retrigProb].value = 0.6;
+		0
+	},
+	Quant(1),
+	bpCmd: (name: \un, prepareBP: {
+		// VC(\tri).env.target.level = ;
+		VC(\fm).env.target.level = VC(\tri).env.target.level * (-7.dbamp);
+	}),
+	\sync,
+	[
+		bpCmd: (name: \gcl, dur: 15),
+		\cmdSync,
+		bpCmd: (name: \decelCl, prepareBP: { |q|
+			q.makeStreamForKey(\waitTime);
+			q.reset;
+		})
+	],
+	bpCmd: (name: \pzclimax, prepareBP: (_.reset),
+		clearDoneSignal: { { t.stop }.defer(0.05); }
+	),
+	bpCmd: (name: \sd, prepareBP: { |p|
+		p.setGstNow(Pseq(#[bmin, gmaj, emaj, csmin]));
+		p.reset;
+	}),
+	15,
+	// { thisThread.clock.beats.debug("gcautosynth"); 0 },
+	gcAutoSynthCmd: (
+		gc: BP(\pzclimax).lfoDepthCtl,
+		name: \ctlEnv, outName: \outbus,
+		connect: 0,
+		env: Env(#[1.2, 1.9], #[8] / thisThread.clock.tempo)
+	),
+	(12*4) + 3 + 2.5 + 1 - 6,
+	// not really effective
+	{ thisThread.clock.beats.debug("reduce"); VC(\pzrhy).v.globalControls[\retrigProb].value = 0.1; 0 }
+]).play;
+)
+
+t.stop;
