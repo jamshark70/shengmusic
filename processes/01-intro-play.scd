@@ -363,6 +363,11 @@ PR(\gridClicks).chuck(BP(\decelCl), nil, (
 	master: ~master, rvbmc: ~rvbmc,
 	dur: Plazy({ Env([rrand(0.08, 0.12), rrand(0.35, 0.5)], [~latestPhraseDur], \exp) })
 ));
+
+if(VC.exists(\onePizz).not) { \makeOnePizzVC.eval };
+BP(\sdSwells).free;
+PR(\sdSwells) => BP(\sdSwells);
+VC(\onePizz) => BP(\sdSwells);
 )
 
 // run these in a TLSeq with the big chord procs
@@ -492,3 +497,5 @@ t = TLSequenceIterator([
 
 t.stop;
 
+
+// that goes through about 159; calculate 138 seconds to go
