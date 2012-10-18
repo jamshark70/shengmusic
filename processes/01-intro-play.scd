@@ -350,40 +350,109 @@ Fact(\unChBP) => BP(\unCh);
 VC(\fm) => BP(\unCh);
 1 => BP(\unCh);
 BP(\un).doublingOn = true;
-)
 
-BP(\unCh).userfree = { ~recvNotify.remove };
-
-// run these in a TLSeq with the big chord procs
-// big chord procs: \sd (already exists), \pzclimax, \gcl
-(
 \makePizzRhyVC.eval;
 Fact(\pzclimaxBP) => BP(\pzclimax);
 VC(\pzrhy) => BP(\pzclimax);
+
+\chuckIf.eval(PR(\clicks), BP, \cl, nil, (master: ~master, rvbmc: ~rvbmc));
+\chuckIf.eval(PR(\gridClicks), BP, \gcl, nil, (master: ~master, rvbmc: ~rvbmc));
+1 => BP(\gcl);
+
+PR(\gridClicks).chuck(BP(\decelCl), nil, (
+	master: ~master, rvbmc: ~rvbmc,
+	dur: Plazy({ Env([rrand(0.08, 0.12), rrand(0.35, 0.5)], [~latestPhraseDur], \exp) })
+));
 )
+
+// run these in a TLSeq with the big chord procs
+// big chord procs: \sd (already exists), \pzclimax, \gcl
 
 (
 if(t.isPlaying) { t.stop };
 t = TLSequenceIterator([
 	{	BP(\pzclimax).lfoDepthCtl.value = 1;
 		VC(\pzrhy).v.globalControls[\retrigProb].value = 0.6;
+		BP(\gcl).maxPoly.value = 3;
+		BP(\gcl).chan.level = -3.77.dbamp;
+		BP(\decelCl).chan.level = -3.77.dbamp;
+		BP(\decelCl).maxPoly.value = 3;
+		BP(\sd).chan.level = -6.dbamp;
+		VC(\pzrhy).env.target.level = -7.dbamp;
 		0
 	},
 	Quant(1),
-	bpCmd: (name: \un, prepareBP: {
-		// VC(\tri).env.target.level = ;
-		VC(\fm).env.target.level = VC(\tri).env.target.level * (-7.dbamp);
-	}),
-	\sync,
+	loopCmd: (
+		id: \gclLoop,
+		cmds: [
+			{ rrand(3, 8) * 0.5 },
+			{
+				PR(\bpCmd).copy.putAll((name: \gcl, dur: rrand(8, 16) * 0.5));
+			}
+		]
+	),
+	bpCmd: (name: \un,
+		prepareBP: {
+			var p;  // to manipulate pzclimax
+			VC(\tri).env.target.level = -12.dbamp;
+			VC(\fm).env.target.level = VC(\tri).env.target.level * (-12.dbamp);
+
+			if(BP.exists(\pzclimax)) {
+				p = BP(\pzclimax);
+				p.lfoDepthCtl.value = 1;
+				MBM(0)[\pzch] =>.ch p;
+				Pwhite(3, 6, inf) * 0.25 =>.macro p;
+				p.child.makeChordPattern = { Pxrand(~chords, inf) };
+				p.child.fitFunc = \chordFitNotes;
+				p.topNote = PR(\patternTop).copy.make {
+					~mode = \d;
+					~deg = Pwhite(35, 43, inf);
+				};
+				p.child.ampEnv = Env(
+					#[0, 1, 0.1, 0],
+					#[0.01, 0.94, 0.05],
+					-2, 2
+				);
+				if(p[\recvNotify].isNil) {
+					p.recvNotify = NotificationCenter.register(BP(\un), \accent, \pzclimax, {
+						BP(~collIndex).triggerOneEvent(0);
+					}.inEnvir(p.env));
+				};
+			};
+		},
+		clearDoneSignal: {
+			if(BP.exists(\pzclimax)) {
+				BP(\pzclimax)[\recvNotify].remove;
+				BP(\pzclimax)[\recvNotify] = nil;
+			}
+		}
+	),
+	\cmdSync,
+	funcCmd: (func: { ~iterator.findActive(\gclLoop).stop }),
 	[
-		bpCmd: (name: \gcl, dur: 15),
+		0.5,
+		bpCmd: (name: \gcl, dur: 14.5, prepareBP: { |p|
+			p.maxPoly.value = 3;
+		}),
 		\cmdSync,
 		bpCmd: (name: \decelCl, prepareBP: { |q|
 			q.makeStreamForKey(\waitTime);
+			q.maxPoly.value = 3;
 			q.reset;
 		})
 	],
-	bpCmd: (name: \pzclimax, prepareBP: (_.reset),
+	bpCmd: (name: \pzclimax,
+		prepareBP: { |p|
+			p.child.fitFunc = \asis;
+			p.child.makeChordPattern = { Pstutter(Pseq(#[2, 1, 1, 1000]), Pseq(~chords, 1)) };
+			MBM(0)[\pzclimax] =>.ch p;
+			p.child.ampEnv = Env(
+				#[0, 0.2, 1, 0],
+				#[0.01, 0.94, 0.05],
+				-4, 2
+			);
+			MacRh(\pzclimax) => p;
+		},
 		clearDoneSignal: { { t.stop }.defer(0.05); }
 	),
 	bpCmd: (name: \sd, prepareBP: { |p|
@@ -405,3 +474,4 @@ t = TLSequenceIterator([
 )
 
 t.stop;
+

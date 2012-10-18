@@ -143,6 +143,7 @@ forkIfNeeded {
 						BP(~collIndex).triggerOneEvent(0);
 					}.inEnvir(p));
 				};
+				p.userfree = { ~recvNotify.remove };
 
 				p.prepareForPlay;
 			},
@@ -189,19 +190,17 @@ forkIfNeeded {
 				p.lfoDepthCtl = GenericGlobalControl(\lfoDepth, nil, 1, #[1, 3, \exp]);
 				p.useGui = { |vpi| ~lfoDepthCtl => VP(vpi) };
 				p.child.argPairs = { |parentEvent|
+					var e = ~ampEnv.copy;
+					e.times = e.times * (parentEvent[\length] / thisThread.clock.tempo);
 					[
 						fbamp: 0.98,
-						ffreq: Pfunc({ |ev| ev[\mode].asMode.cps(ev[\note].asFloat) * 7 }),
+						ffreq: Pfunc({ |ev| ev[\mode].asMode.cps(ev[\note].asFloat) * rrand(6.0, 10.0) }),
 						amp: 1,
 						lfoDepth: BP(\pzclimax).lfoDepthCtl.asMap,
 						beatsPerSec: Ptempo(),
 						baseValue: 0.25,
 						ctranspose: 0.51331578947368,   // sweet, in tune now!
-						env: [Env(
-							#[0, 0.2, 1, 0],
-							#[0.01, 0.94, 0.05] * parentEvent[\length] / thisThread.clock.tempo,
-							-4, 2
-						)]
+						env: [e]
 					]
 				};
 				p.child.makeChordPattern = { Pstutter(Pseq(#[2, 1, 1, 1000]), Pseq(~chords, 1)) };
