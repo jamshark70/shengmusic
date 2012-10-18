@@ -342,3 +342,172 @@ t = TLSequenceIterator([
 )
 
 t.stop;
+
+
+
+// adapt pizzrhy
+p = BP(\pzclimax);
+
+p.listVars;
+
+p.lfoDepthCtl.value = 1;
+
+MBM(0)[\pzch] =>.ch p;
+
+p.child[\argPairs].postcs;
+
+Pwhite(2, 4, inf) =>.macro p;
+((Pwhite(4, 10, inf) * Ptuple([1, Pwhite(0.4, 0.75, inf)])).roundUp - #[0, 0.1]).trace(prefix: "macro: ") =>.macro p;
+
+p.child[\makeChordPattern].postcs;
+
+p.child.makeChordPattern = { Pxrand(~chords, inf) };
+p.child.fitFunc = \chordFitNotes;
+p.topNote = PR(\patternTop).copy.make {
+	~mode = \d;
+	~deg = Pwhite(35, 43, inf);
+};
+
+// for actual climax
+p.child.ampEnv = Env(
+	#[0, 0.2, 1, 0],
+	#[0.01, 0.94, 0.05],
+	-4, 2
+);
+
+// but here, I want decays
+p.child.ampEnv = Env(
+	#[0, 1, 0.1, 0],
+	#[0.01, 0.94, 0.05],
+	-4, 2
+);
+
+p.child.argPairs = { |parentEvent|
+	var e = ~ampEnv.copy;
+	e.times = e.times * (parentEvent[\length] / thisThread.clock.tempo);
+	[
+		fbamp: 0.98,
+		ffreq: Pfunc({ |ev| ev[\mode].asMode.cps(ev[\note].asFloat) * rrand(6.0, 10.0) }),
+		amp: 1,
+		lfoDepth: BP(\pzclimax).lfoDepthCtl.asMap,
+		beatsPerSec: Ptempo(),
+		baseValue: 0.25,
+		ctranspose: 0.51331578947368,   // sweet, in tune now!
+		env: [e]
+	]
+};
+
+p.recvNotify = NotificationCenter.register(BP(\un), \accent, \pzclimax, {
+	BP(~collIndex).triggerOneEvent(0);
+}.inEnvir(p.env));
+
+Pwhite(3, 6, inf) * 0.25 =>.macro p;
+
+
+
+
+
+e = BP(\sd).eventStream.next(BP(\sd).event.copy);
+
+(type: \voicerNote, voicer: VC(\onePizz).v, amp: 1, degree: #[-14, -7, -4, -3, -1, 1, 2, 5], root: 2, ffreq: 600 * 9, excAtk: 4, excDcy: 10, sustain: 30, fbamp: 0.998).play;
+VC(\onePizz).v.trace;
+
+VC(\onePizz).v.panic;
+
+VC(\onePizz).v.nodes.size
+
+(
+PR(\abstractProcess).clone {
+	~event = (eventKey: \voicerNote, gate: 0.5);
+	~prep = {
+		~makeStreamForKey.(\bass);
+	};
+	~freeCleanup = { ~removeNotification.() };
+
+	~mode = \d0;
+
+	~bass = Pseries({ rrand(20, 27) }, Pwhite(1, 3, inf), inf).fold(20, 28);
+	~freq = PnNilSafe(
+		Pwhile1(
+			{ |ev, next| next <= 44 },
+			Pseries(
+				{ |ev| ~bassStream.next(ev) },
+				Pseq([Prand(#[4, 5], 1), Prand(#[2, 3], 1), Pwrand(#[1, 2, 3], #[0.1, 0.5, 0.4], inf)])
+			),
+			inf
+		).clump(100),
+		inf
+	);
+	~ffreq = Pfunc({ |ev|
+		var top = ev[\freq].asArray.maxItem;
+		ev[\mode].asMode.cps(top) * rrand(7.0, 11.0)
+	});
+	~excAtk = Pwhite(2.5, 4.5, inf);
+	~excDcy = Pwhite(8.0, 11.0, inf);
+	~fbamp = 0.998;
+	~pan = Pfunc({ |ev|
+		var n = ev[\freq].asArray.size;
+		if(n <= 1) { 0 } {
+			Array.series(n, -1, 2 / (n-1)).scramble
+		}
+	});
+	~amp = 1;
+	~dur = 4;
+	~length = 16 * Ptempo();
+
+	~asPattern = {
+		Pbind(
+			\mode, BPStream(\mode),
+			\freq, BPStream(\freq),
+			\ffreq, BPStream(\ffreq),
+			\dur, BPStream(\dur),
+			\length, BPStream(\length),
+			\excAtk, BPStream(\excAtk),
+			\excDcy, BPStream(\excDcy),
+			\fbamp, BPStream(\fbamp),
+			\pan, BPStream(\pan),
+			\amp, BPStream(\amp),
+		)
+	};
+	~addNotification = {
+		~recvNotify = NotificationCenter.register(BP(~bp), \accent, ~collIndex, e {
+			BP(~collIndex).triggerOneEvent(0);
+		});
+	};
+	~removeNotification = { ~recvNotify.remove };
+} => PR(\sdSwells);
+)
+
+BP(\sdSwells).free;
+PR(\sdSwells) => BP(\sdSwells);
+VC(\onePizz) => BP(\sdSwells);
+
+p = BP(\sdSwells);
+
+p.prepareForPlay;
+
+p.amp = 0.3;
+
+p.amp = Pseries(0.18, 0.02, inf);
+
+p.amp = Pseries.fromEndpoints(0.12, 0.3, 5) ++ Pn(0.5, inf);
+p.excAtk = Pn(3, 5) ++ Pn(10, inf);
+p.excDcy = Pn(7, 5) ++ Pn(18, inf);
+
+p.amp = 0.5;
+p.excAtk = 10;
+p.excDcy = 18;
+
+p.triggerOneEvent(0);
+
+p.reset = {
+	#[bass, amp, excAtk, excDcy].do { |key|
+		~makeStreamForKey.(key)
+	};
+};
+
+
+p.mode = \a0;
+
+a = { SinOsc.ar(440, 0, 0.05) ! 2 }.play;
+a.free;

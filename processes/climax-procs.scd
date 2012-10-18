@@ -53,7 +53,7 @@ forkIfNeeded {
 						if(~suppressAccent == 0 and: { ~isMain == 1 and: { ">S".includes(~artic) } }) {
 							// roundUp: G# as topNote sounds like hell, make it A-nat
 							NotificationCenter.notify(BP(~collIndex), \accent,
-								[((~freq ?? { ~note.asFloat }).first.mapMode(\d).roundUp + 7)]);
+								[~artic, ((~freq ?? { ~note.asFloat }).first.mapMode(\d).roundUp + 7)]);
 							// decouple
 							// BP(\unCh).topNote.deg = ((~freq ?? { ~note.asFloat }).first.mapMode(\d).roundUp + 7);
 							// BP(\unCh).triggerOneEvent(0);
@@ -136,7 +136,7 @@ forkIfNeeded {
 				];
 
 				if(BP.exists(~srcBP)) {
-					p.recvNotify = NotificationCenter.register(BP(~srcBP), \accent, name, { |nextTop|
+					p.recvNotify = NotificationCenter.register(BP(~srcBP), \accent, name, { |artic, nextTop|
 						// slightly hacky, should put this in a method, but I'm lazy
 						// I'm now inside the new BP's environment so I can do this stuff
 						~topNote.deg = nextTop;
@@ -209,6 +209,67 @@ forkIfNeeded {
 			},
 			type: \bp
 		) => Fact(\pzclimaxBP);
+
+
+		PR(\abstractProcess).clone {
+			~event = (eventKey: \voicerNote, gate: 0.5);
+			~prep = {
+				~makeStreamForKey.(\bass);
+			};
+			~freeCleanup = { ~removeNotification.() };
+
+			~mode = \d0;
+
+			~bass = Pseries({ rrand(20, 27) }, Pwhite(1, 3, inf), inf).fold(20, 28);
+			~freq = PnNilSafe(
+				Pwhile1(
+					{ |ev, next| next <= 44 },
+					Pseries(
+						{ |ev| ~bassStream.next(ev) },
+						Pseq([Prand(#[4, 5], 1), Prand(#[2, 3], 1), Pwrand(#[1, 2, 3], #[0.1, 0.5, 0.4], inf)])
+					),
+					inf
+				).clump(100),
+				inf
+			);
+			~ffreq = Pfunc({ |ev|
+				var top = ev[\freq].asArray.maxItem;
+				ev[\mode].asMode.cps(top) * rrand(7.0, 11.0)
+			});
+			~amp = Pseries.fromEndpoints(0.12, 0.3, 5) ++ Pn(0.5, inf);
+			~excAtk = Pn(3, 5) ++ Pn(10, inf);
+			~excDcy = Pn(7, 5) ++ Pn(18, inf);
+			~fbamp = 0.998;
+			~pan = Pfunc({ |ev|
+				var n = ev[\freq].asArray.size;
+				if(n <= 1) { 0 } {
+					Array.series(n, -1, 2 / (n-1)).scramble
+				}
+			});
+			~dur = 4;
+			~length = 16 * Ptempo();
+
+			~asPattern = {
+				Pbind(
+					\mode, BPStream(\mode),
+					\freq, BPStream(\freq),
+					\ffreq, BPStream(\ffreq),
+					\dur, BPStream(\dur),
+					\length, BPStream(\length),
+					\excAtk, BPStream(\excAtk),
+					\excDcy, BPStream(\excDcy),
+					\fbamp, BPStream(\fbamp),
+					\pan, BPStream(\pan),
+					\amp, BPStream(\amp),
+				)
+			};
+			~addNotification = {
+				~recvNotify = NotificationCenter.register(BP(~bp), \accent, ~collIndex, e { |artic|
+					if(artic == $>) { BP(~collIndex).triggerOneEvent(0) };
+				});
+			};
+			~removeNotification = { ~recvNotify.remove };
+		} => PR(\sdSwells);
 
 	} { AbstractChuckArray.defaultSubType = saveSubtype };
 };

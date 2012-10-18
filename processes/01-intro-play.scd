@@ -379,6 +379,7 @@ t = TLSequenceIterator([
 		BP(\decelCl).maxPoly.value = 3;
 		BP(\sd).chan.level = -6.dbamp;
 		VC(\pzrhy).env.target.level = -7.dbamp;
+		BP(\sdSwells).removeNotification;
 		0
 	},
 	Quant(1),
@@ -391,6 +392,19 @@ t = TLSequenceIterator([
 			}
 		]
 	),
+	[
+		34,
+		{
+			BP(\sdSwells).amp = Pseries.fromEndpoints(0.12, 0.26, 5) ++ Pn(0.5, inf);
+			BP(\sdSwells).excAtk = Pn(3, 5) ++ Pn(10, inf);
+			BP(\sdSwells).excDcy = Pn(7, 5) ++ Pn(18, inf);
+			BP(\sdSwells).prepareForPlay;
+			BP(\sdSwells).bp = \un;
+			BP(\sdSwells).addNotification;
+			BP(\sdSwells).reset;
+			0
+		}
+	],
 	bpCmd: (name: \un,
 		prepareBP: {
 			var p;  // to manipulate pzclimax
@@ -428,7 +442,10 @@ t = TLSequenceIterator([
 		}
 	),
 	\cmdSync,
-	funcCmd: (func: { ~iterator.findActive(\gclLoop).stop }),
+	funcCmd: (func: {
+		BP(\sdSwells).removeNotification;
+		~iterator.findActive(\gclLoop).stop
+	}),
 	[
 		0.5,
 		bpCmd: (name: \gcl, dur: 14.5, prepareBP: { |p|
