@@ -388,6 +388,7 @@ t = TLSequenceIterator([
 		0
 	},
 	Quant(1),
+	/*
 	loopCmd: (
 		id: \gclLoop,
 		cmds: [
@@ -451,6 +452,7 @@ t = TLSequenceIterator([
 		BP(\sdSwells).removeNotification;
 		~iterator.findActive(\gclLoop).stop
 	}),
+	*/
 	[
 		0.5,
 		bpCmd: (name: \gcl, dur: 14.5, prepareBP: { |p|
@@ -463,19 +465,58 @@ t = TLSequenceIterator([
 			q.reset;
 		})
 	],
-	bpCmd: (name: \pzclimax,
-		prepareBP: { |p|
-			p.child.fitFunc = \asis;
-			p.child.makeChordPattern = { Pstutter(Pseq(#[2, 1, 1, 1000]), Pseq(~chords, 1)) };
-			MBM(0)[\pzclimax] =>.ch p;
-			p.child.ampEnv = Env(
-				#[0, 0.2, 1, 0],
-				#[0.01, 0.94, 0.05],
-				-4, 2
-			);
-			MacRh(\pzclimax) => p;
-		},
-		clearDoneSignal: { { t.stop }.defer(0.05); }
+	subIterCmd: (
+		id: \pzclimax,
+		subIter: TLSequenceIterator([
+			bpCmd: (name: \pzclimax,
+				prepareBP: { |p|
+					p.child.fitFunc = \asis;
+					p.child.makeChordPattern = { Pstutter(Pseq(#[2, 1, 1, 1000]), Pseq(~chords, 1)) };
+					MBM(0)[\pzclimax] =>.ch p;
+					p.child.ampEnv = Env(
+						#[0, 0.2, 1, 0],
+						#[0.01, 0.94, 0.05],
+						-4, 2
+					);
+					MacRh(\pzclimax) => p;
+				},
+				// clearDoneSignal: { { t.stop }.defer(0.05); }
+			),
+			\cmdSync,
+			// mixerAutoSynthCmd: (
+			// 	mixer: VC(\pzrhy).env.target, outName: \outbus,
+			// 	name: \ctlPoint, value: 0.8, time: 0.1
+			// ),
+			Quant(0.25),
+			{
+				t.activeCmds.do { |cmd|
+					if(#[pzclimax, retrigProb].includes(cmd.tryPerform(\id)).not) {
+						cmd.stop;
+					};
+				};
+				0
+			},
+			gcAutoSynthCmd: (
+				gc: BP(\pzclimax).lfoDepthCtl, name: \ctlPoint, outName: \outbus,
+				value: 1, time: 24 /* sec */, curve: -2.2
+			),
+			bpCmd: (name: \pzclimax, prepareBP: { |p|
+				// p.lfoDepthCtl.value = 1;
+				MBM(0)[\pzch] =>.ch p;
+				Pwhite(4, 10, inf) =>.macro p;
+				p.child.makeChordPattern = { Pxrand(~chords, inf) };
+				p.child.fitFunc = \chordFitNotes;
+				p.topNote = PR(\patternTop).copy.make {
+					~mode = \d;
+					~deg = Pwhite(35, 43, inf);
+				};
+				p.child.ampEnv = Env(
+					#[0, 1, 0.3, 0],
+					#[0.01, 0.94, 0.05],
+					0, 2
+				);
+			}),
+		])
 	),
 	bpCmd: (name: \sd, prepareBP: { |p|
 		p.setGstNow(Pseq(#[bmin, gmaj, emaj, csmin]));
@@ -486,16 +527,42 @@ t = TLSequenceIterator([
 	gcAutoSynthCmd: (
 		gc: BP(\pzclimax).lfoDepthCtl,
 		name: \ctlEnv, outName: \outbus,
-		connect: 0,
-		env: Env(#[1.2, 1.9], #[8] / thisThread.clock.tempo)
+		connect: 1,
+		env: Env(#[1.2, 1.9], #[8] / thisThread.clock.tempo, 4)
 	),
-	(12*4) + 3 + 2.5 + 1 - 6,
+	(12*4) + 3 + 2.5 + 1 - 24,
 	// not really effective
-	{ thisThread.clock.beats.debug("reduce"); VC(\pzrhy).v.globalControls[\retrigProb].value = 0.1; 0 }
+	// { thisThread.clock.beats.debug("reduce"); VC(\pzrhy).v.globalControls[\retrigProb].value = 0.1; 0 }
+	subIterCmd: (
+		id: \retrigProb,
+		subIter: TLSequenceIterator([
+			gcAutoSynthCmd: (
+				gc: VC(\pzrhy).v.globalControls[\retrigProb],
+				name: \ctlEnv, outName: \outbus,
+				env: Env(#[0.6, 0.14], #[1], \sin), time: 24 / TempoClock.tempo, connect: 1
+				// value: 0.1, time: 24 / TempoClock.tempo, curve: 3
+			),
+			\cmdSync,
+			gcAutoSynthCmd: (
+				gc: VC(\pzrhy).v.globalControls[\retrigProb],
+				name: \ctlEnv, outName: \outbus,
+				env: Env(#[0.14, 0.0], #[1], \sin), time: 36 /* sec */, connect: 1,
+				// value: 0.1, time: 24 / TempoClock.tempo, curve: 3
+				clearDoneSignal: {
+					"stopping everything".debug;
+					BP(\pzclimax).stopNow;
+					VC(\pzrhy).v.releaseAll;
+					{ t.stop }.defer(0.05);
+				}
+			),
+		])
+	)
 ]).play;
 )
 
 t.stop;
 
-
 // that goes through about 159; calculate 138 seconds to go
+
+// use bowed fm just after 159
+BP(\bw).reset;

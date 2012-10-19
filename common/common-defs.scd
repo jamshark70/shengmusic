@@ -705,4 +705,39 @@ protect {
 		type: \bp
 	) => Fact(\recBP);
 
+	PR(\funcCmd).copy.putAll((
+		setDoneSignal: {
+			~doneSignal = Updater(~subIter, e { |obj, what, cmds|
+				// "subIterCmd '%' got update: %".format(~id, [what, cmds]).debug;
+				if(what == \done) {
+					~doneSignal.remove;
+					// "Updater calling ~stop".debug;
+					~stop.((activeCmds: cmds))
+				};
+			});
+			~setUserSignal.();
+		},
+		clock108: topEnvironment[\clock108],
+		func: {
+			~subIter.play(argClock: ~clock108 ? TempoClock.default);
+		},
+		done: { |parms|
+			// oh, this is REALLY f*ked up
+			// if the subiterator stops, the Updater fires FROM WITHIN THE ROUTINE
+			// then this forcibly stops the routine early
+			// causing this func never to return
+			// that interrupts the subIterCmd's cleanup process
+			// how many gray hairs from trying to find THAT one?
+			// I tried to fix it in TLSequenceIterator but maybe it didn't take, so...
+			if(~subIter.isRunning) { ~subIter.stop(parms) };
+		},
+		clearDoneSignal: { |parms|
+			~doneSignal.remove;
+			~doneSignal = nil;
+			~clearUserSignal.(parms);
+		},
+		findActive: { |id, thisCmd| ~subIter.findActive(id, thisCmd) },
+		collIndex: \subIterCmd  // chuck => PR doesn't automatically set this
+	)) => PR(\subIterCmd);
+
 } { AbstractChuckArray.defaultSubType = saveSubtype; }

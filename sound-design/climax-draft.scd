@@ -511,3 +511,30 @@ p.mode = \a0;
 
 a = { SinOsc.ar(440, 0, 0.05) ! 2 }.play;
 a.free;
+
+
+// misc test code
+BP(\pzclimax).reset;
+BP(\pzclimax).child.event.debug = true;
+BP(\pzclimax).child.event.debug = false;
+
+BP(\pzclimax).triggerOneEvent(0);
+
+VC(\pzrhy).v.globalControls[\retrigProb].watch;
+KrBusWatcher.newFrom(s).updateFreq = 8;
+
+VC(\pzrhy).v.globalControls[\retrigProb].value = 0.6;
+
+(
+VC(\pzrhy).v.globalControls[\retrigProb].automate(\ctlEnv, [env: Env(#[0.6, 0.1], #[1], \sin), time: 24 / TempoClock.tempo, connect: 0]);
+// VC(\pzrhy).v.globalControls[\retrigProb].automate(\ctlEnv, [env: Env(#[0.6, 0.4, 0.1], #[0.5, 0.5], \sin), time: 24 / TempoClock.tempo, connect: 0]);
+TempoClock.sched(0, {
+	(type: \voicerNote, voicer: VC(\pzrhy).v, degree: Pwhile1({ |ev, next| next <= 8 }, Pseries(-7, Pwhite(1, 3, inf), inf)).asStream.all, ffreq: 6000, fbamp: 0.98, beatsPerSec: TempoClock.tempo, baseValue: 0.25, sustain: 24, env: [Env([ 0, 0.2, 1, 0 ], [ 0.009, 0.846, 0.045 ], -4, 2)], amp: 1).play;
+	nil
+});
+)
+
+
+VC(\pzrhy).v.globalControls[\retrigProb].stopWatching;
+
+VC(\pzrhy).v.globalControls[\retrigProb].automate(\ctlPoint, [value: 0.1, time: 24 / TempoClock.tempo, curve: 3]);
