@@ -256,7 +256,24 @@ forkIfNeeded {
 				)
 			);
 
-			~gesture = Plazy({ Psym(BPStream(\gst), ~gestures) });
+			// need to replicate PnNilSafe logic
+			// so that a gesture can choose to stop play
+			~gesture = Prout({ |inval|
+				var zeroDurLimit = 10, then = 0, gst;
+				if(~gstStream.isNil) { ~makeStreamForKey.(\gst) };
+				while { zeroDurLimit > 0 and: {
+					(gst = ~gstStream.next(inval)).notNil
+				} } {
+					inval = ~gestures[gst].embedInStream(inval);
+					if((thisThread.beats - then) < 0.00001) {
+						zeroDurLimit = zeroDurLimit - 1
+					} {
+						zeroDurLimit = 10;
+					};
+					then = thisThread.beats;
+				};
+				inval
+			});
 
 			~degree = Pfunc({ |ev| ev[\deg].dup(3).flat });
 			~root = 2;

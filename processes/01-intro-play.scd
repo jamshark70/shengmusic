@@ -388,7 +388,6 @@ t = TLSequenceIterator([
 		0
 	},
 	Quant(1),
-	/*
 	loopCmd: (
 		id: \gclLoop,
 		cmds: [
@@ -452,7 +451,6 @@ t = TLSequenceIterator([
 		BP(\sdSwells).removeNotification;
 		~iterator.findActive(\gclLoop).stop
 	}),
-	*/
 	[
 		0.5,
 		bpCmd: (name: \gcl, dur: 14.5, prepareBP: { |p|
@@ -488,6 +486,7 @@ t = TLSequenceIterator([
 			// 	name: \ctlPoint, value: 0.8, time: 0.1
 			// ),
 			Quant(0.25),
+			// leave only pzclimax and probability-changer
 			{
 				t.activeCmds.do { |cmd|
 					if(#[pzclimax, retrigProb].includes(cmd.tryPerform(\id)).not) {
@@ -496,6 +495,19 @@ t = TLSequenceIterator([
 				};
 				0
 			},
+			bpCmd: (name: \sd8, id: \sd8, prepareBP: { |p|
+				// p.setGstNow(\d8_8ve);
+				p.setGstNow(\d8Desc4);
+				p.makeStreamForKey(\endDegree);
+				p.makeStreamForKey(\gesture);
+				p.reset;
+				// p.chan.level = -12.5.dbamp;
+			}),
+			mixerAutoSynthCmd: (
+				mixer: BP(\sd8).chan, name: \ctlEnv, outName: \outbus,
+				env: Env([-4.dbamp, -16.5.dbamp], #[1], \exp), connect: 0,
+				time: 18 / TempoClock.tempo
+			),
 			gcAutoSynthCmd: (
 				gc: BP(\pzclimax).lfoDepthCtl, name: \ctlPoint, outName: \outbus,
 				value: 1, time: 24 /* sec */, curve: -2.2
@@ -537,6 +549,12 @@ t = TLSequenceIterator([
 		id: \retrigProb,
 		subIter: TLSequenceIterator([
 			gcAutoSynthCmd: (
+				gc: BP(\pzclimax).lfoDepthCtl,
+				name: \ctlEnv, outName: \outbus,
+				connect: 1, time: 8,
+				env: Env(#[1.9, 1.0], #[1], -4),
+			),
+			gcAutoSynthCmd: (
 				gc: VC(\pzrhy).v.globalControls[\retrigProb],
 				name: \ctlEnv, outName: \outbus,
 				env: Env(#[0.6, 0.14], #[1], \sin), time: 24 / TempoClock.tempo, connect: 1
@@ -544,9 +562,17 @@ t = TLSequenceIterator([
 			),
 			\cmdSync,
 			gcAutoSynthCmd: (
+				gc: BP(\pzclimax).lfoDepthCtl,
+				name: \ctlEnv, outName: \outbus,
+				connect: 0, time: 8,
+				env: Env(#[1.9, 1.0], #[1], -4),
+			),
+			gcAutoSynthCmd: (
 				gc: VC(\pzrhy).v.globalControls[\retrigProb],
 				name: \ctlEnv, outName: \outbus,
-				env: Env(#[0.14, 0.0], #[1], \sin), time: 36 /* sec */, connect: 1,
+				// env: Env(#[0.14, 0.04], #[1], \sin),
+				env: Env(#[0.14, 0.14, 0.015], #[0.2, 0.8], -4),
+				time: 36 /* sec */, connect: 1,
 				// value: 0.1, time: 24 / TempoClock.tempo, curve: 3
 				clearDoneSignal: {
 					"stopping everything".debug;
@@ -566,3 +592,74 @@ t.stop;
 
 // use bowed fm just after 159
 BP(\bw).reset;
+
+(
+if(t.isPlaying) { t.stop };
+t = TLSequenceIterator([
+	bpCmd: (name: \sd8, id: \sd8, prepareBP: { |p|
+		// p.setGstNow(\d8_8ve);
+		p.setGstNow(\d8Desc4);
+		p.makeStreamForKey(\endDegree);
+		p.makeStreamForKey(\gesture);
+		p.reset;
+		// p.chan.level = -12.5.dbamp;
+	}),
+	mixerAutoSynthCmd: (
+		mixer: BP(\sd8).chan, name: \ctlEnv, outName: \outbus,
+		env: Env([-4.dbamp, -16.5.dbamp], #[1], \exp), connect: 0,
+		time: 18 / TempoClock.tempo
+	),
+	bpCmd: (name: \pzclimax, prepareBP: { |p|
+		// p.lfoDepthCtl.value = 1;
+		MBM(0)[\pzch] =>.ch p;
+		Pwhite(4, 10, inf) =>.macro p;
+		p.child.makeChordPattern = { Pxrand(~chords, inf) };
+		p.child.fitFunc = \chordFitNotes;
+		p.topNote = PR(\patternTop).copy.make {
+			~mode = \d;
+			~deg = Pwhite(35, 43, inf);
+		};
+		p.child.ampEnv = Env(
+			#[0, 1, 0.3, 0],
+			#[0.01, 0.94, 0.05],
+			0, 2
+		);
+	}),
+	gcAutoSynthCmd: (
+		gc: VC(\pzrhy).v.globalControls[\retrigProb],
+		name: \ctlEnv, outName: \outbus,
+		env: Env(#[0.14, 0.14, 0.015], #[0.2, 0.8], -4), time: 36 /* sec */, connect: 0,
+		// value: 0.1, time: 24 / TempoClock.tempo, curve: 3
+		clearDoneSignal: {
+			"stopping pizzes".debug;
+			BP(\pzclimax).stopNow;
+			VC(\pzrhy).v.releaseAll;
+			// { t.stop }.defer(0.05);
+		}
+	),
+	gcAutoSynthCmd: (
+		gc: BP(\pzclimax).lfoDepthCtl,
+		name: \ctlEnv, outName: \outbus,
+		connect: 0, time: 8,
+		env: Env(#[1.9, 1.0], #[1], -4),
+	)
+]).play;
+)
+
+KrBusWatcher.newFrom(s).nodes.includes(BP(\sd8).chan.controls[\level].bus);
+BP(\sd8).chan.controls[\level].dump
+
+t.stop;
+
+BP(\sd8).endDegree = Pstep(
+	Pseq([Pn(7, 1), Ptuple([7, Pseries(6, -1, inf)])], 1),
+	Pseq([15, 12, 9, 61 - 15 - 12 - 9], 1)
+);
+
+
+(
+BP(\sd8).setGstNow(\d8Desc4);
+BP(\sd8).makeStreamForKey(\endDegree);
+BP(\sd8).makeStreamForKey(\gesture);
+BP(\sd8).reset;
+)

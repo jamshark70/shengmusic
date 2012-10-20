@@ -770,6 +770,10 @@ forkIfNeeded {
 					rhythm8: Pseq([1, Pn(0.5, { rrand(2, 7) })], 1),
 					rhythm16: Pseq([1, Pconst({ rrand(2, 7) * 0.5 }, Prand([0.5, Pn(0.25, 2)], inf))], 1),
 					triadSteps: Pseries({ rrand(1, 2) }, Pwhite(1, 2, inf), inf),
+					endDegree4: Pstep(
+						Pseq([Pn(7, 1), Ptuple([7, Pseries(6, -1, inf)])], 1),
+						Pseq([18, 14, 18, 81 - 18 - 14 - 18], 1)
+					),
 					gestures: (
 						d8: Pbind(
 							\dur, Plazy({ ~rhythm8 }),
@@ -783,6 +787,13 @@ forkIfNeeded {
 							\sustain, 0.1,
 							\octave, 5,
 							\deg, 0,
+							\amp, 0.1
+						),
+						d8Desc4: Pbind(
+							\dur, Plazy({ ~rhythm8 }),
+							\sustain, 0.1,
+							\octave, 5,
+							\deg, BPStream(\endDegree4),
 							\amp, 0.1
 						),
 						// this one is really nice
