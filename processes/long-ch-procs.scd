@@ -1060,11 +1060,18 @@ forkIfNeeded {
 							~bufTimes = BP(~bufRecorder).times;
 						});
 					} {
-						~buffers = 2.collect { |i|
-							Buffer.readChannel(s, "/home/dlm/share/SC/Recordings/cues/feet101120_155745-partnering-norm.aiff",
-								51766, 1449461, i
-							);
-						};
+						// ~buffers = 2.collect { |i|
+						// 	Buffer.readChannel(s, "/home/dlm/share/SC/Recordings/cues/feet101120_155745-partnering-norm.aiff",
+						// 		51766, 1449461, i
+						// 	);
+						// };
+						~buffers = [Buffer.readAndQuery(s,
+							PR(\decimator).path.dirname.dirname +/+ "support/sheng1350023628.aiff",
+							4255116, 2041792,
+							completionFunc: e { |buf|
+								~bufTimes = [Array.fill(15, { rrand(0.2, buf.duration - 0.2) })];
+							}
+						)];
 						~iMadeBuffers = true;
 					};
 				};
