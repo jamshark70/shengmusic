@@ -164,7 +164,7 @@ Fact(\recBP) => BP(\rec);
 
 BP(\dc).free;
 PR(\decimator).chuck(BP(\dc), nil, (
-	master: ~master, rvbmc: ~rvbmc, bufRecorder: \rec,
+	master: ~master, rvbmc: ~rvbmc, bufRecorder: if(BP.exists(\rec)) { \rec } { nil },
 	startCenter: Pfunc({ |ev| ~bufTimes[ev[\bufindex]].choose * s.sampleRate + 1500 })
 ));
 0 => BP(\dc);
@@ -388,6 +388,7 @@ t = TLSequenceIterator([
 		0
 	},
 	Quant(1),
+/*
 	loopCmd: (
 		id: \gclLoop,
 		cmds: [
@@ -451,6 +452,7 @@ t = TLSequenceIterator([
 		BP(\sdSwells).removeNotification;
 		~iterator.findActive(\gclLoop).stop
 	}),
+*/
 	[
 		0.5,
 		bpCmd: (name: \gcl, dur: 14.5, prepareBP: { |p|
@@ -495,19 +497,14 @@ t = TLSequenceIterator([
 				};
 				0
 			},
-			bpCmd: (name: \sd8, id: \sd8, prepareBP: { |p|
-				// p.setGstNow(\d8_8ve);
-				p.setGstNow(\d8Desc4);
-				p.makeStreamForKey(\endDegree);
-				p.makeStreamForKey(\gesture);
-				p.reset;
-				// p.chan.level = -12.5.dbamp;
+			bpCmd: (name: \dcdr, id: \dcdr, prepareBP: {
+				BP(\dc).chan.level = -7.4.dbamp;
+				// slower than at first: this section is relaxing the energy
+				BP(\dc).patDelta = Pwhite(2.5, 5.0, inf);
+				BP(\dc).patDur = Pwhite(6.0, 10.0, inf);
+				BP(\dc).shortDur = Pwhite(0.2, 0.4, inf);
+				BP(\dc).longDur = Pwhite(0.7, 1.0, inf);
 			}),
-			mixerAutoSynthCmd: (
-				mixer: BP(\sd8).chan, name: \ctlEnv, outName: \outbus,
-				env: Env([-4.dbamp, -16.5.dbamp], #[1], \exp), connect: 0,
-				time: 18 / TempoClock.tempo
-			),
 			gcAutoSynthCmd: (
 				gc: BP(\pzclimax).lfoDepthCtl, name: \ctlPoint, outName: \outbus,
 				value: 1, time: 24 /* sec */, curve: -2.2
@@ -593,22 +590,37 @@ t.stop;
 // use bowed fm just after 159
 BP(\bw).reset;
 
+BP(\dc).patDelta.postcs
+BP(\dc).patDur.postcs
+
+BP(\dc).patDelta = Pwhite(2.5, 5.0, inf);
+BP(\dc).patDur = Pwhite(6.0, 10.0, inf);
+BP(\dc).shortDur = Pwhite(0.2, 0.4, inf);
+BP(\dc).longDur = Pwhite(0.7, 1.0, inf);
+
 (
 if(t.isPlaying) { t.stop };
 t = TLSequenceIterator([
-	bpCmd: (name: \sd8, id: \sd8, prepareBP: { |p|
-		// p.setGstNow(\d8_8ve);
-		p.setGstNow(\d8Desc4);
-		p.makeStreamForKey(\endDegree);
-		p.makeStreamForKey(\gesture);
-		p.reset;
-		// p.chan.level = -12.5.dbamp;
+	bpCmd: (name: \dcdr, id: \dcdr, prepareBP: {
+		BP(\dc).chan.level = -7.4.dbamp;
+		BP(\dc).patDelta = Pwhite(2.5, 5.0, inf);
+		BP(\dc).patDur = Pwhite(6.0, 10.0, inf);
+		BP(\dc).shortDur = Pwhite(0.2, 0.4, inf);
+		BP(\dc).longDur = Pwhite(0.7, 1.0, inf);
 	}),
-	mixerAutoSynthCmd: (
-		mixer: BP(\sd8).chan, name: \ctlEnv, outName: \outbus,
-		env: Env([-4.dbamp, -16.5.dbamp], #[1], \exp), connect: 0,
-		time: 18 / TempoClock.tempo
-	),
+	// bpCmd: (name: \sd8, id: \sd8, prepareBP: { |p|
+	// 	// p.setGstNow(\d8_8ve);
+	// 	p.setGstNow(\d8Desc4);
+	// 	p.makeStreamForKey(\endDegree);
+	// 	p.makeStreamForKey(\gesture);
+	// 	p.reset;
+	// 	// p.chan.level = -12.5.dbamp;
+	// }),
+	// mixerAutoSynthCmd: (
+	// 	mixer: BP(\sd8).chan, name: \ctlEnv, outName: \outbus,
+	// 	env: Env([-4.dbamp, -16.5.dbamp], #[1], \exp), connect: 0,
+	// 	time: 18 / TempoClock.tempo
+	// ),
 	bpCmd: (name: \pzclimax, prepareBP: { |p|
 		// p.lfoDepthCtl.value = 1;
 		MBM(0)[\pzch] =>.ch p;
