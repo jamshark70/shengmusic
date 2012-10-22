@@ -774,6 +774,26 @@ forkIfNeeded {
 						Pseq([Pn(7, 1), Ptuple([7, Pseries(6, -1, inf)])], 1),
 						Pseq([18, 14, 18, 81 - 18 - 14 - 18], 1)
 					),
+					endDegreeMany: Pstep(
+						Prout({ |inval|
+							var descent = Pseries(
+								6,
+								Pseq([Pn(-1, 2), Pwhite(-2, -1, inf)]),
+								inf
+							),
+							streams = [7, descent.asStream], outval;
+							inval = 7.yield;
+							while { (outval = streams.collect(_.next(inval))).notNil } {
+								if(outval.last <= 4) {
+									streams = streams.add(descent.asStream);
+								};
+								outval = outval.removeDups;
+								inval = outval.yield;
+							};
+							inval
+						}),
+						Pconst(52, Pwhite(6, 12, inf))
+					),
 					gestures: (
 						d8: Pbind(
 							\dur, Plazy({ ~rhythm8 }),
@@ -794,6 +814,13 @@ forkIfNeeded {
 							\sustain, 0.1,
 							\octave, 5,
 							\deg, BPStream(\endDegree4),
+							\amp, 0.1
+						),
+						d8DescMany: Pbind(
+							\dur, Plazy({ ~rhythm8 }),
+							\sustain, 0.1,
+							\octave, 5,
+							\deg, BPStream(\endDegreeMany),
 							\amp, 0.1
 						),
 						// this one is really nice

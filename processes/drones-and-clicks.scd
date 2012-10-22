@@ -253,6 +253,14 @@ forkIfNeeded {
 						)
 					), 1),
 					\amp, 0.25
+				),
+				coda: Pbind(
+					\dur, Pconst({ ~codaDurPoolStream.next }, Pwhite(1.0, 3.5, inf)),
+					\sustain, Pseq([Pwhite(1.2, 2.1, 1), Pn(0.25, inf)]),
+					\octave, 5,
+					\deg, Pseq([Plazy({ |ev| ~codaNotePoolStream.next(ev).scramble }), Pn(0, inf)]),
+					\amp, Pseq([0.05, Pn(0.25, inf)]),
+					\strum, Pstutter(1000, Pwhite(0.2, 0.45, 1))
 				)
 			);
 
@@ -304,6 +312,14 @@ forkIfNeeded {
 			});
 			~excamp = 1.2;
 			~amp = 0.1;
+
+			~codaNotePool = Pseq(#[
+				[-1, 0, 1, 6], [-3, 1, 3], [-2, 0, 1, 4], [-1, 0, 1],
+				[0, 1, 4], [-1, 0, 1], [0, 1, 4], [-1, 0, 1],
+				[-2, 3, 4], [-1, 0, 1], [0, 1]
+			]);
+
+			~codaDurPool = Pseq(#[14, 9, 5, 5,  4.5, 5.5, 5, 8,  6, 5, 300]);
 
 			// little hack: gesture pattern can override main-calc pattern
 			~asPattern = {

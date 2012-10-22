@@ -1,6 +1,9 @@
 ~performance = true; (thisProcess.nowExecutingPath.dirname +/+ "../common/dev-setup.scd").loadPath;
 // (thisProcess.nowExecutingPath.dirname +/+ "../common/common-defs.scd").loadPath;
 
+~liveSheng = false;
+// ~liveSheng = true;
+
 (
 #["../processes/drones-and-clicks.scd", "../processes/long-ch-procs.scd", "../processes/mid-fast-procs.scd", "../processes/climax-procs.scd"].do { |path|
 	(thisProcess.nowExecutingPath.dirname +/+ path).loadPath;
@@ -82,6 +85,8 @@ BP(\birds).chan.level = 0;
 
 // retriggered pizzes
 (
+if(~liveSheng == true) { Fact(\recBP) => BP(\rec) } { BP(\rec).free };
+
 VC(\nlet).free;
 Fact(\noiseletVC) => VC(\nlet);
 
@@ -160,8 +165,6 @@ BP(\susCh).triggerOneEvent(0);
 
 
 (
-Fact(\recBP) => BP(\rec);
-
 BP(\dc).free;
 PR(\decimator).chuck(BP(\dc), nil, (
 	master: ~master, rvbmc: ~rvbmc, bufRecorder: if(BP.exists(\rec)) { \rec } { nil },
@@ -183,6 +186,7 @@ Fact(\tripletBP) => BP(\tri);
 VC(\tri) => BP(\tri);
 PR(\triDriver).chuck(BP(\td), nil, (bp: \tri));
 1 => BP(\td);
+BP(\td) => MT(1);
 )
 
 BP(\td).dftRest = Pwhite(3, 7, inf);
@@ -216,6 +220,7 @@ MIDIRecBuf(\lowChGshp, [
 	(0.1 ! 7).put(6, 1), 0.1, 0.5
 ].asNotes, (type: \ch, mode: \d)) => BP(\lowCh);
 Pn(13, 1) =>.macro BP(\lowCh);
+VC(\lpizz).env.target.level = -18.8.dbamp;
 )
 
 
@@ -228,6 +233,7 @@ Fact(\triVC).chuck(VC(\slowTri), nil, (env: Env.adsr(0.8, 1.2, 0.4, 2.4, curve: 
 
 BP(\bigA).free;
 PR(\bigA) => BP(\bigA);
+BP(\bigA) => MT(1);
 )
 
 
@@ -237,6 +243,7 @@ BP(\efg).free;
 PR(\e_fs_g) => BP(\efg);
 VC(\nlet) => BP(\efg);
 0 => BP(\efg);
+BP(\efg) => MT(1);
 )
 
 BP(#[sd, efg]).do(_.reset);
@@ -250,6 +257,7 @@ BP(\sd).setGstNow(\eminTrans);
 (
 BP(\sd8).free;
 Fact(\sd8BP) => BP(\sd8);
+BP(\sd8) => MT(1);
 )
 
 BP(\sd8).setGstNow(\d16, 1);
@@ -263,6 +271,7 @@ BP(\sd8).setGstNow(Pseq([Pn(\d8, { rrand(1, 3) }), \triad8], inf), 1);
 BP(\gcl).free;
 PR(\gridClicks).chuck(BP(\gcl), nil, (master: ~master));
 1 => BP(\gcl);
+BP(\gcl) => MT(1);
 )
 
 
@@ -382,15 +391,36 @@ BP(\climaxSeq) => MT(1);
 BP(\climaxSeq).playUnison = false;
 
 
-BP(\sd8).endDegree = Pstep(
-	Pseq([Pn(7, 1), Ptuple([7, Pseries(6, -1, inf)])], 1),
-	Pseq([15, 12, 9, 61 - 15 - 12 - 9], 1)
-);
+
+(
+BP(\sd8).setGstNow(\d8DescMany);
+BP(\sd8).makeStreamForKey(\endDegreeMany);
+BP(\sd8).makeStreamForKey(\gesture);
+BP(\sd8).reset;
+
+BP(\efg).freq = Ppatlace([
+	Pseries(42, Pwhite(-2, -1, inf), inf),
+	Pseries(43, Pwhite(1, 2, inf), inf)
+], inf).collect(_.unmapMode(\d));
+
+BP(\sd8).addDependant(BP(\efg).v);
+BP(\efg)[\update] = { |obj, what, more|
+	if(more == \stopped) {
+		BP(~collIndex).stop(0);
+		BP(\sd8).removeDependant(BP(~collIndex).v);
+	};
+};
+)
+
+// play sd8 and efg together
+
+// fade in clicks and birds (in fully by cadenza)
+
 
 
 (
-BP(\sd8).setGstNow(\d8Desc4);
-BP(\sd8).makeStreamForKey(\endDegree);
-BP(\sd8).makeStreamForKey(\gesture);
-BP(\sd8).reset;
+BP(\sd).makeStreamForKey(\codaNotePool);
+BP(\sd).makeStreamForKey(\codaDurPool);
+BP(\sd).setGstNow(\coda);
+BP(\sd).reset;
 )
