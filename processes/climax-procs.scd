@@ -272,7 +272,7 @@ forkIfNeeded {
 		} => PR(\sdSwells);
 
 		(
-			make: { |name
+			make: { |name|
 				BP(name).free;
 				PR(\bigA).chuck(BP(name), nil, (
 					playUnison: true,
