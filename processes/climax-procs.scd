@@ -271,5 +271,226 @@ forkIfNeeded {
 			~removeNotification = { ~recvNotify.remove };
 		} => PR(\sdSwells);
 
+		(
+			make: { |name
+				BP(name).free;
+				PR(\bigA).chuck(BP(name), nil, (
+					playUnison: true,
+					onSeqStop: { VC(\pzrhy).releaseAll },
+					seqBase: [
+						{	BP(\pzclimax).lfoDepthCtl.value = 1;
+							VC(\pzrhy).v.globalControls[\retrigProb].value = 0.6;
+							BP(\gcl).maxPoly.value = 3;
+							BP(\gcl).chan.level = -3.77.dbamp;
+							BP(\decelCl).chan.level = -3.77.dbamp;
+							BP(\decelCl).maxPoly.value = 3;
+							BP(\sd).chan.level = -6.dbamp;
+							VC(\pzrhy).env.target.level = -7.dbamp;
+							BP(\sdSwells).removeNotification;
+							0
+						},
+						Quant(1),
+						loopCmd: (
+							id: \gclLoop,
+							cmds: [
+								{ rrand(3, 8) * 0.5 },
+								{
+									PR(\bpCmd).copy.putAll((name: \gcl, dur: rrand(8, 16) * 0.5));
+								}
+							]
+						),
+						[
+							34,
+							{
+								BP(\sdSwells).amp = Pseries.fromEndpoints(0.12, 0.26, 5) ++ Pn(0.334, inf);
+								BP(\sdSwells).excAtk = Pn(3, 5) ++ Pn(10, inf);
+								BP(\sdSwells).excDcy = Pn(7, 5) ++ Pn(18, inf);
+								BP(\sdSwells).prepareForPlay;
+								BP(\sdSwells).bp = \un;
+								BP(\sdSwells).addNotification;
+								BP(\sdSwells).reset;
+								0
+							}
+						],
+						bpCmd: (name: \un,
+							prepareBP: {
+								var p;  // to manipulate pzclimax
+								VC(\tri).env.target.level = -12.dbamp;
+								VC(\fm).env.target.level = VC(\tri).env.target.level * (-12.dbamp);
+
+								if(BP.exists(\pzclimax)) {
+									p = BP(\pzclimax);
+									p.lfoDepthCtl.value = 1;
+									MBM(0)[\pzch] =>.ch p;
+									Pwhite(3, 6, inf) * 0.25 =>.macro p;
+									p.child.makeChordPattern = { Pxrand(~chords, inf) };
+									p.child.fitFunc = \chordFitNotes;
+									p.topNote = PR(\patternTop).copy.make {
+										~mode = \d;
+										~deg = Pwhite(35, 43, inf);
+									};
+									p.child.ampEnv = Env(
+										#[0, 1, 0.1, 0],
+										#[0.01, 0.94, 0.05],
+										-2, 2
+									);
+									if(p[\recvNotify].isNil) {
+										p.recvNotify = NotificationCenter.register(BP(\un), \accent, \pzclimax, {
+											BP(~collIndex).triggerOneEvent(0);
+										}.inEnvir(p.env));
+									};
+								};
+							},
+							clearDoneSignal: {
+								if(BP.exists(\pzclimax)) {
+									BP(\pzclimax)[\recvNotify].remove;
+									BP(\pzclimax)[\recvNotify] = nil;
+								}
+							}
+						),
+						\cmdSync,
+						funcCmd: (func: {
+							BP(\sdSwells).removeNotification;
+							~iterator.findActive(\gclLoop).stop
+						}),
+						[
+							0.5,
+							bpCmd: (name: \gcl, dur: 14.5, prepareBP: { |p|
+								p.maxPoly.value = 3;
+							}),
+							\cmdSync,
+							bpCmd: (name: \decelCl, prepareBP: { |q|
+								q.makeStreamForKey(\waitTime);
+								q.maxPoly.value = 3;
+								q.reset;
+							})
+						],
+						subIterCmd: (
+							id: \pzclimax,
+							subIter: TLSequenceIterator([
+								bpCmd: (name: \pzclimax,
+									prepareBP: { |p|
+										p.child.fitFunc = \asis;
+										p.child.makeChordPattern = { Pstutter(Pseq(#[2, 1, 1, 1000]), Pseq(~chords, 1)) };
+										MBM(0)[\pzclimax] =>.ch p;
+										p.child.ampEnv = Env(
+											#[0, 0.2, 1, 0],
+											#[0.01, 0.94, 0.05],
+											-4, 2
+										);
+										MacRh(\pzclimax) => p;
+									},
+									// clearDoneSignal: { { t.stop }.defer(0.05); }
+								),
+								\cmdSync,
+								// mixerAutoSynthCmd: (
+								// 	mixer: VC(\pzrhy).env.target, outName: \outbus,
+								// 	name: \ctlPoint, value: 0.8, time: 0.1
+								// ),
+								Quant(0.25),
+								// leave only pzclimax and probability-changer
+								{
+									BP(name).tlseq.activeCmds.do { |cmd|
+										if(#[pzclimax, retrigProb].includes(cmd.tryPerform(\id)).not) {
+											cmd.stop;
+										};
+									};
+									0
+								},
+								bpCmd: (name: \dcdr, id: \dcdr, prepareBP: {
+									BP(\dc).chan.level = -7.4.dbamp;
+									// slower than at first: this section is relaxing the energy
+									BP(\dc).patDelta = Pwhite(2.5, 5.0, inf);
+									BP(\dc).patDur = Pwhite(6.0, 10.0, inf);
+									BP(\dc).shortDur = Pwhite(0.2, 0.4, inf);
+									BP(\dc).longDur = Pwhite(0.7, 1.0, inf);
+								}),
+								gcAutoSynthCmd: (
+									gc: BP(\pzclimax).lfoDepthCtl, name: \ctlPoint, outName: \outbus,
+									value: 1, time: 24 /* sec */, curve: -2.2
+								),
+								bpCmd: (name: \pzclimax, prepareBP: { |p|
+									// p.lfoDepthCtl.value = 1;
+									MBM(0)[\pzch] =>.ch p;
+									Pwhite(4, 10, inf) =>.macro p;
+									p.child.makeChordPattern = { Pxrand(~chords, inf) };
+									p.child.fitFunc = \chordFitNotes;
+									p.topNote = PR(\patternTop).copy.make {
+										~mode = \d;
+										~deg = Pwhite(35, 43, inf);
+									};
+									p.child.ampEnv = Env(
+										#[0, 1, 0.3, 0],
+										#[0.01, 0.94, 0.05],
+										0, 2
+									);
+								}),
+							])
+						),
+						bpCmd: (name: \sd, prepareBP: { |p|
+							p.setGstNow(Pseq(#[bmin, gmaj, emaj, csmin]));
+							p.reset;
+						}),
+						15,
+						// { thisThread.clock.beats.debug("gcautosynth"); 0 },
+						gcAutoSynthCmd: (
+							gc: BP(\pzclimax).lfoDepthCtl,
+							name: \ctlEnv, outName: \outbus,
+							connect: 1,
+							env: Env(#[1.2, 1.9], #[8] / thisThread.clock.tempo, 4)
+						),
+						(12*4) + 3 + 2.5 + 1 - 24,
+						// not really effective
+						// { thisThread.clock.beats.debug("reduce"); VC(\pzrhy).v.globalControls[\retrigProb].value = 0.1; 0 }
+						subIterCmd: (
+							id: \retrigProb,
+							subIter: TLSequenceIterator([
+								gcAutoSynthCmd: (
+									gc: BP(\pzclimax).lfoDepthCtl,
+									name: \ctlEnv, outName: \outbus,
+									connect: 1, time: 8,
+									env: Env(#[1.9, 1.0], #[1], -4),
+								),
+								gcAutoSynthCmd: (
+									gc: VC(\pzrhy).v.globalControls[\retrigProb],
+									name: \ctlEnv, outName: \outbus,
+									env: Env(#[0.6, 0.14], #[1], \sin), time: 24 / TempoClock.tempo, connect: 1
+									// value: 0.1, time: 24 / TempoClock.tempo, curve: 3
+								),
+								\cmdSync,
+								gcAutoSynthCmd: (
+									gc: BP(\pzclimax).lfoDepthCtl,
+									name: \ctlEnv, outName: \outbus,
+									connect: 0, time: 8,
+									env: Env(#[1.9, 1.0], #[1], -4),
+								),
+								gcAutoSynthCmd: (
+									gc: VC(\pzrhy).v.globalControls[\retrigProb],
+									name: \ctlEnv, outName: \outbus,
+									// env: Env(#[0.14, 0.04], #[1], \sin),
+									env: Env(#[0.14, 0.14, 0.015], #[0.2, 0.8], -4),
+									time: 36 /* sec */, connect: 1,
+									// value: 0.1, time: 24 / TempoClock.tempo, curve: 3
+									clearDoneSignal: {
+										"stopping everything".debug;
+										BP(\pzclimax).stopNow;
+										{ BP(name).tlseq.stop }.defer(0.05);
+									}
+								),
+							])
+						)
+					],
+					seq: {
+						if(~playUnison) { ~seqBase }
+						{ ~seqBase[0..1] ++ ~seqBase[x.indexOf(\cmdSync) + 1 ..] }
+					}
+				));
+
+				0 => BP(name);
+				BP(name)
+			},
+			type: \bp
+		) => Fact(\climaxSeqBP);
+
 	} { AbstractChuckArray.defaultSubType = saveSubtype };
 };

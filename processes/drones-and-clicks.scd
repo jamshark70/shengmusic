@@ -824,8 +824,15 @@ forkIfNeeded {
 				~cond = Condition.new;
 				~event[\cond] = ~cond;
 				~event[\action] = e {
-					~tlseq = TLSequenceIterator(~seq).play(0, thisThread.clock);
-					~resp = NotificationCenter.registerOneShot(~tlseq, \done, ~collIndex, e { ~cond.unhang });
+					~tlseq = TLSequenceIterator(~seq.value)
+					.onStop_(~onSeqStop)
+					.play(0, thisThread.clock);
+					// oops, TLSeq doesn't go thru NotificationCenter if it's stopped explicitly
+					// ~resp = NotificationCenter.registerOneShot(~tlseq, \done, ~collIndex, e { ~cond.unhang });
+					~resp = SimpleController(~tlseq).put(\done, e {
+						~resp.remove;
+						~cond.unhang;
+					});
 				};
 			};
 			~freeCleanup = { ~resp.remove };
