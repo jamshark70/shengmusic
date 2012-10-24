@@ -54,7 +54,7 @@ VC(\bowedFM) => BP(\bw);
 BP(\bw) => MT(1);
 
 BP(\sd) => MCG(0);
-VC(\bowedFM) => MCG(1);
+// VC(\bowedFM) => MCG(1);
 )
 
 
@@ -71,8 +71,8 @@ PR(\birds).chuck(BP(\birds), nil, (master: ~master, rvbmc: ~rvbmc));
 0 => BP(\birds);
 BP(\birds) => MT(1);
 
-BP(\cl) => MCG(2);
-BP(\birds) => MCG(3);
+BP(\cl) => MCG(1);
+BP(\birds) => MCG(2);
 BP(\cl).chan.level = 0;
 BP(\birds).chan.level = 0;
 )
@@ -106,7 +106,7 @@ BP(\firstPitch) => MT(1);
 
 VC(\pz).free;
 Fact(\pizz) => VC(\pz);
-VC(\pz) => MCG(4);
+VC(\pz) => MCG(3);
 VC(\pz).env.target.level = 0;
 VC(\pz) => VP(0);
 
@@ -264,34 +264,23 @@ BP(\sd).setGstNow(\eminTrans);
 BP(\sd8).free;
 Fact(\sd8BP) => BP(\sd8);
 BP(\sd8) => MT(1);
+
+BP(\gcl).free;
+PR(\gridClicks).chuck(BP(\gcl), nil, (master: ~master/*, initLevel: -9.dbamp*/));
+1 => BP(\gcl);
+BP(\gcl) => MT(1);
+BP(\gcl).chan.level = -12.dbamp;
+BP(\gcl) => MCG(4);
 )
 
 BP(\sd8).v[\setGstNow].postcs
 
 BP(\sd8).setGstNow(\d16, 1);
 
-BP(\sd8).setGstNow(Pseq([Pn(\d16, { rrand(3, 7) }), \triad8], inf), 1);
+BP(\sd8).setGstNow(Pseq([Pn(\d16, { rrand(3, 6) }), \triad8], inf), 1);
 
 // m97: G#
 
-// rhythmic clicks
-(
-BP(\gcl).free;
-PR(\gridClicks).chuck(BP(\gcl), nil, (master: ~master/*, initLevel: -9.dbamp*/));
-1 => BP(\gcl);
-BP(\gcl) => MT(1);
-BP(\gcl).chan.level = -12.dbamp;
-)
-
-
-// existing procs:
-// Fact('oscilBP'), Fact('flzgBP'), Fact('slowMelBP'), Fact('rpt16BP'), Fact('sd8BP')
-// PR('gridClicks'), PR('fastlow')
-// Voicer: Fact('madfmVC')
-//
-// Fact.all.select { |fact| fact.path.containsi("mid-fast") };
-// PR.all.select { |fact| fact.path.containsi("mid-fast") };
-// Func.all.select { |fact| fact.path.notNil and: { fact.path.containsi("mid-fast") } };
 
 (
 \makeOnePizzVC.eval;  //??
@@ -319,6 +308,8 @@ VC(\tri).env.target.level = -10.8.dbamp;
 VC(\fm).env.target.level = -18.dbamp;
 )
 
+BP(\sd8).chan.level = -6.dbamp;
+
 // MOVE QUICKLY
 
 VC(\qb).env.target.automate(\level, \ctlPoint, [value: -12.dbamp, time: 9, curve: 3]);
@@ -344,7 +335,8 @@ BP(\fastlow).free;
 PR(\fastlow) => BP(\fastlow);
 BP(\fastlow) => VC(\fmlow);
 BP(\fastlow) => MT(1);
-VC(\fmlow).env.target.level = -10.dbamp;
+VC(\fmlow).env.target.level = 0; // -10.dbamp;
+VC(\fmlow) => MCG(5); // to mixer!
 
 \makeNletMelVC.eval;
 Fact(\slowMelBP) => BP(\slowmel);
@@ -436,7 +428,6 @@ BP(\efg)[\update] = { |obj, what, more|
 // fade in clicks and birds (in fully by cadenza)
 
 
-
 (
 BP(\sd).makeStreamForKey(\codaNotePool);
 BP(\sd).makeStreamForKey(\codaDurPool);
@@ -445,3 +436,5 @@ BP(\sd).reset;
 BP(\sd).chan.level = -6.dbamp;
 BP(\dc).chan.level = -19.dbamp;
 )
+
+TempoClock.tempo = 100/60;
