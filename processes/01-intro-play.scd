@@ -160,6 +160,7 @@ BP.all.stop;
 
 \makeSusChBP.eval;
 
+BP.all.do(_.stop(0));
 BP(\susCh).prepareForPlay;
 BP(\susCh).triggerOneEvent(0);
 
@@ -168,6 +169,7 @@ BP(\susCh).triggerOneEvent(0);
 BP(\dc).free;
 PR(\decimator).chuck(BP(\dc), nil, (
 	master: ~master, rvbmc: ~rvbmc, bufRecorder: if(BP.exists(\rec)) { \rec } { nil },
+	initLevel: -7.dbamp,
 	startCenter: Pfunc({ |ev| ~bufTimes[ev[\bufindex]].choose * s.sampleRate + 1500 })
 ));
 0 => BP(\dc);
@@ -226,10 +228,13 @@ VC(\lpizz).env.target.level = -18.8.dbamp;
 
 
 
-// mm65-67?
+// mm65-67? THIS IS REALLY WAY TOO LOUD
 (
 VC(\slowTri).free;
-Fact(\triVC).chuck(VC(\slowTri), nil, (env: Env.adsr(0.8, 1.2, 0.4, 2.4, curve: #[3, -1, -2])));
+Fact(\triVC).chuck(VC(\slowTri), nil, (
+	env: Env.adsr(0.8, 1.2, 0.4, 2.4, curve: #[3, -1, -2]),
+	initLevel: -12.5.dbamp
+));
 
 BP(\bigA).free;
 PR(\bigA) => BP(\bigA);
@@ -244,10 +249,10 @@ PR(\e_fs_g) => BP(\efg);
 VC(\nlet) => BP(\efg);
 0 => BP(\efg);
 BP(\efg) => MT(1);
-)
 
 BP(#[sd, efg]).do(_.reset);
 BP(\sd).setGstNow(\eminTrans);
+)
 
 // play efg and sd together
 
@@ -260,18 +265,21 @@ Fact(\sd8BP) => BP(\sd8);
 BP(\sd8) => MT(1);
 )
 
+BP(\sd8).v[\setGstNow].postcs
+
 BP(\sd8).setGstNow(\d16, 1);
 
-BP(\sd8).setGstNow(Pseq([Pn(\d8, { rrand(1, 3) }), \triad8], inf), 1);
+BP(\sd8).setGstNow(Pseq([Pn(\d16, { rrand(3, 7) }), \triad8], inf), 1);
 
 // m97: G#
 
 // rhythmic clicks
 (
 BP(\gcl).free;
-PR(\gridClicks).chuck(BP(\gcl), nil, (master: ~master));
+PR(\gridClicks).chuck(BP(\gcl), nil, (master: ~master/*, initLevel: -9.dbamp*/));
 1 => BP(\gcl);
 BP(\gcl) => MT(1);
+BP(\gcl).chan.level = -12.dbamp;
 )
 
 
@@ -304,7 +312,15 @@ VC(\qb) => BP(\sbs);
 BP(\sbs) => MT(1);
 BP(\sbs).quant = AbsoluteTimeSpec(Pfunc({ BP(\rp).nextBeat + BP(\rp).leadTime }));
 VC(\qb).env.target.level = 0;
+
+VC(\onePizz).env.target.level = -20.dbamp;
+VC(\tri).env.target.level = -10.8.dbamp;
+VC(\fm).env.target.level = -18.dbamp;
 )
+
+// MOVE QUICKLY
+
+VC(\qb).env.target.automate(\level, \ctlPoint, [value: -12.dbamp, time: 9, curve: 3]);
 
 MacRh(\rpt16syncop) => BP(\rp);
 
@@ -327,6 +343,7 @@ BP(\fastlow).free;
 PR(\fastlow) => BP(\fastlow);
 BP(\fastlow) => VC(\fmlow);
 BP(\fastlow) => MT(1);
+VC(\fmlow).env.target.level = -10.dbamp;
 
 \makeNletMelVC.eval;
 Fact(\slowMelBP) => BP(\slowmel);
@@ -335,6 +352,7 @@ BP(\slowmel) => MT(1);
 1 => BP(\slowmel);
 BP(\slowmel).repeats = inf;
 BP(\slowmel).macro = Pwhite(1, 4, inf);
+VC(\nletmel).env.target.level = -8.6.dbamp;
 
 if(VC.exists(\onePizz).not) { \makeOnePizzVC.eval };
 Fact(\scotchBP) => BP(\scotch);
@@ -377,16 +395,14 @@ if(VC.exists(\onePizz).not) { \makeOnePizzVC.eval };
 BP(\sdSwells).free;
 PR(\sdSwells) => BP(\sdSwells);
 VC(\onePizz) => BP(\sdSwells);
-)
 
-// run these in a TLSeq with the big chord procs
-// big chord procs: \sd (already exists), \pzclimax, \gcl
-
-(
 BP(\climaxSeq).free;
 Fact(\climaxSeqBP) => BP(\climaxSeq);
 BP(\climaxSeq) => MT(1);
 )
+
+BP(#[fastlow, slowmel, scotch]).stop(1);
+BP(\climaxSeq).play;
 
 BP(\climaxSeq).playUnison = false;
 
@@ -397,6 +413,7 @@ BP(\sd8).setGstNow(\d8DescMany);
 BP(\sd8).makeStreamForKey(\endDegreeMany);
 BP(\sd8).makeStreamForKey(\gesture);
 BP(\sd8).reset;
+BP(\sd8).chan.level = -9.dbamp;
 
 BP(\efg).freq = Ppatlace([
 	Pseries(42, Pwhite(-2, -1, inf), inf),

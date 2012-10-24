@@ -226,11 +226,17 @@ forkIfNeeded {
 			~stopCleanup = {
 				~stopWatcher.remove;
 				~stopWatcher = nil;
-				BP(~bp).child[\eventStreamPlayer].stop;
-				if(BP(~bp).child.event[\voicer].isKindOf(Voicer)) {
-					BP(~bp).child.event.voicer.nodes.do { |node|
-						node.release(-1.65);  // force 0.65 sec release
+				if(BP.exists(~bp)) {
+					BP(~bp).child[\eventStreamPlayer].stop;
+					if(BP(~bp).child.event[\voicer].isKindOf(Voicer)) {
+						BP(~bp).child.event.voicer.nodes.do { |node|
+							node.release(-1.65);  // force 0.65 sec release
+						};
 					};
+				} {
+					"BP(%): Dependent process BP(%) was already freed"
+					.format(~collIndex.asCompileString, ~bp.asCompileString)
+					.warn;
 				};
 			};
 		} => PR(\chordRunner);
@@ -1035,9 +1041,12 @@ forkIfNeeded {
 			~iMadeBuffers = false;
 
 			~prep = {
-				~chan = MixerChannel(~collIndex, s, 2, 2, outbus: ~master, completionFunc: { |chan|
-					chan.newPostSend(~rvbmc, 0.8);
-				});
+				~chan = MixerChannel(~collIndex, s, 2, 2, outbus: ~master,
+					level: ~initLevel ?? { 0.75 },
+					completionFunc: { |chan|
+						chan.newPostSend(~rvbmc, 0.8);
+					}
+				);
 				~event.put(\group, ~chan.synthgroup).put(\out, ~chan.inbus.index);
 				~runningStreams = IdentitySet.new;
 

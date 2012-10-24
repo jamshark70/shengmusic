@@ -391,10 +391,12 @@ forkIfNeeded {
 		// should abstract this into a general spawner prototype
 		PR(\basicSynthChooser).clone {
 			// ~event = (eventKey: \singleSynthPlayer);
+			// ~initLevel: may supply at chuck time
 			~requiredKeys = #[sharedReady];
 
 			~userprep = {
 				~chan.newPostSend(~rvbmc ? topEnvironment[\rvbmc], -3.32.dbamp);
+				if(~initLevel.notNil) { ~chan.level = ~initLevel };
 				BP(\shengShared).updateWhenReady(~collIndex);
 				currentEnvironment
 			};

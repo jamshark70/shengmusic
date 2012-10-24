@@ -276,7 +276,10 @@ forkIfNeeded {
 				BP(name).free;
 				PR(\bigA).chuck(BP(name), nil, (
 					playUnison: true,
-					onSeqStop: { VC(\pzrhy).releaseAll },
+					onSeqStop: {
+						VC(\pzrhy).releaseAll;
+						BP(\sdSwells).removeNotification;
+					},
 					seqBase: [
 						{	BP(\pzclimax).lfoDepthCtl.value = 1;
 							VC(\pzrhy).v.globalControls[\retrigProb].value = 0.6;
@@ -284,8 +287,9 @@ forkIfNeeded {
 							BP(\gcl).chan.level = -3.77.dbamp;
 							BP(\decelCl).chan.level = -3.77.dbamp;
 							BP(\decelCl).maxPoly.value = 3;
-							BP(\sd).chan.level = -6.dbamp;
+							BP(\sd).chan.level = -2.5.dbamp;
 							VC(\pzrhy).env.target.level = -7.dbamp;
+							VC(\tri).env.target.level = -9.5.dbamp;
 							BP(\sdSwells).removeNotification;
 							0
 						},
@@ -302,7 +306,7 @@ forkIfNeeded {
 						[
 							34,
 							{
-								BP(\sdSwells).amp = Pseries.fromEndpoints(0.12, 0.26, 5) ++ Pn(0.334, inf);
+								BP(\sdSwells).amp = 3.dbamp * (Pseries.fromEndpoints(0.12, 0.26, 5) ++ Pn(0.334, inf));
 								BP(\sdSwells).excAtk = Pn(3, 5) ++ Pn(10, inf);
 								BP(\sdSwells).excDcy = Pn(7, 5) ++ Pn(18, inf);
 								BP(\sdSwells).prepareForPlay;
@@ -398,7 +402,7 @@ forkIfNeeded {
 									0
 								},
 								bpCmd: (name: \dcdr, id: \dcdr, prepareBP: {
-									BP(\dc).chan.level = -7.4.dbamp;
+									BP(\dc).chan.level = -14.dbamp; // -7.4.dbamp;
 									// slower than at first: this section is relaxing the energy
 									BP(\dc).patDelta = Pwhite(2.5, 5.0, inf);
 									BP(\dc).patDur = Pwhite(6.0, 10.0, inf);
