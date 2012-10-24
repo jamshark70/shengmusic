@@ -277,8 +277,8 @@ forkIfNeeded {
 				PR(\bigA).chuck(BP(name), nil, (
 					playUnison: true,
 					onSeqStop: {
-						VC(\pzrhy).releaseAll;
-						BP(\sdSwells).removeNotification;
+						if(VC.exists(\pzrhy)) { VC(\pzrhy).releaseAll };
+						if(BP.exists(\sdSwells)) { BP(\sdSwells).removeNotification };
 					},
 					seqBase: [
 						{	BP(\pzclimax).lfoDepthCtl.value = 1;
@@ -289,7 +289,7 @@ forkIfNeeded {
 							BP(\decelCl).maxPoly.value = 3;
 							BP(\sd).chan.level = -2.5.dbamp;
 							VC(\pzrhy).env.target.level = -7.dbamp;
-							VC(\tri).env.target.level = -9.5.dbamp;
+							// VC(\tri).env.target.level = -9.5.dbamp;
 							BP(\sdSwells).removeNotification;
 							0
 						},
@@ -319,7 +319,7 @@ forkIfNeeded {
 						bpCmd: (name: \un,
 							prepareBP: {
 								var p;  // to manipulate pzclimax
-								VC(\tri).env.target.level = -12.dbamp;
+								VC(\tri).env.target.level = -9.dbamp;
 								VC(\fm).env.target.level = VC(\tri).env.target.level * (-12.dbamp);
 
 								if(BP.exists(\pzclimax)) {

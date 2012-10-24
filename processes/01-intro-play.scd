@@ -181,6 +181,7 @@ PR(\decimatorDriver) => BP(\dcdr);
 BP(\dcdr) => MT(1);
 )
 
+// \dc --> -10 dB
 
 (
 Fact(\triVC).chuck(VC(\tri), nil, (initLevel: -12.5.dbamp));
@@ -362,6 +363,7 @@ BP(\scotch) => MT(1);
 Pwxrand(#[1, 2, 3, 4, 5], #[2, 2, 4, 4, 3].normalizeSum, inf) =>.macro BP(\scotch);
 )
 
+// FADE FASTLOW
 
 // unison
 // needs rhythmic pizz embellishment in places, preparing for big chords
@@ -440,4 +442,6 @@ BP(\sd).makeStreamForKey(\codaNotePool);
 BP(\sd).makeStreamForKey(\codaDurPool);
 BP(\sd).setGstNow(\coda);
 BP(\sd).reset;
+BP(\sd).chan.level = -6.dbamp;
+BP(\dc).chan.level = -19.dbamp;
 )
